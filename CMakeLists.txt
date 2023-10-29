@@ -3,7 +3,8 @@ project(VkPathtracer VERSION 1.0.0)
 
 
 add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-add_definitions(-DVK_USE_PLATFORM_WIN32_KHR)
+set(SDL_SHARED OFF)
+set(SDL_STATIC ON)
 add_compile_definitions(SHADER_PATH="${PROJECT_SOURCE_DIR}/shaders" ASSET_PATH="${PROJECT_SOURCE_DIR}/src/textures")
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -30,7 +31,7 @@ ENDIF()
 
 
 #add sdl
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl EXCLUDE_FROM_ALL)
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl)
 
 #add glm
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
