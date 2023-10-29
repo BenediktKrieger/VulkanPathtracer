@@ -14,7 +14,7 @@ void VulkanEngine::init()
 	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
 	
 	_window = SDL_CreateWindow(
-		"Vulkan Engine",
+		"Vulkan Pathtracer",
 		_windowExtent.width,
 		_windowExtent.height,
 		window_flags
@@ -48,7 +48,10 @@ void VulkanEngine::run()
 		while (SDL_PollEvent(&e) != 0)
 		{
 			//close the window when user alt-f4s or clicks the X button			
-			if (e.type == SDL_EVENT_QUIT) bQuit = true;
+			if (e.type == SDL_EventType::SDL_EVENT_QUIT)
+			{
+				bQuit = true;
+			}
 		}
 
 		draw();
