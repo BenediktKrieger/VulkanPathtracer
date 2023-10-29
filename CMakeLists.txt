@@ -44,4 +44,5 @@ target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3)
 #add imgui, stb
 include_directories(${PROJECT_SOURCE_DIR}/third_party/imgui)
 include_directories(${PROJECT_SOURCE_DIR}/third_party/stb)
+include_directories(${PROJECT_SOURCE_DIR}/src)
 
