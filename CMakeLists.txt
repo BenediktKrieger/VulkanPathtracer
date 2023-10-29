@@ -30,18 +30,17 @@ ENDIF()
 
 
 #add sdl
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl)
-target_link_libraries(VkPathtracer sdl)
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl EXCLUDE_FROM_ALL)
 
 #add glm
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
-target_link_libraries(VkPathtracer glm)
 
 #add glslang
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glslang)
-target_link_libraries(VkPathtracer glslang SPIRV)
 
-#add imgui, stb, tinyobjloader
+target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3)
+
+#add imgui, stb
 include_directories(${PROJECT_SOURCE_DIR}/third_party/imgui)
 include_directories(${PROJECT_SOURCE_DIR}/third_party/stb)
 
