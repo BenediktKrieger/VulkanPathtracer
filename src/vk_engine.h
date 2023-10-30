@@ -13,9 +13,22 @@ public:
 
 	struct SDL_Window *_window{nullptr};
 
-	const std::vector<const char*> _validationLayers = {"VK_LAYER_KHRONOS_validation"};
+	std::vector<const char*> _instanceLayers = {
+		"VK_LAYER_KHRONOS_validation"
+	};
+	std::vector<const char*> _instanceExtensions = {};
+	std::vector<const char*> _deviceExtensions = {
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+    	VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+    	VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+    	VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+    	VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+		VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME
+	};
 
-	vk::DebugUtilsMessengerEXT _debugMessenger;
+	vk::DynamicLoader _dl;
     vk::DebugUtilsMessageSeverityFlagsEXT _messageSeverityFlags = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
     vk::DebugUtilsMessageTypeFlagsEXT _messageTypeFlags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
 
@@ -31,6 +44,9 @@ public:
 
 	vk::Queue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
+
+	vk::Queue _presentQueue;
+	uint32_t _presentQueueFamily;
 
 	vk::CommandPool _commandPool;
 	vk::CommandBuffer _mainCommandBuffer;
