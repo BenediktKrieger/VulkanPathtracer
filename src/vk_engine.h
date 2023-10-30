@@ -14,7 +14,8 @@ public:
 	struct SDL_Window *_window{nullptr};
 
 	std::vector<const char*> _instanceLayers = {
-		"VK_LAYER_KHRONOS_validation"
+		"VK_LAYER_KHRONOS_validation", 
+		"VK_LAYER_LUNARG_monitor"
 	};
 	std::vector<const char*> _instanceExtensions = {};
 	std::vector<const char*> _deviceExtensions = {

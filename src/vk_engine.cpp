@@ -261,7 +261,7 @@ void VulkanEngine::init_swapchain()
 
 	// QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
 	// uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
-	
+
 	// vk::SwapchainCreateInfoKHR createInfo;
 	// createInfo.flags = {};
 	// createInfo.surface = _surface;
