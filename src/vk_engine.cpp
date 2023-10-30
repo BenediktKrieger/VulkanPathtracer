@@ -6,7 +6,7 @@
 #include <iostream>
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 
-constexpr bool bUseValidationLayers = true;
+constexpr bool bUseValidationLayers = false;
 
 void VulkanEngine::init()
 {
@@ -104,7 +104,7 @@ void VulkanEngine::run()
 void VulkanEngine::init_vulkan()
 {
 	bool validationLayersSupported = true;
-	std::vector<vk::LayerProperties> availableLayers = vk::enumerateInstanceLayerProperties();
+	std::vector<vk::LayerProperties> availableLayers = vk::enumerateInstanceLayerProperties(nullptr);
 	for (const char* layerName : _validationLayers) {
 		bool layerFound = false;
 		for (const auto& layerProperties : availableLayers) {
@@ -121,21 +121,21 @@ void VulkanEngine::init_vulkan()
 	if (bUseValidationLayers && !validationLayersSupported) {
 		throw std::runtime_error("validation layers requested, but not available!");
 	}
-	uint32_t glfwExtensionCount = 0;
-	const char** glfwExtensions = nullptr;
-	SDL_Vulkan_GetInstanceExtensions(&glfwExtensionCount, glfwExtensions);
-	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+	unsigned int sdl_extensions_count = 0;
+    SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count, NULL);
+    std::vector<const char*> extensions(sdl_extensions_count);
+    SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count, extensions.data());
 
 	vk::ApplicationInfo applicationInfo("Vulkan Pathtracer", VK_MAKE_VERSION(0, 0 ,1), "VulkanEngine", 1, VK_API_VERSION_1_1);
 
 	try {
 		if(bUseValidationLayers){
-			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-			vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT> instanceCreateInfoChain{
-				vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, _validationLayers, extensions),
-				vk::DebugUtilsMessengerCreateInfoEXT({}, _messageSeverityFlags, _messageTypeFlags, debugMessageFunc)
-			};
-			_instance = vk::createInstance(instanceCreateInfoChain.get<vk::InstanceCreateInfo>());
+			// extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+			// vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT> instanceCreateInfoChain{
+			// 	vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, _validationLayers, extensions),
+			// 	vk::DebugUtilsMessengerCreateInfoEXT({}, _messageSeverityFlags, _messageTypeFlags, debugMessageFunc)
+			// };
+			// _instance = vk::createInstance(instanceCreateInfoChain.get<vk::InstanceCreateInfo>());
 		}else{
 			vk::InstanceCreateInfo instanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, {}, extensions);
 			_instance = vk::createInstance(instanceCreateInfo);
