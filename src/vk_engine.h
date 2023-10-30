@@ -13,7 +13,7 @@ public:
 
 	struct SDL_Window *_window{nullptr};
 
-	VmaAllocator _allocator;
+	vma:: _allocator;
 
 	vk::Instance _instance;
 	vk::DebugUtilsMessengerEXT _debug_messenger;

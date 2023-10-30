@@ -31,17 +31,13 @@ set(SDL_SHARED OFF)
 set(SDL_STATIC ON)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl)
 
-#add glm
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
+#add vma
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma)
 
-#add glslang
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glslang)
-
-target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3)
+target_link_libraries(VkPathtracer SDL3::SDL3 VulkanMemoryAllocator-Hpp)
 
 #add imgui, stb, vma
 include_directories(${PROJECT_SOURCE_DIR}/third_party/imgui)
 include_directories(${PROJECT_SOURCE_DIR}/third_party/stb)
-include_directories(${PROJECT_SOURCE_DIR}/third_party/vma/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
