@@ -126,7 +126,7 @@ void VulkanEngine::init_vulkan()
 	SDL_Vulkan_GetInstanceExtensions(&glfwExtensionCount, glfwExtensions);
 	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
-	vk::ApplicationInfo applicationInfo("VulkanBase", VK_MAKE_VERSION(0, 0 ,1), "VulkanEngine", 1, VK_API_VERSION_1_1);
+	vk::ApplicationInfo applicationInfo("Vulkan Pathtracer", VK_MAKE_VERSION(0, 0 ,1), "VulkanEngine", 1, VK_API_VERSION_1_1);
 
 	try {
 		if(bUseValidationLayers){
