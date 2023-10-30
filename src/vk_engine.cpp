@@ -36,39 +36,39 @@ void VulkanEngine::init()
 	// everything went fine
 	_isInitialized = true;
 }
+
 void VulkanEngine::cleanup()
 {
 	if (_isInitialized)
 	{
 
-		// // make sure the gpu has stopped doing its things
-		// _device.waitIdle();
+		// make sure the gpu has stopped doing its things
+		_device.waitIdle();
 
-		// vkDestroyCommandPool(_device, _commandPool, nullptr);
-		// _device.destroyCommandPool(_commandPool, nullptr);
+		_device.destroyCommandPool(_commandPool);
 
-		// // destroy sync objects
-		// vkDestroyFence(_device, _renderFence, nullptr);
-		// vkDestroySemaphore(_device, _renderSemaphore, nullptr);
-		// vkDestroySemaphore(_device, _presentSemaphore, nullptr);
+		// destroy sync objects
+		_device.destroyFence(_renderFence);
+		_device.destroySemaphore(_renderSemaphore);
+		_device.destroySemaphore(_presentSemaphore);
 
-		// vkDestroySwapchainKHR(_device, _swapchain, nullptr);
+		_device.destroySwapchainKHR(_swapchain);
 
-		// vkDestroyRenderPass(_device, _renderPass, nullptr);
+		_device.destroyRenderPass(_renderPass);
 
-		// // destroy swapchain resources
-		// for (int i = 0; i < _framebuffers.size(); i++)
-		// {
-		// 	vkDestroyFramebuffer(_device, _framebuffers[i], nullptr);
+		// destroy swapchain resources
+		for (int i = 0; i < _framebuffers.size(); i++)
+		{
+			_device.destroyFramebuffer(_framebuffers[i]);
 
-		// 	vkDestroyImageView(_device, _swapchainImageViews[i], nullptr);
-		// }
+			_device.destroyImageView(_swapchainImageViews[i]);
+		}
 
-		// vkDestroySurfaceKHR(_instance, _surface, nullptr);
+		_instance.destroySurfaceKHR(_surface);
 
-		// vkDestroyDevice(_device, nullptr);
-		// vkb::destroy_debug_utils_messenger(_instance, _debug_messenger);
-		// vkDestroyInstance(_instance, nullptr);
+		_device.destroy();
+		_instance.destroyDebugUtilsMessengerEXT(_debug_messenger);
+		_instance.destroy();
 
 		SDL_DestroyWindow(_window);
 	}
@@ -99,4 +99,70 @@ void VulkanEngine::run()
 
 		draw();
 	}
+}
+
+void VulkanEngine::init_vulkan()
+{
+	bool validationLayersSupported = true;
+	std::vector<vk::LayerProperties> availableLayers = vk::enumerateInstanceLayerProperties();
+	for (const char* layerName : _validationLayers) {
+		bool layerFound = false;
+		for (const auto& layerProperties : availableLayers) {
+			if (strcmp(layerName, layerProperties.layerName) == 0) {
+				layerFound = true;
+				break;
+			}
+		}
+		if (!layerFound) {
+			validationLayersSupported = false;
+		}
+	}
+
+	if (bUseValidationLayers && !validationLayersSupported) {
+		throw std::runtime_error("validation layers requested, but not available!");
+	}
+	uint32_t glfwExtensionCount = 0;
+	const char** glfwExtensions = nullptr;
+	SDL_Vulkan_GetInstanceExtensions(&glfwExtensionCount, glfwExtensions);
+	std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+
+	vk::ApplicationInfo applicationInfo("VulkanBase", VK_MAKE_VERSION(0, 0 ,1), "VulkanEngine", 1, VK_API_VERSION_1_1);
+
+	try {
+		if(bUseValidationLayers){
+			extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+			vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT> instanceCreateInfoChain{
+				vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, _validationLayers, extensions),
+				vk::DebugUtilsMessengerCreateInfoEXT({}, _messageSeverityFlags, _messageTypeFlags, debugMessageFunc)
+			};
+			_instance = vk::createInstance(instanceCreateInfoChain.get<vk::InstanceCreateInfo>());
+		}else{
+			vk::InstanceCreateInfo instanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, {}, extensions);
+			_instance = vk::createInstance(instanceCreateInfo);
+		}
+	}catch(std::exception& e) {
+		std::cerr << "Exception Thrown: " << e.what();
+	}
+
+	VULKAN_HPP_DEFAULT_DISPATCHER.init(_instance);
+}
+
+void VulkanEngine::init_swapchain()
+{
+}
+
+void VulkanEngine::init_default_renderpass()
+{
+}
+
+void VulkanEngine::init_framebuffers()
+{
+}
+
+void VulkanEngine::init_commands()
+{
+}
+
+void VulkanEngine::init_sync_structures()
+{
 }

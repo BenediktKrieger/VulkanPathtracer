@@ -13,7 +13,13 @@ public:
 
 	struct SDL_Window *_window{nullptr};
 
-	vma:: _allocator;
+	const std::vector<const char*> _validationLayers = {"VK_LAYER_KHRONOS_validation"};
+
+	vk::DebugUtilsMessengerEXT _debugMessenger;
+    vk::DebugUtilsMessageSeverityFlagsEXT _messageSeverityFlags = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+    vk::DebugUtilsMessageTypeFlagsEXT _messageTypeFlags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
+
+	vma::Allocator _allocator;
 
 	vk::Instance _instance;
 	vk::DebugUtilsMessengerEXT _debug_messenger;
