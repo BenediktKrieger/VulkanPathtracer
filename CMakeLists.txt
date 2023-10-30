@@ -1,11 +1,7 @@
 cmake_minimum_required(VERSION 3.7)
 project(VkPathtracer VERSION 1.0.0)
 
-
-add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-set(SDL_SHARED OFF)
-set(SDL_STATIC ON)
-add_compile_definitions(SHADER_PATH="${PROJECT_SOURCE_DIR}/shaders" ASSET_PATH="${PROJECT_SOURCE_DIR}/src/textures")
+add_compile_definitions(SHADER_PATH="${PROJECT_SOURCE_DIR}/shaders" ASSET_PATH="${PROJECT_SOURCE_DIR}/src/textures" _CRT_SECURE_NO_WARNINGS)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -31,6 +27,8 @@ ENDIF()
 
 
 #add sdl
+set(SDL_SHARED OFF)
+set(SDL_STATIC ON)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl)
 
 #add glm
@@ -41,8 +39,9 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glslang)
 
 target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3)
 
-#add imgui, stb
+#add imgui, stb, vma
 include_directories(${PROJECT_SOURCE_DIR}/third_party/imgui)
 include_directories(${PROJECT_SOURCE_DIR}/third_party/stb)
+include_directories(${PROJECT_SOURCE_DIR}/third_party/vma/include)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
