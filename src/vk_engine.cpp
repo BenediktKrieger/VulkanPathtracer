@@ -201,11 +201,11 @@ void VulkanEngine::init_vulkan()
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
 
 	// MacOS portability extension
-	// std::vector<vk::ExtensionProperties> extensionProperties =  _chosenGPU.enumerateDeviceExtensionProperties();
-	// for(auto extensionProperty : extensionProperties){
-	// 	if(std::string(extensionProperty.extensionName.data()) == std::string(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME))
-	// 		_deviceExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
-	// }
+	std::vector<vk::ExtensionProperties> extensionProperties =  _chosenGPU.enumerateDeviceExtensionProperties();
+	for(auto extensionProperty : extensionProperties){
+		if(std::string(extensionProperty.extensionName.data()) == std::string(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME))
+			_deviceExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+	}
 
 	vk::DeviceCreateInfo createInfo;
 	if (bUseValidationLayers)
