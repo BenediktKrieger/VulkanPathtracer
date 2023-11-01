@@ -47,3 +47,28 @@ vk::SemaphoreCreateInfo vkinit::semaphore_create_info(vk::SemaphoreCreateFlags f
 	createInfo.setFlags(flags);
 	return createInfo;
 }
+
+vk::RenderPassBeginInfo vkinit::renderpass_begin_info(vk::RenderPass renderPass, vk::Extent2D windowExtent, vk::Framebuffer framebuffer)
+{
+	vk::RenderPassBeginInfo createInfo;
+	createInfo.setRenderPass(renderPass);
+	createInfo.setRenderArea(vk::Rect2D({0, 0}, windowExtent));
+	createInfo.setClearValueCount(1);
+	createInfo.setFramebuffer(framebuffer);
+	return createInfo;
+}
+
+vk::SubmitInfo vkinit::submit_info(vk::CommandBuffer* cmd)
+{
+	vk::SubmitInfo createInfo;
+	createInfo.setCommandBufferCount(1);
+	createInfo.setPCommandBuffers(cmd);
+
+	return createInfo;
+}
+
+vk::PresentInfoKHR vkinit::present_info()
+{
+	vk::PresentInfoKHR createInfo;
+	return createInfo;
+}
