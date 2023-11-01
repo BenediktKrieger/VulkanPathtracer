@@ -4,21 +4,25 @@
 #include <optional>
 #include <set>
 
-namespace vkhelper {
-    struct QueueFamilyIndices {
+namespace vkhelper
+{
+    struct QueueFamilyIndices
+    {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
-        bool isComplete() {
+        bool isComplete()
+        {
             return graphicsFamily.has_value() && presentFamily.has_value();
         }
     };
-    struct SwapChainSupportDetails {
+    struct SwapChainSupportDetails
+    {
         vk::SurfaceCapabilitiesKHR capabilities;
         std::vector<vk::SurfaceFormatKHR> formats;
         std::vector<vk::PresentModeKHR> presentModes;
     };
     VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
-    bool checkValidationLayerSupport(std::vector<const char*> &instanceLayers);
+    bool checkValidationLayerSupport(std::vector<const char *> &instanceLayers);
     bool isDeviceSuitable(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface, std::vector<const char *> &device_extensions);
     QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface);
     bool checkDeviceExtensionSupport(vk::PhysicalDevice &physicalDevice, std::vector<const char *> &device_extensions);

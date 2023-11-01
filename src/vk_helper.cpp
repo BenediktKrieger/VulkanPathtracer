@@ -143,7 +143,7 @@ vkhelper::SwapChainSupportDetails vkhelper::querySwapChainSupport(vk::PhysicalDe
     return details;
 }
 
-vk::SurfaceFormatKHR  vkhelper::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats)
+vk::SurfaceFormatKHR vkhelper::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats)
 {
     for (const auto &availableFormat : availableFormats)
     {
@@ -155,7 +155,7 @@ vk::SurfaceFormatKHR  vkhelper::chooseSwapSurfaceFormat(const std::vector<vk::Su
     return availableFormats[0];
 }
 
-vk::PresentModeKHR  vkhelper::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes)
+vk::PresentModeKHR vkhelper::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes)
 {
     for (const auto &availablePresentMode : availablePresentModes)
     {
@@ -176,23 +176,27 @@ vk::Extent2D vkhelper::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabi
     else
     {
         int width = currentExtend.width;
-        int height = currentExtend.height;;
+        int height = currentExtend.height;
+        ;
         vk::Extent2D actualExtent = {
             static_cast<uint32_t>(width),
-            static_cast<uint32_t>(height)
-        };
+            static_cast<uint32_t>(height)};
         actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
         actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
         return actualExtent;
     }
 }
 
-vk::ImageView vkhelper::createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags) {
+vk::ImageView vkhelper::createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags)
+{
     vk::ImageViewCreateInfo createInfo({}, image, vk::ImageViewType::e2D, format, {}, vk::ImageSubresourceRange(aspectFlags, 0, 1, 0, 1));
     vk::ImageView imageView;
-    try{
+    try
+    {
         imageView = device.createImageView(createInfo);
-    }catch(std::exception& e) {
+    }
+    catch (std::exception &e)
+    {
         std::cerr << "Exception Thrown: " << e.what();
     }
     return imageView;

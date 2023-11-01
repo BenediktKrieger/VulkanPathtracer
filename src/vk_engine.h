@@ -13,25 +13,23 @@ public:
 
 	struct SDL_Window *_window{nullptr};
 
-	std::vector<const char*> _instanceLayers = {
-		"VK_LAYER_KHRONOS_validation", 
-		"VK_LAYER_LUNARG_monitor"
-	};
-	std::vector<const char*> _instanceExtensions = {};
-	std::vector<const char*> _deviceExtensions = {
+	std::vector<const char *> _instanceLayers = {
+		"VK_LAYER_KHRONOS_validation",
+		"VK_LAYER_LUNARG_monitor"};
+	std::vector<const char *> _instanceExtensions = {};
+	std::vector<const char *> _deviceExtensions = {
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-    	VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-    	VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-    	VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-    	VK_KHR_SPIRV_1_4_EXTENSION_NAME,
-		VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME
-	};
+		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
+		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
+		VK_KHR_SPIRV_1_4_EXTENSION_NAME,
+		VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME};
 
 	vk::DynamicLoader _dl;
-    vk::DebugUtilsMessageSeverityFlagsEXT _messageSeverityFlags = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
-    vk::DebugUtilsMessageTypeFlagsEXT _messageTypeFlags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
+	vk::DebugUtilsMessageSeverityFlagsEXT _messageSeverityFlags = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
+	vk::DebugUtilsMessageTypeFlagsEXT _messageTypeFlags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
 
 	vma::Allocator _allocator;
 

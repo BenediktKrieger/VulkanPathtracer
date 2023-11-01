@@ -77,18 +77,18 @@ void VulkanEngine::draw()
 
 	cmd.begin(cmdBeginInfo);
 
-		vk::ClearValue clearValue;
-		float flash = abs(sin(_frameNumber / 144.f));
-		clearValue.setColor(vk::ClearColorValue(0.0f, 0.0f, flash, 1.0f));
+	vk::ClearValue clearValue;
+	float flash = abs(sin(_frameNumber / 144.f));
+	clearValue.setColor(vk::ClearColorValue(0.0f, 0.0f, flash, 1.0f));
 
-		vk::RenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
+	vk::RenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
 
-		rpInfo.setClearValueCount(1);
-		rpInfo.setPClearValues(&clearValue);
+	rpInfo.setClearValueCount(1);
+	rpInfo.setPClearValues(&clearValue);
 
-		cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
+	cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 
-		cmd.endRenderPass();
+	cmd.endRenderPass();
 
 	cmd.end();
 
@@ -99,7 +99,7 @@ void VulkanEngine::draw()
 	submit.setPWaitSemaphores(&_presentSemaphore);
 	submit.setSignalSemaphoreCount(1);
 	submit.setPSignalSemaphores(&_renderSemaphore);
-	
+
 	vk::Result queueSubmitResult = _graphicsQueue.submit(1, &submit, _renderFence);
 
 	vk::PresentInfoKHR presentInfo = vkinit::present_info();
@@ -218,9 +218,10 @@ void VulkanEngine::init_vulkan()
 	deviceFeatures.samplerAnisotropy = VK_TRUE;
 
 	// MacOS portability extension
-	std::vector<vk::ExtensionProperties> extensionProperties =  _chosenGPU.enumerateDeviceExtensionProperties();
-	for(auto extensionProperty : extensionProperties){
-		if(std::string(extensionProperty.extensionName.data()) == std::string(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME))
+	std::vector<vk::ExtensionProperties> extensionProperties = _chosenGPU.enumerateDeviceExtensionProperties();
+	for (auto extensionProperty : extensionProperties)
+	{
+		if (std::string(extensionProperty.extensionName.data()) == std::string(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME))
 			_deviceExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
 	}
 
@@ -272,7 +273,8 @@ void VulkanEngine::init_swapchain()
 	vk::Extent2D extent = vkhelper::chooseSwapExtent(swapChainSupport.capabilities, _windowExtent);
 
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
-	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount) {
+	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
+	{
 		imageCount = swapChainSupport.capabilities.maxImageCount;
 	}
 
@@ -287,20 +289,26 @@ void VulkanEngine::init_swapchain()
 	createInfo.imageExtent = extent;
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment;
-	if (indices.graphicsFamily != indices.presentFamily) {
+	if (indices.graphicsFamily != indices.presentFamily)
+	{
 		createInfo.imageSharingMode = vk::SharingMode::eConcurrent;
 		createInfo.queueFamilyIndexCount = 2;
 		createInfo.pQueueFamilyIndices = queueFamilyIndices;
-	} else {
+	}
+	else
+	{
 		createInfo.imageSharingMode = vk::SharingMode::eExclusive;
 	}
 	createInfo.preTransform = swapChainSupport.capabilities.currentTransform;
 	createInfo.compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque;
 	createInfo.presentMode = presentMode;
 	createInfo.clipped = VK_TRUE;
-	try{
+	try
+	{
 		_swapchain = _device.createSwapchainKHR(createInfo);
-	}catch(std::exception& e) {
+	}
+	catch (std::exception &e)
+	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 	_swapchainImages = _device.getSwapchainImagesKHR(_swapchain);
@@ -308,7 +316,8 @@ void VulkanEngine::init_swapchain()
 	_windowExtent = extent;
 
 	_swapchainImageViews.resize(_swapchainImages.size());
-	for (size_t i = 0; i < _swapchainImages.size(); i++) {
+	for (size_t i = 0; i < _swapchainImages.size(); i++)
+	{
 		_swapchainImageViews[i] = vkhelper::createImageView(_device, _swapchainImages[i], _swachainImageFormat, vk::ImageAspectFlagBits::eColor);
 	}
 }
@@ -349,9 +358,12 @@ void VulkanEngine::init_default_renderpass()
 	render_pass_info.setDependencyCount(1);
 	render_pass_info.setPDependencies(&dependency);
 
-	try{
+	try
+	{
 		_renderPass = _device.createRenderPass(render_pass_info);
-	}catch(std::exception& e) {
+	}
+	catch (std::exception &e)
+	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 }
@@ -360,14 +372,18 @@ void VulkanEngine::init_framebuffers()
 {
 	vk::FramebufferCreateInfo createInfo = vkinit::framebuffer_create_info(_renderPass, _windowExtent);
 
-	const uint32_t swapchain_imagecount = (uint32_t) _swapchainImages.size();
+	const uint32_t swapchain_imagecount = (uint32_t)_swapchainImages.size();
 	_framebuffers.resize(swapchain_imagecount);
 
-	for (unsigned int i = 0; i < swapchain_imagecount; i++) {
+	for (unsigned int i = 0; i < swapchain_imagecount; i++)
+	{
 		createInfo.setPAttachments(&_swapchainImageViews[i]);
-		try{
+		try
+		{
 			_framebuffers[i] = _device.createFramebuffer(createInfo);
-		}catch(std::exception& e) {
+		}
+		catch (std::exception &e)
+		{
 			std::cerr << "Exception Thrown: " << e.what();
 		}
 	}
@@ -376,16 +392,22 @@ void VulkanEngine::init_framebuffers()
 void VulkanEngine::init_commands()
 {
 	vk::CommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
-	try{
+	try
+	{
 		_commandPool = _device.createCommandPool(commandPoolInfo);
-	}catch(std::exception& e) {
+	}
+	catch (std::exception &e)
+	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 
 	VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_commandPool, 1, vk::CommandBufferLevel::ePrimary);
-	try{
+	try
+	{
 		_mainCommandBuffer = _device.allocateCommandBuffers(cmdAllocInfo).front();
-	}catch(std::exception& e) {
+	}
+	catch (std::exception &e)
+	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 }
@@ -393,17 +415,23 @@ void VulkanEngine::init_commands()
 void VulkanEngine::init_sync_structures()
 {
 	vk::FenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(vk::FenceCreateFlagBits::eSignaled);
-	try{
+	try
+	{
 		_renderFence = _device.createFence(fenceCreateInfo);
-	}catch(std::exception& e) {
+	}
+	catch (std::exception &e)
+	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 
 	vk::SemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
-	try{
+	try
+	{
 		_presentSemaphore = _device.createSemaphore(semaphoreCreateInfo);
 		_renderSemaphore = _device.createSemaphore(semaphoreCreateInfo);
-	}catch(std::exception& e) {
+	}
+	catch (std::exception &e)
+	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 }
