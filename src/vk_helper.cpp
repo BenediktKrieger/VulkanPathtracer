@@ -48,6 +48,24 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vkhelper::debugCallback(VkDebugUtilsMessageSeveri
     return VK_FALSE;
 }
 
+ bool vkhelper::checkValidationLayerSupport(VulkanEngine *engine) 
+ {
+    std::vector<vk::LayerProperties> availableLayers = vk::enumerateInstanceLayerProperties();
+    for (const char* layerName : engine->_instanceLayers) {
+        bool layerFound = false;
+        for (const auto& layerProperties : availableLayers) {
+            if (strcmp(layerName, layerProperties.layerName) == 0) {
+                layerFound = true;
+                break;
+            }
+        }
+        if (!layerFound) {
+            return false;
+        }
+    }
+    return true;
+}
+
 bool vkhelper::isDeviceSuitable(VulkanEngine *engine, vk::PhysicalDevice pDevice)
 {
     QueueFamilyIndices indices = vkhelper::findQueueFamilies(engine, pDevice);

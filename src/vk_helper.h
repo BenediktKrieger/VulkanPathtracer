@@ -18,6 +18,7 @@ namespace vkhelper {
         std::vector<vk::PresentModeKHR> presentModes;
     };
     VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
+    bool checkValidationLayerSupport(VulkanEngine *engine);
     bool isDeviceSuitable(VulkanEngine* engine, vk::PhysicalDevice pDevice);
     QueueFamilyIndices findQueueFamilies(VulkanEngine* engine, vk::PhysicalDevice pDevice);
     bool checkDeviceExtensionSupport(VulkanEngine* engine, vk::PhysicalDevice pDevice);

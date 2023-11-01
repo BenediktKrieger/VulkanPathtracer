@@ -104,26 +104,7 @@ void VulkanEngine::init_vulkan()
 {
 	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = _dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
-	bool validationLayersSupported = true;
-	std::vector<vk::LayerProperties> availableLayers = vk::enumerateInstanceLayerProperties();
-	for (const char *layerName : _instanceLayers)
-	{
-		bool layerFound = false;
-		for (const auto &layerProperties : availableLayers)
-		{
-			if (strcmp(layerName, layerProperties.layerName) == 0)
-			{
-				layerFound = true;
-				break;
-			}
-		}
-		if (!layerFound)
-		{
-			validationLayersSupported = false;
-		}
-	}
-
-	if (bUseValidationLayers && !validationLayersSupported)
+	if (bUseValidationLayers && !vkhelper::checkValidationLayerSupport(this))
 	{
 		throw std::runtime_error("validation layers requested, but not available!");
 	}
