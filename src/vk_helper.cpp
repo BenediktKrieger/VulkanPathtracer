@@ -11,26 +11,32 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vkhelper::debugCallback(VkDebugUtilsMessageSeveri
             << "messageIdNumber = " << pCallbackData->messageIdNumber << "\n";
     message << "\t"
             << "message         = <" << pCallbackData->pMessage << ">\n";
-    if (0 < pCallbackData->queueLabelCount){
+    if (0 < pCallbackData->queueLabelCount)
+    {
         message << "\t"
                 << "Queue Labels:\n";
-        for (uint8_t i = 0; i < pCallbackData->queueLabelCount; i++){
+        for (uint8_t i = 0; i < pCallbackData->queueLabelCount; i++)
+        {
             message << "\t\t"
                     << "labelName = <" << pCallbackData->pQueueLabels[i].pLabelName << ">\n";
         }
     }
-    if (0 < pCallbackData->cmdBufLabelCount){
+    if (0 < pCallbackData->cmdBufLabelCount)
+    {
         message << "\t"
                 << "CommandBuffer Labels:\n";
-        for (uint8_t i = 0; i < pCallbackData->cmdBufLabelCount; i++){
+        for (uint8_t i = 0; i < pCallbackData->cmdBufLabelCount; i++)
+        {
             message << "\t\t"
                     << "labelName = <" << pCallbackData->pCmdBufLabels[i].pLabelName << ">\n";
         }
     }
-    if (0 < pCallbackData->objectCount){
+    if (0 < pCallbackData->objectCount)
+    {
         message << "\t"
                 << "Objects:\n";
-        for (uint8_t i = 0; i < pCallbackData->objectCount; i++){
+        for (uint8_t i = 0; i < pCallbackData->objectCount; i++)
+        {
             message << "\t\t"
                     << "Object " << i << "\n";
             message << "\t\t\t"
@@ -38,7 +44,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vkhelper::debugCallback(VkDebugUtilsMessageSeveri
                     << vk::to_string(static_cast<vk::ObjectType>(pCallbackData->pObjects[i].objectType)) << "\n";
             message << "\t\t\t"
                     << "objectHandle = " << pCallbackData->pObjects[i].objectHandle << "\n";
-            if (pCallbackData->pObjects[i].pObjectName){
+            if (pCallbackData->pObjects[i].pObjectName)
+            {
                 message << "\t\t\t"
                         << "objectName   = <" << pCallbackData->pObjects[i].pObjectName << ">\n";
             }
@@ -48,59 +55,63 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vkhelper::debugCallback(VkDebugUtilsMessageSeveri
     return VK_FALSE;
 }
 
- bool vkhelper::checkValidationLayerSupport(VulkanEngine *engine) 
- {
+bool vkhelper::checkValidationLayerSupport(std::vector<const char *> &instanceLayers)
+{
     std::vector<vk::LayerProperties> availableLayers = vk::enumerateInstanceLayerProperties();
-    for (const char* layerName : engine->_instanceLayers) {
+    for (const char *layerName : instanceLayers)
+    {
         bool layerFound = false;
-        for (const auto& layerProperties : availableLayers) {
-            if (strcmp(layerName, layerProperties.layerName) == 0) {
+        for (const auto &layerProperties : availableLayers)
+        {
+            if (strcmp(layerName, layerProperties.layerName) == 0)
+            {
                 layerFound = true;
                 break;
             }
         }
-        if (!layerFound) {
+        if (!layerFound)
+        {
             return false;
         }
     }
     return true;
 }
 
-bool vkhelper::isDeviceSuitable(VulkanEngine *engine, vk::PhysicalDevice pDevice)
+bool vkhelper::isDeviceSuitable(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface, std::vector<const char *> &device_extensions)
 {
-    QueueFamilyIndices indices = vkhelper::findQueueFamilies(engine, pDevice);
-    bool extensionsSupported = vkhelper::checkDeviceExtensionSupport(engine, pDevice);
+    vkhelper::QueueFamilyIndices indices = vkhelper::findQueueFamilies(physicalDevice, surface);
+    bool extensionsSupported = vkhelper::checkDeviceExtensionSupport(physicalDevice, device_extensions);
     bool swapChainAdequate = false;
 
     if (extensionsSupported)
     {
-        SwapChainSupportDetails swapChainSupport = vkhelper::querySwapChainSupport(engine, pDevice);
+        vkhelper::SwapChainSupportDetails swapChainSupport = vkhelper::querySwapChainSupport(physicalDevice, surface);
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
     }
 
-    //auto m_deviceProperties2 = pDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR, vk::PhysicalDeviceAccelerationStructurePropertiesKHR, vk::PhysicalDeviceDescriptorIndexingProperties>();
-	auto m_deviceFeatures2 = pDevice.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceRayTracingPipelineFeaturesKHR, vk::PhysicalDeviceAccelerationStructureFeaturesKHR, vk::PhysicalDeviceBufferDeviceAddressFeatures, vk::PhysicalDeviceDescriptorIndexingFeatures>();
-    bool supportsRaytracingFeatures = 
-        m_deviceFeatures2.get<vk::PhysicalDeviceFeatures2>().features.samplerAnisotropy && 
-        m_deviceFeatures2.get<vk::PhysicalDeviceRayTracingPipelineFeaturesKHR>().rayTracingPipeline && 
-        m_deviceFeatures2.get<vk::PhysicalDeviceAccelerationStructureFeaturesKHR>().accelerationStructure && 
-        m_deviceFeatures2.get<vk::PhysicalDeviceBufferDeviceAddressFeatures>().bufferDeviceAddress && 
+    // auto m_deviceProperties2 = pDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR, vk::PhysicalDeviceAccelerationStructurePropertiesKHR, vk::PhysicalDeviceDescriptorIndexingProperties>();
+    auto m_deviceFeatures2 = physicalDevice.getFeatures2<vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceRayTracingPipelineFeaturesKHR, vk::PhysicalDeviceAccelerationStructureFeaturesKHR, vk::PhysicalDeviceBufferDeviceAddressFeatures, vk::PhysicalDeviceDescriptorIndexingFeatures>();
+    bool supportsRaytracingFeatures =
+        m_deviceFeatures2.get<vk::PhysicalDeviceFeatures2>().features.samplerAnisotropy &&
+        m_deviceFeatures2.get<vk::PhysicalDeviceRayTracingPipelineFeaturesKHR>().rayTracingPipeline &&
+        m_deviceFeatures2.get<vk::PhysicalDeviceAccelerationStructureFeaturesKHR>().accelerationStructure &&
+        m_deviceFeatures2.get<vk::PhysicalDeviceBufferDeviceAddressFeatures>().bufferDeviceAddress &&
         m_deviceFeatures2.get<vk::PhysicalDeviceDescriptorIndexingFeatures>().runtimeDescriptorArray;
 
     return indices.isComplete() && extensionsSupported && swapChainAdequate && supportsRaytracingFeatures;
 }
 
-vkhelper::QueueFamilyIndices vkhelper::findQueueFamilies(VulkanEngine *engine, vk::PhysicalDevice pDevice)
+vkhelper::QueueFamilyIndices vkhelper::findQueueFamilies(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface)
 {
     vkhelper::QueueFamilyIndices indices;
-    std::vector<vk::QueueFamilyProperties> queueFamilies = pDevice.getQueueFamilyProperties();
+    std::vector<vk::QueueFamilyProperties> queueFamilies = physicalDevice.getQueueFamilyProperties();
     for (uint32_t i = 0; i < queueFamilies.size(); i++)
     {
         if (queueFamilies[i].queueFlags & vk::QueueFlagBits::eGraphics)
         {
             indices.graphicsFamily = i;
         }
-        if (pDevice.getSurfaceSupportKHR(i, engine->_surface))
+        if (physicalDevice.getSurfaceSupportKHR(i, surface))
         {
             indices.presentFamily = i;
         }
@@ -112,10 +123,10 @@ vkhelper::QueueFamilyIndices vkhelper::findQueueFamilies(VulkanEngine *engine, v
     return indices;
 }
 
-bool vkhelper::checkDeviceExtensionSupport(VulkanEngine *engine, vk::PhysicalDevice pDevice)
+bool vkhelper::checkDeviceExtensionSupport(vk::PhysicalDevice &physicalDevice, std::vector<const char *> &device_extensions)
 {
-    std::vector<vk::ExtensionProperties> availableExtensions = pDevice.enumerateDeviceExtensionProperties();
-    std::set<std::string> requiredExtensions(engine->_deviceExtensions.begin(), engine->_deviceExtensions.end());
+    std::vector<vk::ExtensionProperties> availableExtensions = physicalDevice.enumerateDeviceExtensionProperties();
+    std::set<std::string> requiredExtensions(device_extensions.begin(), device_extensions.end());
     for (const auto &extension : availableExtensions)
     {
         requiredExtensions.erase(extension.extensionName);
@@ -123,11 +134,66 @@ bool vkhelper::checkDeviceExtensionSupport(VulkanEngine *engine, vk::PhysicalDev
     return requiredExtensions.empty();
 }
 
-vkhelper::SwapChainSupportDetails vkhelper::querySwapChainSupport(VulkanEngine *engine, vk::PhysicalDevice pDevice)
+vkhelper::SwapChainSupportDetails vkhelper::querySwapChainSupport(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface)
 {
     vkhelper::SwapChainSupportDetails details;
-    details.capabilities = pDevice.getSurfaceCapabilitiesKHR(engine->_surface);
-    details.formats = pDevice.getSurfaceFormatsKHR(engine->_surface);
-    details.presentModes = pDevice.getSurfacePresentModesKHR(engine->_surface);
+    details.capabilities = physicalDevice.getSurfaceCapabilitiesKHR(surface);
+    details.formats = physicalDevice.getSurfaceFormatsKHR(surface);
+    details.presentModes = physicalDevice.getSurfacePresentModesKHR(surface);
     return details;
+}
+
+vk::SurfaceFormatKHR  vkhelper::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats)
+{
+    for (const auto &availableFormat : availableFormats)
+    {
+        if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
+        {
+            return availableFormat;
+        }
+    }
+    return availableFormats[0];
+}
+
+vk::PresentModeKHR  vkhelper::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes)
+{
+    for (const auto &availablePresentMode : availablePresentModes)
+    {
+        if (availablePresentMode == vk::PresentModeKHR::eMailbox)
+        {
+            return availablePresentMode;
+        }
+    }
+    return vk::PresentModeKHR::eFifo;
+}
+
+vk::Extent2D vkhelper::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities, vk::Extent2D &currentExtend)
+{
+    if (capabilities.currentExtent.width != UINT32_MAX)
+    {
+        return capabilities.currentExtent;
+    }
+    else
+    {
+        int width = currentExtend.width;
+        int height = currentExtend.height;;
+        vk::Extent2D actualExtent = {
+            static_cast<uint32_t>(width),
+            static_cast<uint32_t>(height)
+        };
+        actualExtent.width = std::clamp(actualExtent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+        actualExtent.height = std::clamp(actualExtent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+        return actualExtent;
+    }
+}
+
+vk::ImageView vkhelper::createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags) {
+    vk::ImageViewCreateInfo createInfo({}, image, vk::ImageViewType::e2D, format, {}, vk::ImageSubresourceRange(aspectFlags, 0, 1, 0, 1));
+    vk::ImageView imageView;
+    try{
+        imageView = device.createImageView(createInfo);
+    }catch(std::exception& e) {
+        std::cerr << "Exception Thrown: " << e.what();
+    }
+    return imageView;
 }
