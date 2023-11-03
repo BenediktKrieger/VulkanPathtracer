@@ -8,8 +8,8 @@ class VulkanEngine
 {
 public:
 	bool _isInitialized{false};
-	uint32_t _frameNumber{ 0 };
-	int _selectedShader{ 0 };
+	uint32_t _frameNumber{0};
+	int _selectedShader{0};
 
 	vk::Extent2D _windowExtent{1920, 1080};
 
@@ -69,16 +69,9 @@ public:
 
 	vkutils::DeletionQueue _mainDeletionQueue;
 
-	// initializes everything in the engine
 	void init();
-
-	// shuts down the engine
 	void cleanup();
-
-	// draw loop
 	void draw();
-
-	// run main loop
 	void run();
 
 private:

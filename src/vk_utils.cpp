@@ -2,62 +2,65 @@
 
 vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::RenderPass pass)
 {
-	vk::PipelineViewportStateCreateInfo viewportState;
-	viewportState.setViewportCount(1);
-	viewportState.setPViewports(&_viewport);
-	viewportState.setScissorCount(1);
-	viewportState.setPScissors(&_scissor);
+    vk::PipelineViewportStateCreateInfo viewportState;
+    viewportState.setViewportCount(1);
+    viewportState.setPViewports(&_viewport);
+    viewportState.setScissorCount(1);
+    viewportState.setPScissors(&_scissor);
 
-	vk::PipelineColorBlendStateCreateInfo colorBlending;
-	colorBlending.setLogicOpEnable(VK_FALSE);
-	colorBlending.setLogicOp(vk::LogicOp::eCopy);
-	colorBlending.setAttachmentCount(1);
-	colorBlending.setPAttachments(&_colorBlendAttachment);
-    
-	vk::GraphicsPipelineCreateInfo pipelineInfo;
-	pipelineInfo.setStageCount((uint32_t) _shaderStages.size());
-	pipelineInfo.setPStages(_shaderStages.data());
-	pipelineInfo.setPVertexInputState(&_vertexInputInfo);
-	pipelineInfo.setPInputAssemblyState(&_inputAssembly);
-	pipelineInfo.setPViewportState(&viewportState);
-	pipelineInfo.setPRasterizationState(&_rasterizer);
-	pipelineInfo.setPMultisampleState(&_multisampling);
-	pipelineInfo.setPColorBlendState(&colorBlending);
-	pipelineInfo.setLayout(_pipelineLayout);
-	pipelineInfo.setRenderPass(pass);
-    
+    vk::PipelineColorBlendStateCreateInfo colorBlending;
+    colorBlending.setLogicOpEnable(VK_FALSE);
+    colorBlending.setLogicOp(vk::LogicOp::eCopy);
+    colorBlending.setAttachmentCount(1);
+    colorBlending.setPAttachments(&_colorBlendAttachment);
+
+    vk::GraphicsPipelineCreateInfo pipelineInfo;
+    pipelineInfo.setStageCount((uint32_t)_shaderStages.size());
+    pipelineInfo.setPStages(_shaderStages.data());
+    pipelineInfo.setPVertexInputState(&_vertexInputInfo);
+    pipelineInfo.setPInputAssemblyState(&_inputAssembly);
+    pipelineInfo.setPViewportState(&viewportState);
+    pipelineInfo.setPRasterizationState(&_rasterizer);
+    pipelineInfo.setPMultisampleState(&_multisampling);
+    pipelineInfo.setPColorBlendState(&colorBlending);
+    pipelineInfo.setLayout(_pipelineLayout);
+    pipelineInfo.setRenderPass(pass);
+
     vk::Pipeline newPipeline;
-	try
+    try
     {
         vk::Result result;
-        std::tie(result, newPipeline) = device.createGraphicsPipeline( nullptr, pipelineInfo);
-        if(result != vk::Result::eSuccess)
+        std::tie(result, newPipeline) = device.createGraphicsPipeline(nullptr, pipelineInfo);
+        if (result != vk::Result::eSuccess)
         {
             throw std::runtime_error("failed to create graphics Pipeline!");
         }
-	}
-	catch (std::exception &e)
-	{
+    }
+    catch (std::exception &e)
+    {
         std::cerr << "Exception Thrown: " << e.what();
-	}
+    }
     return newPipeline;
 }
-void vkutils::DeletionQueue::push_function(std::function<void()>&& function) 
+
+void vkutils::DeletionQueue::push_function(std::function<void()> &&function)
 {
     deletors.push_back(function);
 }
-void vkutils::DeletionQueue::flush() 
+
+void vkutils::DeletionQueue::flush()
 {
-    for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+    for (auto it = deletors.rbegin(); it != deletors.rend(); it++)
+    {
         (*it)();
     }
     deletors.clear();
 }
+
 bool vkutils::QueueFamilyIndices::isComplete()
 {
     return graphicsFamily.has_value() && presentFamily.has_value();
 }
-
 
 VKAPI_ATTR VkBool32 VKAPI_CALL vkutils::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
 {
