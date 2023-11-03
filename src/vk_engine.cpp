@@ -2,7 +2,7 @@
 #include <SDL_vulkan.h>
 #include <vk_engine.h>
 #include <vk_initializers.h>
-#include <vk_helper.h>
+#include <vk_utils.h>
 #include <iostream>
 
 constexpr bool bUseValidationLayers = true;
@@ -142,7 +142,7 @@ void VulkanEngine::init_vulkan()
 {
 	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = _dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
-	if (bUseValidationLayers && !vkhelper::checkValidationLayerSupport(_instanceLayers))
+	if (bUseValidationLayers && !vkutils::checkValidationLayerSupport(_instanceLayers))
 	{
 		throw std::runtime_error("validation layers requested, but not available!");
 	}
@@ -160,7 +160,7 @@ void VulkanEngine::init_vulkan()
 			_instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT> instanceCreateInfoChain{
 				vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, _instanceLayers, _instanceExtensions),
-				vk::DebugUtilsMessengerCreateInfoEXT({}, _messageSeverityFlags, _messageTypeFlags, vkhelper::debugCallback)};
+				vk::DebugUtilsMessengerCreateInfoEXT({}, _messageSeverityFlags, _messageTypeFlags, vkutils::debugCallback)};
 			_instance = vk::createInstance(instanceCreateInfoChain.get<vk::InstanceCreateInfo>());
 		}
 		else
@@ -177,7 +177,7 @@ void VulkanEngine::init_vulkan()
 
 	if (bUseValidationLayers)
 	{
-		vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo({}, _messageSeverityFlags, _messageTypeFlags, vkhelper::debugCallback);
+		vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo({}, _messageSeverityFlags, _messageTypeFlags, vkutils::debugCallback);
 		try
 		{
 			_debug_messenger = _instance.createDebugUtilsMessengerEXT(debugMessengerCreateInfo, nullptr);
@@ -194,7 +194,7 @@ void VulkanEngine::init_vulkan()
 	bool deviceFound = false;
 	for (auto &device : devices)
 	{
-		if (vkhelper::isDeviceSuitable(device, _surface, _deviceExtensions))
+		if (vkutils::isDeviceSuitable(device, _surface, _deviceExtensions))
 		{
 			deviceFound = true;
 			_chosenGPU = device;
@@ -206,7 +206,7 @@ void VulkanEngine::init_vulkan()
 		throw std::runtime_error("failed to find a suitable GPU!");
 	}
 
-	vkhelper::QueueFamilyIndices indices = vkhelper::findQueueFamilies(_chosenGPU, _surface);
+	vkutils::QueueFamilyIndices indices = vkutils::findQueueFamilies(_chosenGPU, _surface);
 	std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 	std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 	float queuePriority = 1.0f;
@@ -268,11 +268,11 @@ void VulkanEngine::init_vulkan()
 
 void VulkanEngine::init_swapchain()
 {
-	vkhelper::SwapChainSupportDetails swapChainSupport = vkhelper::querySwapChainSupport(_chosenGPU, _surface);
+	vkutils::SwapChainSupportDetails swapChainSupport = vkutils::querySwapChainSupport(_chosenGPU, _surface);
 
-	vk::SurfaceFormatKHR surfaceFormat = vkhelper::chooseSwapSurfaceFormat(swapChainSupport.formats);
-	vk::PresentModeKHR presentMode = vkhelper::chooseSwapPresentMode(swapChainSupport.presentModes);
-	vk::Extent2D extent = vkhelper::chooseSwapExtent(swapChainSupport.capabilities, _windowExtent);
+	vk::SurfaceFormatKHR surfaceFormat = vkutils::chooseSwapSurfaceFormat(swapChainSupport.formats);
+	vk::PresentModeKHR presentMode = vkutils::chooseSwapPresentMode(swapChainSupport.presentModes);
+	vk::Extent2D extent = vkutils::chooseSwapExtent(swapChainSupport.capabilities, _windowExtent);
 
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
 	if (swapChainSupport.capabilities.maxImageCount > 0 && imageCount > swapChainSupport.capabilities.maxImageCount)
@@ -280,7 +280,7 @@ void VulkanEngine::init_swapchain()
 		imageCount = swapChainSupport.capabilities.maxImageCount;
 	}
 
-	vkhelper::QueueFamilyIndices indices = vkhelper::findQueueFamilies(_chosenGPU, _surface);
+	vkutils::QueueFamilyIndices indices = vkutils::findQueueFamilies(_chosenGPU, _surface);
 	uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
 	vk::SwapchainCreateInfoKHR createInfo;
@@ -320,7 +320,7 @@ void VulkanEngine::init_swapchain()
 	_swapchainImageViews.resize(_swapchainImages.size());
 	for (size_t i = 0; i < _swapchainImages.size(); i++)
 	{
-		_swapchainImageViews[i] = vkhelper::createImageView(_device, _swapchainImages[i], _swachainImageFormat, vk::ImageAspectFlagBits::eColor);
+		_swapchainImageViews[i] = vkutils::createImageView(_device, _swapchainImages[i], _swachainImageFormat, vk::ImageAspectFlagBits::eColor);
 	}
 }
 

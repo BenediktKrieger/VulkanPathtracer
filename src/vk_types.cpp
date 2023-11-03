@@ -1,4 +1,8 @@
 #include <vk_types.h>
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #define VMA_IMPLEMENTATION
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <vk_mem_alloc.h>
+#include <tiny_gltf.h>

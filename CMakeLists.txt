@@ -51,5 +51,6 @@ target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3 GPUOpen::VulkanM
 #add imgui, vma
 include_directories(${PROJECT_SOURCE_DIR}/third_party/imgui)
 include_directories(${PROJECT_SOURCE_DIR}/third_party/vma-hpp)
+include_directories(${PROJECT_SOURCE_DIR}/third_party/tinygltf)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 

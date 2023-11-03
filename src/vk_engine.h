@@ -60,6 +60,11 @@ public:
 	std::vector<vk::Image> _swapchainImages;
 	std::vector<vk::ImageView> _swapchainImageViews;
 
+	vk::PipelineLayout _trianglePipelineLayout;
+
+	vk::Pipeline _trianglePipeline;
+	vk::Pipeline _redTrianglePipeline;
+
 	// initializes everything in the engine
 	void init();
 

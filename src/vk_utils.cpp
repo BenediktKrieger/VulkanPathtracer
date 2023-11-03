@@ -1,6 +1,80 @@
-#include <vk_helper.h>
+#include <vk_utils.h>
+#include <tie>
 
-VKAPI_ATTR VkBool32 VKAPI_CALL vkhelper::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
+vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::RenderPass pass)
+{
+	//make viewport state from our stored viewport and scissor.
+		//at the moment we wont support multiple viewports or scissors
+	VkPipelineViewportStateCreateInfo viewportState = {};
+	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewportState.pNext = nullptr;
+
+	viewportState.viewportCount = 1;
+	viewportState.pViewports = &_viewport;
+	viewportState.scissorCount = 1;
+	viewportState.pScissors = &_scissor;
+
+	//setup dummy color blending. We arent using transparent objects yet
+	//the blending is just "no blend", but we do write to the color attachment
+	VkPipelineColorBlendStateCreateInfo colorBlending = {};
+	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	colorBlending.pNext = nullptr;
+
+	colorBlending.logicOpEnable = VK_FALSE;
+	colorBlending.logicOp = VK_LOGIC_OP_COPY;
+	colorBlending.attachmentCount = 1;
+	colorBlending.pAttachments = &_colorBlendAttachment;
+
+	//build the actual pipeline
+	//we now use all of the info structs we have been writing into into this one to create the pipeline
+	vk::GraphicsPipelineCreateInfo pipelineInfo;
+	pipelineInfo.stageCount = _shaderStages.size();
+	pipelineInfo.pStages = _shaderStages.data();
+	pipelineInfo.pVertexInputState = &_vertexInputInfo;
+	pipelineInfo.pInputAssemblyState = &_inputAssembly;
+	pipelineInfo.pViewportState = &viewportState;
+	pipelineInfo.pRasterizationState = &_rasterizer;
+	pipelineInfo.pMultisampleState = &_multisampling;
+	pipelineInfo.pColorBlendState = &colorBlending;
+	pipelineInfo.layout = _pipelineLayout;
+	pipelineInfo.renderPass = pass;
+	pipelineInfo.subpass = 0;
+	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+    
+    vk::Pipeline newPipeline;
+	try{
+        newPipeline = device.createGraphicsPipelines(nullptr, pipelineInfo);
+        vk::Result result;
+        std::tie(result, newPipeline) = device.createGraphicsPipeline( nullptr, pipelineInfo);
+        if(result != vk::Result::eSuccess)
+        {
+            default: throw std::runtime_error("failed to create graphics Pipeline!");
+        }
+	}
+	catch
+	{
+        std::cerr << "Exception Thrown: " << e.what();
+	}
+    return newPipeline;
+}
+void vkutils::DeletionQueue::push_function(std::function<void()>&& function) 
+{
+    deletors.push_back(function);
+}
+void vkutils::DeletionQueue::flush() 
+{
+    for (auto it = deletors.rbegin(); it != deletors.rend(); it++) {
+        (*it)();
+    }
+    deletors.clear();
+}
+bool vkutils::QueueFamilyIndices::isComplete()
+{
+    return graphicsFamily.has_value() && presentFamily.has_value();
+}
+
+
+VKAPI_ATTR VkBool32 VKAPI_CALL vkutils::debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData)
 {
     std::ostringstream message;
     message << vk::to_string(static_cast<vk::DebugUtilsMessageSeverityFlagBitsEXT>(messageSeverity)) << ": "
@@ -55,7 +129,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL vkhelper::debugCallback(VkDebugUtilsMessageSeveri
     return VK_FALSE;
 }
 
-bool vkhelper::checkValidationLayerSupport(std::vector<const char *> &instanceLayers)
+bool vkutils::checkValidationLayerSupport(std::vector<const char *> &instanceLayers)
 {
     std::vector<vk::LayerProperties> availableLayers = vk::enumerateInstanceLayerProperties();
     for (const char *layerName : instanceLayers)
@@ -77,15 +151,15 @@ bool vkhelper::checkValidationLayerSupport(std::vector<const char *> &instanceLa
     return true;
 }
 
-bool vkhelper::isDeviceSuitable(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface, std::vector<const char *> &device_extensions)
+bool vkutils::isDeviceSuitable(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface, std::vector<const char *> &device_extensions)
 {
-    vkhelper::QueueFamilyIndices indices = vkhelper::findQueueFamilies(physicalDevice, surface);
-    bool extensionsSupported = vkhelper::checkDeviceExtensionSupport(physicalDevice, device_extensions);
+    vkutils::QueueFamilyIndices indices = vkutils::findQueueFamilies(physicalDevice, surface);
+    bool extensionsSupported = vkutils::checkDeviceExtensionSupport(physicalDevice, device_extensions);
     bool swapChainAdequate = false;
 
     if (extensionsSupported)
     {
-        vkhelper::SwapChainSupportDetails swapChainSupport = vkhelper::querySwapChainSupport(physicalDevice, surface);
+        vkutils::SwapChainSupportDetails swapChainSupport = vkutils::querySwapChainSupport(physicalDevice, surface);
         swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
     }
 
@@ -101,9 +175,9 @@ bool vkhelper::isDeviceSuitable(vk::PhysicalDevice &physicalDevice, vk::SurfaceK
     return indices.isComplete() && extensionsSupported && swapChainAdequate && supportsRaytracingFeatures;
 }
 
-vkhelper::QueueFamilyIndices vkhelper::findQueueFamilies(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface)
+vkutils::QueueFamilyIndices vkutils::findQueueFamilies(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface)
 {
-    vkhelper::QueueFamilyIndices indices;
+    vkutils::QueueFamilyIndices indices;
     std::vector<vk::QueueFamilyProperties> queueFamilies = physicalDevice.getQueueFamilyProperties();
     for (uint32_t i = 0; i < queueFamilies.size(); i++)
     {
@@ -123,7 +197,7 @@ vkhelper::QueueFamilyIndices vkhelper::findQueueFamilies(vk::PhysicalDevice &phy
     return indices;
 }
 
-bool vkhelper::checkDeviceExtensionSupport(vk::PhysicalDevice &physicalDevice, std::vector<const char *> &device_extensions)
+bool vkutils::checkDeviceExtensionSupport(vk::PhysicalDevice &physicalDevice, std::vector<const char *> &device_extensions)
 {
     std::vector<vk::ExtensionProperties> availableExtensions = physicalDevice.enumerateDeviceExtensionProperties();
     std::set<std::string> requiredExtensions(device_extensions.begin(), device_extensions.end());
@@ -134,16 +208,16 @@ bool vkhelper::checkDeviceExtensionSupport(vk::PhysicalDevice &physicalDevice, s
     return requiredExtensions.empty();
 }
 
-vkhelper::SwapChainSupportDetails vkhelper::querySwapChainSupport(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface)
+vkutils::SwapChainSupportDetails vkutils::querySwapChainSupport(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface)
 {
-    vkhelper::SwapChainSupportDetails details;
+    vkutils::SwapChainSupportDetails details;
     details.capabilities = physicalDevice.getSurfaceCapabilitiesKHR(surface);
     details.formats = physicalDevice.getSurfaceFormatsKHR(surface);
     details.presentModes = physicalDevice.getSurfacePresentModesKHR(surface);
     return details;
 }
 
-vk::SurfaceFormatKHR vkhelper::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats)
+vk::SurfaceFormatKHR vkutils::chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats)
 {
     for (const auto &availableFormat : availableFormats)
     {
@@ -155,7 +229,7 @@ vk::SurfaceFormatKHR vkhelper::chooseSwapSurfaceFormat(const std::vector<vk::Sur
     return availableFormats[0];
 }
 
-vk::PresentModeKHR vkhelper::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes)
+vk::PresentModeKHR vkutils::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes)
 {
     for (const auto &availablePresentMode : availablePresentModes)
     {
@@ -167,7 +241,7 @@ vk::PresentModeKHR vkhelper::chooseSwapPresentMode(const std::vector<vk::Present
     return vk::PresentModeKHR::eFifo;
 }
 
-vk::Extent2D vkhelper::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities, vk::Extent2D &currentExtend)
+vk::Extent2D vkutils::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities, vk::Extent2D &currentExtend)
 {
     if (capabilities.currentExtent.width != UINT32_MAX)
     {
@@ -187,7 +261,7 @@ vk::Extent2D vkhelper::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabi
     }
 }
 
-vk::ImageView vkhelper::createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags)
+vk::ImageView vkutils::createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags)
 {
     vk::ImageViewCreateInfo createInfo({}, image, vk::ImageViewType::e2D, format, {}, vk::ImageSubresourceRange(aspectFlags, 0, 1, 0, 1));
     vk::ImageView imageView;
