@@ -68,14 +68,7 @@ void VulkanEngine::draw()
 
 	cmd.begin(cmdBeginInfo);
 
-	vk::ClearValue clearValue;
-	float flash = abs(sin(_frameNumber / 144.f));
-	clearValue.setColor(vk::ClearColorValue(0.0f, 0.0f, flash, 1.0f));
-
 	vk::RenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
-
-	rpInfo.setClearValueCount(1);
-	rpInfo.setPClearValues(&clearValue);
 
 	cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 

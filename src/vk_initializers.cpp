@@ -53,7 +53,8 @@ vk::RenderPassBeginInfo vkinit::renderpass_begin_info(vk::RenderPass renderPass,
     vk::RenderPassBeginInfo createInfo;
     createInfo.setRenderPass(renderPass);
     createInfo.setRenderArea(vk::Rect2D({0, 0}, windowExtent));
-    createInfo.setClearValueCount(1);
+    std::array<vk::ClearValue, 1> clearValues = {vk::ClearValue({0.0f, 0.0f, 0.0f, 1.0f})};
+    createInfo.setClearValues(clearValues);
     createInfo.setFramebuffer(framebuffer);
     return createInfo;
 }
