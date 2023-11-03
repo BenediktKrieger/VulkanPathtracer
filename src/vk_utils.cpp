@@ -2,30 +2,18 @@
 
 vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::RenderPass pass)
 {
-	//make viewport state from our stored viewport and scissor.
-		//at the moment we wont support multiple viewports or scissors
-	vk::PipelineViewportStateCreateInfo viewportState = {};
-	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewportState.pNext = nullptr;
-
+	vk::PipelineViewportStateCreateInfo viewportState;
 	viewportState.viewportCount = 1;
 	viewportState.pViewports = &_viewport;
 	viewportState.scissorCount = 1;
 	viewportState.pScissors = &_scissor;
 
-	//setup dummy color blending. We arent using transparent objects yet
-	//the blending is just "no blend", but we do write to the color attachment
-	VkPipelineColorBlendStateCreateInfo colorBlending = {};
-	colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	colorBlending.pNext = nullptr;
-
+	vk::PipelineColorBlendStateCreateInfo colorBlending;
 	colorBlending.logicOpEnable = VK_FALSE;
-	colorBlending.logicOp = VK_LOGIC_OP_COPY;
+	colorBlending.logicOp = vk::LogicOp::eCopy;
 	colorBlending.attachmentCount = 1;
 	colorBlending.pAttachments = &_colorBlendAttachment;
-
-	//build the actual pipeline
-	//we now use all of the info structs we have been writing into into this one to create the pipeline
+    
 	vk::GraphicsPipelineCreateInfo pipelineInfo;
 	pipelineInfo.stageCount = _shaderStages.size();
 	pipelineInfo.pStages = _shaderStages.data();
@@ -41,16 +29,16 @@ vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::Ren
 	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
     
     vk::Pipeline newPipeline;
-	try{
-        newPipeline = device.createGraphicsPipelines(nullptr, pipelineInfo);
+	try
+    {
         vk::Result result;
         std::tie(result, newPipeline) = device.createGraphicsPipeline( nullptr, pipelineInfo);
         if(result != vk::Result::eSuccess)
         {
-            default: throw std::runtime_error("failed to create graphics Pipeline!");
+            throw std::runtime_error("failed to create graphics Pipeline!");
         }
 	}
-	catch
+	catch (std::exception &e)
 	{
         std::cerr << "Exception Thrown: " << e.what();
 	}
