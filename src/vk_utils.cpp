@@ -1,11 +1,10 @@
 #include <vk_utils.h>
-#include <tie>
 
 vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::RenderPass pass)
 {
 	//make viewport state from our stored viewport and scissor.
 		//at the moment we wont support multiple viewports or scissors
-	VkPipelineViewportStateCreateInfo viewportState = {};
+	vk::PipelineViewportStateCreateInfo viewportState = {};
 	viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewportState.pNext = nullptr;
 
