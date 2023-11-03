@@ -43,6 +43,7 @@ void VulkanEngine::cleanup()
 		_device.waitIdle();
 		_mainDeletionQueue.flush();
 		_instance.destroySurfaceKHR(_surface);
+		_allocator.destroy();
 		_device.destroy();
 		_instance.destroyDebugUtilsMessengerEXT(_debug_messenger);
 		_instance.destroy();
@@ -69,6 +70,8 @@ void VulkanEngine::draw()
 	cmd.begin(cmdBeginInfo);
 
 	vk::RenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
+	std::array<vk::ClearValue, 1> clearValues = {vk::ClearValue(vk::ClearColorValue(1.0f, 1.0f, 1.0f, 1.0f))};
+    rpInfo.setClearValues(clearValues);
 
 	cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 
