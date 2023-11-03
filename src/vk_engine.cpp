@@ -445,5 +445,5 @@ void VulkanEngine::init_pipelines()
 
 bool VulkanEngine::load_shader_module(const char* filePath, vk::ShaderModule* outShaderModule)
 {
-
+	return false;
 }
