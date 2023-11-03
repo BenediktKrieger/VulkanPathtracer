@@ -15,7 +15,7 @@ vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::Ren
 	colorBlending.setPAttachments(&_colorBlendAttachment);
     
 	vk::GraphicsPipelineCreateInfo pipelineInfo;
-	pipelineInfo.setStageCount(_shaderStages.size());
+	pipelineInfo.setStageCount((uint32_t) _shaderStages.size());
 	pipelineInfo.setPStages(_shaderStages.data());
 	pipelineInfo.setPVertexInputState(&_vertexInputInfo);
 	pipelineInfo.setPInputAssemblyState(&_inputAssembly);
