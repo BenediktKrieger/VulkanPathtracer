@@ -78,16 +78,16 @@ void VulkanEngine::draw()
 	rpInfo.setPClearValues(&clearValue);
 
 	cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
-	
-		if(_selectedShader == 0)
-		{
-			cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _trianglePipeline);
-		}
-		else
-		{
-			cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _redTrianglePipeline);
-		}
-		cmd.draw(3, 1, 0, 0);
+
+	if (_selectedShader == 0)
+	{
+		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _trianglePipeline);
+	}
+	else
+	{
+		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _redTrianglePipeline);
+	}
+	cmd.draw(3, 1, 0, 0);
 
 	cmd.endRenderPass();
 
@@ -123,10 +123,10 @@ void VulkanEngine::run()
 	// main loop
 	while (!bQuit)
 	{
-		//Handle events on queue
+		// Handle events on queue
 		while (SDL_PollEvent(&e) != 0)
 		{
-			//close the window when user alt-f4s or clicks the X button			
+			// close the window when user alt-f4s or clicks the X button
 			if (e.type == SDL_EVENT_QUIT)
 			{
 				bQuit = true;
@@ -323,9 +323,8 @@ void VulkanEngine::init_swapchain()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
-	_mainDeletionQueue.push_function([=]() {
-		_device.destroySwapchainKHR(_swapchain, nullptr);
-	});
+	_mainDeletionQueue.push_function([=]()
+									 { _device.destroySwapchainKHR(_swapchain, nullptr); });
 
 	_swapchainImages = _device.getSwapchainImagesKHR(_swapchain);
 	_swachainImageFormat = surfaceFormat.format;
@@ -382,9 +381,8 @@ void VulkanEngine::init_default_renderpass()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
-	_mainDeletionQueue.push_function([=]() {
-		_device.destroyRenderPass(_renderPass, nullptr);
-	});
+	_mainDeletionQueue.push_function([=]()
+									 { _device.destroyRenderPass(_renderPass, nullptr); });
 }
 
 void VulkanEngine::init_framebuffers()
@@ -405,10 +403,10 @@ void VulkanEngine::init_framebuffers()
 		{
 			std::cerr << "Exception Thrown: " << e.what();
 		}
-		_mainDeletionQueue.push_function([=]() {
+		_mainDeletionQueue.push_function([=]()
+										 {
 			_device.destroyFramebuffer(_framebuffers[i], nullptr);
-			_device.destroyImageView(_swapchainImageViews[i], nullptr);
-		});
+			_device.destroyImageView(_swapchainImageViews[i], nullptr); });
 	}
 }
 
@@ -434,9 +432,8 @@ void VulkanEngine::init_commands()
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 
-	_mainDeletionQueue.push_function([=]() {
-		_device.destroyCommandPool(_commandPool, nullptr);
-	});
+	_mainDeletionQueue.push_function([=]()
+									 { _device.destroyCommandPool(_commandPool, nullptr); });
 }
 
 void VulkanEngine::init_sync_structures()
@@ -450,9 +447,8 @@ void VulkanEngine::init_sync_structures()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
-	_mainDeletionQueue.push_function([=]() {
-		_device.destroyFence(_renderFence, nullptr);
-	});
+	_mainDeletionQueue.push_function([=]()
+									 { _device.destroyFence(_renderFence, nullptr); });
 
 	vk::SemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
 	try
@@ -464,10 +460,10 @@ void VulkanEngine::init_sync_structures()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
-	_mainDeletionQueue.push_function([=]() {
+	_mainDeletionQueue.push_function([=]()
+									 {
 		_device.destroySemaphore(_presentSemaphore, nullptr);
-		_device.destroySemaphore(_renderSemaphore, nullptr);
-	});
+		_device.destroySemaphore(_renderSemaphore, nullptr); });
 }
 
 void VulkanEngine::init_pipelines()
@@ -510,11 +506,11 @@ void VulkanEngine::init_pipelines()
 	_device.destroyShaderModule(triangleFragShader);
 	_device.destroyShaderModule(triangleVertexShader);
 
-	_mainDeletionQueue.push_function([=]() {
+	_mainDeletionQueue.push_function([=]()
+									 {
 		_device.destroyPipeline(_redTrianglePipeline, nullptr);
 		_device.destroyPipeline(_trianglePipeline, nullptr);
-		_device.destroyPipelineLayout(_trianglePipelineLayout, nullptr);
-	});
+		_device.destroyPipelineLayout(_trianglePipelineLayout, nullptr); });
 }
 
 vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, std::string filePath)
@@ -524,9 +520,12 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 	vkshader::GLSLtoSPV(type, filePath, shaderCodeSPIRV);
 	vk::ShaderModuleCreateInfo createInfo({}, shaderCodeSPIRV);
 	vk::ShaderModule shaderModule;
-	try{
+	try
+	{
 		shaderModule = _device.createShaderModule(createInfo);
-	}catch(std::exception& e) {
+	}
+	catch (std::exception &e)
+	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 	glslang::FinalizeProcess();

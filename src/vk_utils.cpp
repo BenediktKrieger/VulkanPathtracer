@@ -218,7 +218,7 @@ vk::PresentModeKHR vkutils::chooseSwapPresentMode(const std::vector<vk::PresentM
 {
     for (const auto &availablePresentMode : availablePresentModes)
     {
-        if (availablePresentMode == vk::PresentModeKHR::eFifoRelaxed)
+        if (availablePresentMode == vk::PresentModeKHR::eMailbox)
         {
             return availablePresentMode;
         }
