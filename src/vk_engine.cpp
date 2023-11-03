@@ -31,6 +31,8 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
+	init_pipelines();
+
 	// everything went fine
 	_isInitialized = true;
 }
@@ -434,4 +436,14 @@ void VulkanEngine::init_sync_structures()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
+}
+
+void VulkanEngine::init_pipelines()
+{
+
+}
+
+bool VulkanEngine::load_shader_module(const char* filePath, vk::ShaderModule* outShaderModule)
+{
+
 }

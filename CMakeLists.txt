@@ -40,11 +40,16 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glslang)
 #add vma
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma)
 
+#add tinygltf
+set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
+set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/tinygltf)
+
 target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator)
 
-#add imgui, stb, vma
+
+#add imgui, vma
 include_directories(${PROJECT_SOURCE_DIR}/third_party/imgui)
-include_directories(${PROJECT_SOURCE_DIR}/third_party/stb)
 include_directories(${PROJECT_SOURCE_DIR}/third_party/vma-hpp)
 include_directories(${PROJECT_SOURCE_DIR}/src)
 
