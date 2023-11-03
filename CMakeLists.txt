@@ -27,14 +27,15 @@ ENDIF()
 
 
 #add sdl
-set(SDL_SHARED OFF)
-set(SDL_STATIC ON)
+set(SDL_SHARED OFF CACHE INTERNAL "" FORCE)
+set(SDL_STATIC ON CACHE INTERNAL "" FORCE)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl)
 
 #add glm
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
 
 #add glslang
+set(ENABLE_OPT OFF CACHE INTERNAL "" FORCE)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glslang)
 
 #add vma
