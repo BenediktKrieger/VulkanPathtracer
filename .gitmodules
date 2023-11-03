@@ -4,9 +4,6 @@
 [submodule "third_party/sdl"]
 	path = third_party/sdl
 	url = https://github.com/libsdl-org/SDL.git
-[submodule "third_party/glslang"]
-	path = third_party/glslang
-	url = https://github.com/KhronosGroup/glslang.git
 [submodule "third_party/vma"]
 	path = third_party/vma
 	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator.git

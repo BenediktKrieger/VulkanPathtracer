@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.7)
 project(VkPathtracer VERSION 1.0.0)
 
-add_compile_definitions(SHADER_PATH="${PROJECT_SOURCE_DIR}/shaders" ASSET_PATH="${PROJECT_SOURCE_DIR}/src/textures" _CRT_SECURE_NO_WARNINGS)
+add_compile_definitions(SHADER_PATH="${PROJECT_SOURCE_DIR}/shaders" ASSET_PATH="${PROJECT_SOURCE_DIR}/assets" _CRT_SECURE_NO_WARNINGS)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
@@ -34,9 +34,6 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl)
 #add glm
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
 
-#add glslang
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glslang)
-
 #add vma
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma)
 
@@ -45,7 +42,7 @@ set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
 set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/tinygltf)
 
-target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator)
+target_link_libraries(VkPathtracer glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator)
 
 
 #add imgui, vma

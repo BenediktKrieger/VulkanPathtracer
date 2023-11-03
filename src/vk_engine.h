@@ -2,12 +2,14 @@
 
 #include <vk_types.h>
 #include <vector>
+#include <vk_utils.h>
 
 class VulkanEngine
 {
 public:
 	bool _isInitialized{false};
-	uint32_t _frameNumber{0};
+	uint32_t _frameNumber{ 0 };
+	int _selectedShader{ 0 };
 
 	vk::Extent2D _windowExtent{1920, 1080};
 
@@ -65,6 +67,8 @@ public:
 	vk::Pipeline _trianglePipeline;
 	vk::Pipeline _redTrianglePipeline;
 
+	vkutils::DeletionQueue _mainDeletionQueue;
+
 	// initializes everything in the engine
 	void init();
 
@@ -92,5 +96,5 @@ private:
 
 	void init_pipelines();
 
-	bool load_shader_module(const char* filePath, vk::ShaderModule* outShaderModule);
+	vk::ShaderModule load_shader_module(vk::ShaderStageFlagBits type, std::string filePath);
 };

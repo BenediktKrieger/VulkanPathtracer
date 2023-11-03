@@ -3,30 +3,28 @@
 vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::RenderPass pass)
 {
 	vk::PipelineViewportStateCreateInfo viewportState;
-	viewportState.viewportCount = 1;
-	viewportState.pViewports = &_viewport;
-	viewportState.scissorCount = 1;
-	viewportState.pScissors = &_scissor;
+	viewportState.setViewportCount(1);
+	viewportState.setPViewports(&_viewport);
+	viewportState.setScissorCount(1);
+	viewportState.setPScissors(&_scissor);
 
 	vk::PipelineColorBlendStateCreateInfo colorBlending;
-	colorBlending.logicOpEnable = VK_FALSE;
-	colorBlending.logicOp = vk::LogicOp::eCopy;
-	colorBlending.attachmentCount = 1;
-	colorBlending.pAttachments = &_colorBlendAttachment;
+	colorBlending.setLogicOpEnable(VK_FALSE);
+	colorBlending.setLogicOp(vk::LogicOp::eCopy);
+	colorBlending.setAttachmentCount(1);
+	colorBlending.setPAttachments(&_colorBlendAttachment);
     
 	vk::GraphicsPipelineCreateInfo pipelineInfo;
-	pipelineInfo.stageCount = _shaderStages.size();
-	pipelineInfo.pStages = _shaderStages.data();
-	pipelineInfo.pVertexInputState = &_vertexInputInfo;
-	pipelineInfo.pInputAssemblyState = &_inputAssembly;
-	pipelineInfo.pViewportState = &viewportState;
-	pipelineInfo.pRasterizationState = &_rasterizer;
-	pipelineInfo.pMultisampleState = &_multisampling;
-	pipelineInfo.pColorBlendState = &colorBlending;
-	pipelineInfo.layout = _pipelineLayout;
-	pipelineInfo.renderPass = pass;
-	pipelineInfo.subpass = 0;
-	pipelineInfo.basePipelineHandle = VK_NULL_HANDLE;
+	pipelineInfo.setStageCount(_shaderStages.size());
+	pipelineInfo.setPStages(_shaderStages.data());
+	pipelineInfo.setPVertexInputState(&_vertexInputInfo);
+	pipelineInfo.setPInputAssemblyState(&_inputAssembly);
+	pipelineInfo.setPViewportState(&viewportState);
+	pipelineInfo.setPRasterizationState(&_rasterizer);
+	pipelineInfo.setPMultisampleState(&_multisampling);
+	pipelineInfo.setPColorBlendState(&colorBlending);
+	pipelineInfo.setLayout(_pipelineLayout);
+	pipelineInfo.setRenderPass(pass);
     
     vk::Pipeline newPipeline;
 	try

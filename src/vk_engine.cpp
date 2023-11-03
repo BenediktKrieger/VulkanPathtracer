@@ -2,7 +2,6 @@
 #include <SDL_vulkan.h>
 #include <vk_engine.h>
 #include <vk_initializers.h>
-#include <vk_utils.h>
 #include <iostream>
 
 constexpr bool bUseValidationLayers = true;
@@ -42,17 +41,7 @@ void VulkanEngine::cleanup()
 	if (_isInitialized)
 	{
 		_device.waitIdle();
-		_device.destroyCommandPool(_commandPool);
-		_device.destroyFence(_renderFence);
-		_device.destroySemaphore(_renderSemaphore);
-		_device.destroySemaphore(_presentSemaphore);
-		_device.destroySwapchainKHR(_swapchain);
-		_device.destroyRenderPass(_renderPass);
-		for (int i = 0; i < _framebuffers.size(); i++)
-		{
-			_device.destroyFramebuffer(_framebuffers[i]);
-			_device.destroyImageView(_swapchainImageViews[i]);
-		}
+		_mainDeletionQueue.flush();
 		_instance.destroySurfaceKHR(_surface);
 		_device.destroy();
 		_instance.destroyDebugUtilsMessengerEXT(_debug_messenger);
@@ -89,6 +78,16 @@ void VulkanEngine::draw()
 	rpInfo.setPClearValues(&clearValue);
 
 	cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
+	
+		if(_selectedShader == 0)
+		{
+			cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _trianglePipeline);
+		}
+		else
+		{
+			cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _redTrianglePipeline);
+		}
+		cmd.draw(3, 1, 0, 0);
 
 	cmd.endRenderPass();
 
@@ -124,13 +123,24 @@ void VulkanEngine::run()
 	// main loop
 	while (!bQuit)
 	{
-		// Handle events on queue
+		//Handle events on queue
 		while (SDL_PollEvent(&e) != 0)
 		{
-			// close the window when user alt-f4s or clicks the X button
-			if (e.type == SDL_EventType::SDL_EVENT_QUIT)
+			//close the window when user alt-f4s or clicks the X button			
+			if (e.type == SDL_EVENT_QUIT)
 			{
 				bQuit = true;
+			}
+			else if (e.type == SDL_EVENT_KEY_DOWN)
+			{
+				if (e.key.keysym.sym == SDLK_SPACE)
+				{
+					_selectedShader += 1;
+					if (_selectedShader > 1)
+					{
+						_selectedShader = 0;
+					}
+				}
 			}
 		}
 
@@ -313,6 +323,10 @@ void VulkanEngine::init_swapchain()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
+	_mainDeletionQueue.push_function([=]() {
+		_device.destroySwapchainKHR(_swapchain, nullptr);
+	});
+
 	_swapchainImages = _device.getSwapchainImagesKHR(_swapchain);
 	_swachainImageFormat = surfaceFormat.format;
 	_windowExtent = extent;
@@ -368,6 +382,9 @@ void VulkanEngine::init_default_renderpass()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
+	_mainDeletionQueue.push_function([=]() {
+		_device.destroyRenderPass(_renderPass, nullptr);
+	});
 }
 
 void VulkanEngine::init_framebuffers()
@@ -388,6 +405,10 @@ void VulkanEngine::init_framebuffers()
 		{
 			std::cerr << "Exception Thrown: " << e.what();
 		}
+		_mainDeletionQueue.push_function([=]() {
+			_device.destroyFramebuffer(_framebuffers[i], nullptr);
+			_device.destroyImageView(_swapchainImageViews[i], nullptr);
+		});
 	}
 }
 
@@ -412,6 +433,10 @@ void VulkanEngine::init_commands()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
+
+	_mainDeletionQueue.push_function([=]() {
+		_device.destroyCommandPool(_commandPool, nullptr);
+	});
 }
 
 void VulkanEngine::init_sync_structures()
@@ -425,6 +450,9 @@ void VulkanEngine::init_sync_structures()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
+	_mainDeletionQueue.push_function([=]() {
+		_device.destroyFence(_renderFence, nullptr);
+	});
 
 	vk::SemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
 	try
@@ -436,14 +464,72 @@ void VulkanEngine::init_sync_structures()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
+	_mainDeletionQueue.push_function([=]() {
+		_device.destroySemaphore(_presentSemaphore, nullptr);
+		_device.destroySemaphore(_renderSemaphore, nullptr);
+	});
 }
 
 void VulkanEngine::init_pipelines()
 {
+	vk::ShaderModule triangleVertexShader = load_shader_module(vk::ShaderStageFlagBits::eVertex, "/colored_triangle.vert");
+	vk::ShaderModule triangleFragShader = load_shader_module(vk::ShaderStageFlagBits::eFragment, "/colored_triangle.frag");
+	vk::ShaderModule redTriangleVertShader = load_shader_module(vk::ShaderStageFlagBits::eVertex, "/triangle.vert");
+	vk::ShaderModule redTriangleFragShader = load_shader_module(vk::ShaderStageFlagBits::eFragment, "/triangle.frag");
 
+	vk::PipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+
+	_trianglePipelineLayout = _device.createPipelineLayout(pipeline_layout_info, nullptr);
+
+	vkutils::PipelineBuilder pipelineBuilder;
+	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eVertex, triangleVertexShader));
+	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eFragment, triangleFragShader));
+	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(vk::PrimitiveTopology::eTriangleList);
+	pipelineBuilder._viewport.x = 0.0f;
+	pipelineBuilder._viewport.y = 0.0f;
+	pipelineBuilder._viewport.width = (float)_windowExtent.width;
+	pipelineBuilder._viewport.height = (float)_windowExtent.height;
+	pipelineBuilder._viewport.minDepth = 0.0f;
+	pipelineBuilder._viewport.maxDepth = 1.0f;
+	pipelineBuilder._scissor.offset = vk::Offset2D(0, 0);
+	pipelineBuilder._scissor.extent = _windowExtent;
+	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(vk::PolygonMode::eFill);
+	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
+	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
+	pipelineBuilder._pipelineLayout = _trianglePipelineLayout;
+	_trianglePipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
+
+	pipelineBuilder._shaderStages.clear();
+	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eVertex, redTriangleVertShader));
+	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eFragment, redTriangleFragShader));
+	_redTrianglePipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
+
+	_device.destroyShaderModule(redTriangleVertShader);
+	_device.destroyShaderModule(redTriangleFragShader);
+	_device.destroyShaderModule(triangleFragShader);
+	_device.destroyShaderModule(triangleVertexShader);
+
+	_mainDeletionQueue.push_function([=]() {
+		_device.destroyPipeline(_redTrianglePipeline, nullptr);
+		_device.destroyPipeline(_trianglePipeline, nullptr);
+		_device.destroyPipelineLayout(_trianglePipelineLayout, nullptr);
+	});
 }
 
-bool VulkanEngine::load_shader_module(const char* filePath, vk::ShaderModule* outShaderModule)
+vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, std::string filePath)
 {
-	return false;
+	glslang::InitializeProcess();
+	std::vector<uint32_t> shaderCodeSPIRV;
+	vkshader::GLSLtoSPV(type, filePath, shaderCodeSPIRV);
+	vk::ShaderModuleCreateInfo createInfo({}, shaderCodeSPIRV);
+	vk::ShaderModule shaderModule;
+	try{
+		shaderModule = _device.createShaderModule(createInfo);
+	}catch(std::exception& e) {
+		std::cerr << "Exception Thrown: " << e.what();
+	}
+	glslang::FinalizeProcess();
+
+	return shaderModule;
 }

@@ -1,5 +1,4 @@
 #pragma once
-#include <vk_engine.h>
 #include <vk_types.h>
 #include <optional>
 #include <set>

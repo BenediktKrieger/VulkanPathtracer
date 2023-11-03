@@ -72,3 +72,63 @@ vk::PresentInfoKHR vkinit::present_info()
     vk::PresentInfoKHR createInfo;
     return createInfo;
 }
+
+vk::PipelineLayoutCreateInfo vkinit::pipeline_layout_create_info()
+{
+    vk::PipelineLayoutCreateInfo info;
+    return info;
+}
+
+vk::PipelineShaderStageCreateInfo vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits stage, vk::ShaderModule shaderModule)
+{
+    vk::PipelineShaderStageCreateInfo info;
+    info.setStage(stage);
+    info.setModule(shaderModule);
+    info.setPName("main");
+    return info;
+}
+
+vk::PipelineVertexInputStateCreateInfo vkinit::vertex_input_state_create_info() {
+	vk::PipelineVertexInputStateCreateInfo info;
+	info.setVertexBindingDescriptionCount(0);
+	info.setVertexAttributeDescriptionCount(0);
+	return info;
+}
+
+vk::PipelineInputAssemblyStateCreateInfo vkinit::input_assembly_create_info(vk::PrimitiveTopology topology) {
+	vk::PipelineInputAssemblyStateCreateInfo info;
+	info.setTopology(topology);
+	info.setPrimitiveRestartEnable(VK_FALSE);
+	return info;
+}
+
+VkPipelineRasterizationStateCreateInfo vkinit::rasterization_state_create_info(vk::PolygonMode polygonMode)
+{
+	vk::PipelineRasterizationStateCreateInfo info;
+	info.setDepthClampEnable(VK_FALSE);
+	info.setRasterizerDiscardEnable(VK_FALSE);
+	info.setPolygonMode(polygonMode);
+	info.setLineWidth(1.0f);
+	info.setCullMode(vk::CullModeFlagBits::eNone);
+	info.setFrontFace(vk::FrontFace::eClockwise);
+	info.setDepthBiasEnable(VK_FALSE);
+	info.setDepthBiasConstantFactor(0.0f);
+	info.setDepthBiasClamp(0.0f);
+	info.setDepthBiasSlopeFactor(0.0f);
+	return info;
+}
+
+vk::PipelineMultisampleStateCreateInfo vkinit::multisampling_state_create_info()
+{
+	vk::PipelineMultisampleStateCreateInfo info;
+	info.rasterizationSamples = vk::SampleCountFlagBits::e1;
+	info.minSampleShading = 1.0f;
+	return info;
+}
+
+vk::PipelineColorBlendAttachmentState vkinit::color_blend_attachment_state() {
+	vk::PipelineColorBlendAttachmentState colorBlendAttachment;
+	colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
+	colorBlendAttachment.blendEnable = VK_FALSE;
+	return colorBlendAttachment;
+}
