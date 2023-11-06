@@ -12,7 +12,7 @@ public:
 	uint32_t _frameNumber{0};
 	int _selectedShader{0};
 
-	vk::Extent2D _windowExtent{1920, 1080};
+	vk::Extent2D _windowExtent{2560, 1440};
 
 	struct SDL_Window *_window{nullptr};
 
@@ -63,11 +63,15 @@ public:
 	std::vector<vk::Image> _swapchainImages;
 	std::vector<vk::ImageView> _swapchainImageViews;
 
-	vk::PipelineLayout _trianglePipelineLayout;
+	vk::PipelineLayout _modelPipelineLayout;
 
 	vk::Pipeline _modelPipeline;
 	
 	Model _triangleModel;
+
+	vk::ImageView _depthImageView;
+	vkutils::AllocatedImage _depthImage;
+	vk::Format _depthFormat;
 
 	vkutils::DeletionQueue _mainDeletionQueue;
 

@@ -19,6 +19,7 @@ vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::Ren
     pipelineInfo.setPStages(_shaderStages.data());
     pipelineInfo.setPVertexInputState(&_vertexInputInfo);
     pipelineInfo.setPInputAssemblyState(&_inputAssembly);
+    pipelineInfo.setPDepthStencilState(&_depthStencil);
     pipelineInfo.setPViewportState(&viewportState);
     pipelineInfo.setPRasterizationState(&_rasterizer);
     pipelineInfo.setPMultisampleState(&_multisampling);

@@ -122,14 +122,51 @@ VkPipelineRasterizationStateCreateInfo vkinit::rasterization_state_create_info(v
 vk::PipelineMultisampleStateCreateInfo vkinit::multisampling_state_create_info()
 {
 	vk::PipelineMultisampleStateCreateInfo info;
-	info.rasterizationSamples = vk::SampleCountFlagBits::e1;
-	info.minSampleShading = 1.0f;
+	info.setRasterizationSamples(vk::SampleCountFlagBits::e1);
+	info.setMinSampleShading(1.0f);
 	return info;
 }
 
 vk::PipelineColorBlendAttachmentState vkinit::color_blend_attachment_state() {
 	vk::PipelineColorBlendAttachmentState colorBlendAttachment;
-	colorBlendAttachment.colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA;
-	colorBlendAttachment.blendEnable = VK_FALSE;
+	colorBlendAttachment.setColorWriteMask(vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG | vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA);
+	colorBlendAttachment.setBlendEnable(VK_FALSE);
 	return colorBlendAttachment;
+}
+
+vk::ImageCreateInfo vkinit::image_create_info(vk::Format format, vk::ImageUsageFlags usageFlags, vk::Extent3D extent)
+{
+    vk::ImageCreateInfo info;
+	info.setImageType(vk::ImageType::e2D);
+	info.setFormat(format);
+	info.setExtent(extent);
+	info.setMipLevels(1);
+	info.setArrayLayers(1);
+	info.setSamples(vk::SampleCountFlagBits::e1);
+	info.setTiling(vk::ImageTiling::eOptimal);
+	info.setUsage(usageFlags);
+	return info;
+}
+
+vk::ImageViewCreateInfo vkinit::imageview_create_info(vk::Format format, vk::Image image, vk::ImageAspectFlags aspectFlags)
+{
+	vk::ImageViewCreateInfo info;
+	info.setViewType(vk::ImageViewType::e2D);
+	info.setImage(image);
+	info.setFormat(format);
+    info.setSubresourceRange(vk::ImageSubresourceRange(aspectFlags, 0, 1, 0, 1));
+	return info;
+}
+
+vk::PipelineDepthStencilStateCreateInfo vkinit::depth_stencil_create_info(bool bDepthTest, bool bDepthWrite, vk::CompareOp compareOp)
+{
+    vk::PipelineDepthStencilStateCreateInfo info;
+	info.depthTestEnable = bDepthTest ? VK_TRUE : VK_FALSE;
+	info.depthWriteEnable = bDepthWrite ? VK_TRUE : VK_FALSE;
+	info.depthCompareOp = bDepthTest ? compareOp : vk::CompareOp::eAlways;
+	info.depthBoundsTestEnable = VK_FALSE;
+	info.minDepthBounds = 0.0f;
+	info.maxDepthBounds = 1.0f;
+	info.stencilTestEnable = VK_FALSE;
+	return info;
 }

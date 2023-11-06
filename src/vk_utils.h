@@ -8,6 +8,16 @@
 
 namespace vkutils
 {   
+    class AllocatedImage {
+    public:
+        vk::Image _image;
+        vma::Allocation _allocation;
+    };
+    class PushConstants {
+    public:
+        glm::vec4 data;
+        glm::mat4 matrix;
+    };
     class AllocatedBuffer {
     public:
         vk::Buffer _buffer;
@@ -24,6 +34,7 @@ namespace vkutils
         vk::PipelineColorBlendAttachmentState _colorBlendAttachment;
         vk::PipelineMultisampleStateCreateInfo _multisampling;
         vk::PipelineLayout _pipelineLayout;
+        vk::PipelineDepthStencilStateCreateInfo _depthStencil;
         vk::Pipeline build_pipeline(vk::Device device, vk::RenderPass pass);
     };
     class DeletionQueue

@@ -19,4 +19,7 @@ namespace vkinit
     VkPipelineRasterizationStateCreateInfo rasterization_state_create_info(vk::PolygonMode polygonMode);
     vk::PipelineMultisampleStateCreateInfo multisampling_state_create_info();
     vk::PipelineColorBlendAttachmentState color_blend_attachment_state();
+    vk::ImageCreateInfo image_create_info(vk::Format format, vk::ImageUsageFlags usageFlags, vk::Extent3D extent);
+    vk::ImageViewCreateInfo imageview_create_info(vk::Format format, vk::Image image, vk::ImageAspectFlags aspectFlags);
+    vk::PipelineDepthStencilStateCreateInfo depth_stencil_create_info(bool bDepthTest, bool bDepthWrite, vk::CompareOp compareOp);
 }

@@ -71,14 +71,36 @@ void VulkanEngine::draw()
 	cmd.begin(cmdBeginInfo);
 
 		vk::RenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
-		std::array<vk::ClearValue, 1> clearValues = {vk::ClearValue(vk::ClearColorValue(1.0f, 1.0f, 1.0f, 1.0f))};
+		vk::ClearValue colorClear;
+		colorClear.color = vk::ClearColorValue(1.0f, 1.0f, 1.0f, 1.0f);
+		vk::ClearValue depthClear;
+		depthClear.depthStencil = vk::ClearDepthStencilValue(1.f);
+		std::array<vk::ClearValue, 2> clearValues = {colorClear, depthClear};
 		rpInfo.setClearValues(clearValues);
 
 		cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
 		vk::DeviceSize offset = 0;
 		cmd.bindVertexBuffers(0, 1, &_triangleModel._vertexBuffer._buffer, &offset);
+		cmd.bindIndexBuffer(_triangleModel._indexBuffer._buffer, offset, vk::IndexType::eUint32);
 		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _modelPipeline);
-		cmd.draw(_triangleModel._vertices.size(), 1, 0, 0);
+
+		glm::vec3 camPos = { 0.f, 0.3f, .75f};
+		glm::mat4 view = glm::lookAt(camPos, glm::vec3(0.f, -0.05f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+		glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
+		projection[1][1] *= -1;
+
+		for (auto node : _triangleModel._linearNodes)
+		{
+			for(auto primitive : node->primitives)
+			{
+				glm::mat4 model = glm::rotate(glm::mat4(1.f), glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0)) * node->getMatrix();
+				glm::mat4 mvp_matrix = projection * view * model;
+				vkutils::PushConstants constants;
+				constants.matrix = mvp_matrix;
+				cmd.pushConstants(_modelPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(vkutils::PushConstants), &constants);
+				cmd.drawIndexed(primitive->indexCount, 1, primitive->firstIndex, 0, 0);
+			}
+		}
 
 		cmd.endRenderPass();
 
@@ -326,6 +348,28 @@ void VulkanEngine::init_swapchain()
 	{
 		_swapchainImageViews[i] = vkutils::createImageView(_device, _swapchainImages[i], _swachainImageFormat, vk::ImageAspectFlagBits::eColor);
 	}
+
+	vk::Extent3D depthImageExtent = {
+		_windowExtent.width,
+		_windowExtent.height,
+		1
+	};
+
+	_depthFormat = vk::Format::eD32Sfloat;
+	vk::ImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat, vk::ImageUsageFlagBits::eDepthStencilAttachment, depthImageExtent);
+	vma::AllocationCreateInfo dimg_allocinfo = {};
+	dimg_allocinfo.setUsage(vma::MemoryUsage::eGpuOnly);
+	dimg_allocinfo.setRequiredFlags(vk::MemoryPropertyFlags(vk::MemoryPropertyFlagBits::eDeviceLocal));
+	std::tie(_depthImage._image, _depthImage._allocation) = _allocator.createImage(dimg_info, dimg_allocinfo);
+
+	vk::ImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, _depthImage._image, vk::ImageAspectFlagBits::eDepth);
+
+	_depthImageView = _device.createImageView(dview_info);
+
+	_mainDeletionQueue.push_function([=]() {
+		_device.destroyImageView(_depthImageView);
+		_allocator.destroyImage(_depthImage._image, _depthImage._allocation);
+	});
 }
 
 void VulkanEngine::init_default_renderpass()
@@ -344,25 +388,48 @@ void VulkanEngine::init_default_renderpass()
 	color_attachment_ref.setAttachment(0);
 	color_attachment_ref.setLayout(vk::ImageLayout::eColorAttachmentOptimal);
 
+	vk::AttachmentDescription depth_attachment;
+	depth_attachment.setFormat(_depthFormat);
+	depth_attachment.setSamples(vk::SampleCountFlagBits::e1);
+	depth_attachment.setLoadOp(vk::AttachmentLoadOp::eClear);
+	depth_attachment.setStoreOp(vk::AttachmentStoreOp::eStore);
+	depth_attachment.setStencilLoadOp(vk::AttachmentLoadOp::eClear);
+	depth_attachment.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
+	depth_attachment.setInitialLayout(vk::ImageLayout::eUndefined);
+	depth_attachment.setFinalLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+
+	vk::AttachmentReference depth_attachment_ref;
+	depth_attachment_ref.setAttachment(1);
+	depth_attachment_ref.setLayout(vk::ImageLayout::eDepthStencilAttachmentOptimal);
+
 	vk::SubpassDescription subpass;
 	subpass.setPipelineBindPoint(vk::PipelineBindPoint::eGraphics);
 	subpass.setColorAttachmentCount(1);
 	subpass.setPColorAttachments(&color_attachment_ref);
+	subpass.setPDepthStencilAttachment(&depth_attachment_ref);
 
-	vk::SubpassDependency dependency = {};
-	dependency.setSrcSubpass(VK_SUBPASS_EXTERNAL);
-	dependency.setDstSubpass(0);
-	dependency.setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-	dependency.setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
-	dependency.setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
+	vk::SubpassDependency color_dependency;
+	color_dependency.setSrcSubpass(VK_SUBPASS_EXTERNAL);
+	color_dependency.setDstSubpass(0);
+	color_dependency.setSrcStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+	color_dependency.setDstStageMask(vk::PipelineStageFlagBits::eColorAttachmentOutput);
+	color_dependency.setDstAccessMask(vk::AccessFlagBits::eColorAttachmentWrite);
+
+	vk::SubpassDependency depth_dependency;
+	depth_dependency.setSrcSubpass(VK_SUBPASS_EXTERNAL);
+	depth_dependency.setDstSubpass(0);
+	depth_dependency.setSrcStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests);
+	depth_dependency.setDstStageMask(vk::PipelineStageFlagBits::eEarlyFragmentTests | vk::PipelineStageFlagBits::eLateFragmentTests);
+	depth_dependency.setDstAccessMask(vk::AccessFlagBits::eDepthStencilAttachmentWrite);
+
+	std::array<vk::AttachmentDescription, 2> attachments = {color_attachment, depth_attachment};
+	std::array<vk::SubpassDependency, 2> dependencies = {color_dependency, depth_dependency};
 
 	vk::RenderPassCreateInfo render_pass_info;
-	render_pass_info.setAttachmentCount(1);
-	render_pass_info.setPAttachments(&color_attachment);
+	render_pass_info.setAttachments(attachments);
+	render_pass_info.setDependencies(dependencies);
 	render_pass_info.setSubpassCount(1);
 	render_pass_info.setPSubpasses(&subpass);
-	render_pass_info.setDependencyCount(1);
-	render_pass_info.setPDependencies(&dependency);
 
 	try
 	{
@@ -385,7 +452,8 @@ void VulkanEngine::init_framebuffers()
 
 	for (unsigned int i = 0; i < swapchain_imagecount; i++)
 	{
-		createInfo.setPAttachments(&_swapchainImageViews[i]);
+		std::array<vk::ImageView, 2> attachments = {_swapchainImageViews[i], _depthImageView};
+		createInfo.setAttachments(attachments);
 		try
 		{
 			_framebuffers[i] = _device.createFramebuffer(createInfo);
@@ -394,10 +462,10 @@ void VulkanEngine::init_framebuffers()
 		{
 			std::cerr << "Exception Thrown: " << e.what();
 		}
-		_mainDeletionQueue.push_function([=]()
-										 {
+		_mainDeletionQueue.push_function([=](){
 			_device.destroyFramebuffer(_framebuffers[i], nullptr);
-			_device.destroyImageView(_swapchainImageViews[i], nullptr); });
+			_device.destroyImageView(_swapchainImageViews[i], nullptr); 
+		});
 	}
 }
 
@@ -463,8 +531,13 @@ void VulkanEngine::init_pipelines()
 	vk::ShaderModule modelFragShader = load_shader_module(vk::ShaderStageFlagBits::eFragment, "/triangle.frag");
 
 	vk::PipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
+	std::array<vk::PushConstantRange, 1> push_constants;
+	push_constants[0].setOffset(0);
+	push_constants[0].setSize(sizeof(vkutils::PushConstants));
+	push_constants[0].setStageFlags(vk::ShaderStageFlagBits::eVertex);
+	pipeline_layout_info.setPushConstantRanges(push_constants);
 
-	_trianglePipelineLayout = _device.createPipelineLayout(pipeline_layout_info, nullptr);
+	_modelPipelineLayout = _device.createPipelineLayout(pipeline_layout_info, nullptr);
 
 	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
 
@@ -485,7 +558,8 @@ void VulkanEngine::init_pipelines()
 	pipelineBuilder._rasterizer = vkinit::rasterization_state_create_info(vk::PolygonMode::eFill);
 	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
-	pipelineBuilder._pipelineLayout = _trianglePipelineLayout;
+	pipelineBuilder._pipelineLayout = _modelPipelineLayout;
+	pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, vk::CompareOp::eLessOrEqual);
 	_modelPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
 
 	_device.destroyShaderModule(modelFragShader);
@@ -493,7 +567,7 @@ void VulkanEngine::init_pipelines()
 
 	_mainDeletionQueue.push_function([=]() {
 		_device.destroyPipeline(_modelPipeline, nullptr);
-		_device.destroyPipelineLayout(_trianglePipelineLayout, nullptr);
+		_device.destroyPipelineLayout(_modelPipelineLayout, nullptr);
 	});
 }
 
@@ -519,21 +593,21 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 
 void VulkanEngine::load_models()
 {
-	//make the array 3 vertices long
-	_triangleModel._vertices.resize(3);
+	// //make the array 3 vertices long
+	// _triangleModel._vertices.resize(3);
 
-	//vertex positions
-	_triangleModel._vertices[0].pos = { 1.f, 1.f, 0.0f };
-	_triangleModel._vertices[1].pos = {-1.f, 1.f, 0.0f };
-	_triangleModel._vertices[2].pos = { 0.f,-1.f, 0.0f };
+	// //vertex positions
+	// _triangleModel._vertices[0].pos = { 1.f, 1.f, 0.0f };
+	// _triangleModel._vertices[1].pos = {-1.f, 1.f, 0.0f };
+	// _triangleModel._vertices[2].pos = { 0.f,-1.f, 0.0f };
 
-	//vertex colors, all green
-	_triangleModel._vertices[0].color = { 0.f, 1.f, 0.0f, 1.0}; //pure green
-	_triangleModel._vertices[1].color = { 0.f, 0.f, 1.0f, 1.0}; //pure green
-	_triangleModel._vertices[2].color = { 1.f, 0.f, 0.0f, 1.0}; //pure green
+	// //vertex colors, all green
+	// _triangleModel._vertices[0].color = { 0.f, 1.f, 0.0f, 1.0}; //pure green
+	// _triangleModel._vertices[1].color = { 0.f, 0.f, 1.0f, 1.0}; //pure green
+	// _triangleModel._vertices[2].color = { 1.f, 0.f, 0.0f, 1.0}; //pure green
 
 	// //we don't care about the vertex normals
-	//_triangleModel.load_from_glb(ASSET_PATH"/flighthelmet.glb");
+	_triangleModel.load_from_glb(ASSET_PATH"/flighthelmet.glb");
 
 	upload_model(_triangleModel);
 }
@@ -541,22 +615,39 @@ void VulkanEngine::load_models()
 void VulkanEngine::upload_model(Model &model)
 {
 	//allocate vertex buffer
-	vk::BufferCreateInfo bufferInfo;
-	bufferInfo.size = model._vertices.size() * sizeof(Vertex);
-	bufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
+	vk::BufferCreateInfo vertexBufferInfo;
+	vertexBufferInfo.size = model._vertices.size() * sizeof(Vertex);
+	vertexBufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
 	
-	vma::AllocationCreateInfo vmaallocInfo = {};
-	vmaallocInfo.usage = vma::MemoryUsage::eCpuToGpu;
+	vma::AllocationCreateInfo vertexBufferAllocInfo = {};
+	vertexBufferAllocInfo.usage = vma::MemoryUsage::eCpuToGpu;
 
-	vk::Result createBufferResult = _allocator.createBuffer(&bufferInfo, &vmaallocInfo, &model._vertexBuffer._buffer, &model._vertexBuffer._allocation, nullptr);
+	vk::Result createVertexBufferResult = _allocator.createBuffer(&vertexBufferInfo, &vertexBufferAllocInfo, &model._vertexBuffer._buffer, &model._vertexBuffer._allocation, nullptr);
 
 	_mainDeletionQueue.push_function([=]() {
         _allocator.destroyBuffer(model._vertexBuffer._buffer, model._vertexBuffer._allocation);
     });
 
-	//copy vertex data
-	void* data;
-	vk::Result mapBufferResult = _allocator.mapMemory(model._vertexBuffer._allocation, &data);
-	memcpy(data, model._vertices.data(), model._vertices.size() * sizeof(Vertex));
+	void* dataVertex;
+	vk::Result mapVertexBufferResult = _allocator.mapMemory(model._vertexBuffer._allocation, &dataVertex);
+	memcpy(dataVertex, model._vertices.data(), model._vertices.size() * sizeof(Vertex));
 	_allocator.unmapMemory(model._vertexBuffer._allocation);
+
+	vk::BufferCreateInfo indexBufferInfo;
+	indexBufferInfo.size = model._indices.size() * sizeof(uint32_t);
+	indexBufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer;
+
+	vma::AllocationCreateInfo indexBufferallocInfo = {};
+	indexBufferallocInfo.usage = vma::MemoryUsage::eCpuToGpu;
+
+	vk::Result createIndexBufferResult = _allocator.createBuffer(&indexBufferInfo, &indexBufferallocInfo, &model._indexBuffer._buffer, &model._indexBuffer._allocation, nullptr);
+
+	_mainDeletionQueue.push_function([=]() {
+        _allocator.destroyBuffer(model._indexBuffer._buffer, model._indexBuffer._allocation);
+    });
+
+	void* dataIndex;
+	vk::Result mapIndexBufferResult = _allocator.mapMemory(model._indexBuffer._allocation, &dataIndex);
+	memcpy(dataIndex, model._indices.data(), model._indices.size() * sizeof(uint32_t));
+	_allocator.unmapMemory(model._indexBuffer._allocation);
 }

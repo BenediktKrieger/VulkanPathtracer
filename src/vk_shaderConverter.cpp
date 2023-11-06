@@ -165,7 +165,7 @@ bool vkshader::GLSLtoSPV(const vk::ShaderStageFlagBits shader_type, const std::s
     }
 
     program.addShader(&shader);
-
+    
     if (!program.link(messages))
     {
         puts(shader.getInfoLog());
