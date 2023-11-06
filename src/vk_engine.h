@@ -65,8 +65,9 @@ public:
 
 	vk::PipelineLayout _trianglePipelineLayout;
 
-	vk::Pipeline _trianglePipeline;
-	vk::Pipeline _redTrianglePipeline;
+	vk::Pipeline _modelPipeline;
+	
+	Model _triangleModel;
 
 	vkutils::DeletionQueue _mainDeletionQueue;
 
@@ -89,6 +90,10 @@ private:
 	void init_sync_structures();
 
 	void init_pipelines();
+
+	void load_models();
+
+	void upload_model(Model& model);
 
 	vk::ShaderModule load_shader_module(vk::ShaderStageFlagBits type, std::string filePath);
 };

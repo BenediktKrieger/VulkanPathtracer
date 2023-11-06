@@ -18,9 +18,6 @@ void VulkanEngine::init()
 		_windowExtent.height,
 		window_flags);
 
-	Model model;
-	model.load_from_gltf( ASSET_PATH"/flighthelmet.glb");
-
 	init_vulkan();
 
 	init_swapchain();
@@ -34,6 +31,8 @@ void VulkanEngine::init()
 	init_sync_structures();
 
 	init_pipelines();
+
+	load_models();
 
 	_isInitialized = true;
 }
@@ -71,23 +70,17 @@ void VulkanEngine::draw()
 
 	cmd.begin(cmdBeginInfo);
 
-	vk::RenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
-	std::array<vk::ClearValue, 1> clearValues = {vk::ClearValue(vk::ClearColorValue(1.0f, 1.0f, 1.0f, 1.0f))};
-    rpInfo.setClearValues(clearValues);
+		vk::RenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
+		std::array<vk::ClearValue, 1> clearValues = {vk::ClearValue(vk::ClearColorValue(1.0f, 1.0f, 1.0f, 1.0f))};
+		rpInfo.setClearValues(clearValues);
 
-	cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
+		cmd.beginRenderPass(rpInfo, vk::SubpassContents::eInline);
+		vk::DeviceSize offset = 0;
+		cmd.bindVertexBuffers(0, 1, &_triangleModel._vertexBuffer._buffer, &offset);
+		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _modelPipeline);
+		cmd.draw(_triangleModel._vertices.size(), 1, 0, 0);
 
-	if (_selectedShader == 0)
-	{
-		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _trianglePipeline);
-	}
-	else
-	{
-		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _redTrianglePipeline);
-	}
-	cmd.draw(3, 1, 0, 0);
-
-	cmd.endRenderPass();
+		cmd.endRenderPass();
 
 	cmd.end();
 
@@ -466,19 +459,20 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_pipelines()
 {
-	vk::ShaderModule triangleVertexShader = load_shader_module(vk::ShaderStageFlagBits::eVertex, "/colored_triangle.vert");
-	vk::ShaderModule triangleFragShader = load_shader_module(vk::ShaderStageFlagBits::eFragment, "/colored_triangle.frag");
-	vk::ShaderModule redTriangleVertShader = load_shader_module(vk::ShaderStageFlagBits::eVertex, "/triangle.vert");
-	vk::ShaderModule redTriangleFragShader = load_shader_module(vk::ShaderStageFlagBits::eFragment, "/triangle.frag");
+	vk::ShaderModule modelVertexShader = load_shader_module(vk::ShaderStageFlagBits::eVertex, "/triangle.vert");
+	vk::ShaderModule modelFragShader = load_shader_module(vk::ShaderStageFlagBits::eFragment, "/triangle.frag");
 
 	vk::PipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 
 	_trianglePipelineLayout = _device.createPipelineLayout(pipeline_layout_info, nullptr);
 
+	VertexInputDescription vertexDescription = Vertex::get_vertex_description();
+
 	vkutils::PipelineBuilder pipelineBuilder;
-	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eVertex, triangleVertexShader));
-	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eFragment, triangleFragShader));
-	pipelineBuilder._vertexInputInfo = vkinit::vertex_input_state_create_info();
+	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eVertex, modelVertexShader));
+	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eFragment, modelFragShader));
+	pipelineBuilder._vertexInputInfo.setVertexAttributeDescriptions(vertexDescription.attributes);
+	pipelineBuilder._vertexInputInfo.setVertexBindingDescriptions(vertexDescription.bindings);
 	pipelineBuilder._inputAssembly = vkinit::input_assembly_create_info(vk::PrimitiveTopology::eTriangleList);
 	pipelineBuilder._viewport.x = 0.0f;
 	pipelineBuilder._viewport.y = 0.0f;
@@ -492,23 +486,15 @@ void VulkanEngine::init_pipelines()
 	pipelineBuilder._multisampling = vkinit::multisampling_state_create_info();
 	pipelineBuilder._colorBlendAttachment = vkinit::color_blend_attachment_state();
 	pipelineBuilder._pipelineLayout = _trianglePipelineLayout;
-	_trianglePipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
+	_modelPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
 
-	pipelineBuilder._shaderStages.clear();
-	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eVertex, redTriangleVertShader));
-	pipelineBuilder._shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eFragment, redTriangleFragShader));
-	_redTrianglePipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
+	_device.destroyShaderModule(modelFragShader);
+	_device.destroyShaderModule(modelVertexShader);
 
-	_device.destroyShaderModule(redTriangleVertShader);
-	_device.destroyShaderModule(redTriangleFragShader);
-	_device.destroyShaderModule(triangleFragShader);
-	_device.destroyShaderModule(triangleVertexShader);
-
-	_mainDeletionQueue.push_function([=]()
-									 {
-		_device.destroyPipeline(_redTrianglePipeline, nullptr);
-		_device.destroyPipeline(_trianglePipeline, nullptr);
-		_device.destroyPipelineLayout(_trianglePipelineLayout, nullptr); });
+	_mainDeletionQueue.push_function([=]() {
+		_device.destroyPipeline(_modelPipeline, nullptr);
+		_device.destroyPipelineLayout(_trianglePipelineLayout, nullptr);
+	});
 }
 
 vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, std::string filePath)
@@ -529,4 +515,48 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 	glslang::FinalizeProcess();
 
 	return shaderModule;
+}
+
+void VulkanEngine::load_models()
+{
+	//make the array 3 vertices long
+	_triangleModel._vertices.resize(3);
+
+	//vertex positions
+	_triangleModel._vertices[0].pos = { 1.f, 1.f, 0.0f };
+	_triangleModel._vertices[1].pos = {-1.f, 1.f, 0.0f };
+	_triangleModel._vertices[2].pos = { 0.f,-1.f, 0.0f };
+
+	//vertex colors, all green
+	_triangleModel._vertices[0].color = { 0.f, 1.f, 0.0f, 1.0}; //pure green
+	_triangleModel._vertices[1].color = { 0.f, 1.f, 0.0f, 1.0}; //pure green
+	_triangleModel._vertices[2].color = { 0.f, 1.f, 0.0f, 1.0}; //pure green
+
+	// //we don't care about the vertex normals
+	//_triangleModel.load_from_glb(ASSET_PATH"/flighthelmet.glb");
+
+	upload_model(_triangleModel);
+}
+
+void VulkanEngine::upload_model(Model &model)
+{
+	//allocate vertex buffer
+	vk::BufferCreateInfo bufferInfo;
+	bufferInfo.size = model._vertices.size() * sizeof(Vertex);
+	bufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
+	
+	vma::AllocationCreateInfo vmaallocInfo = {};
+	vmaallocInfo.usage = vma::MemoryUsage::eCpuToGpu;
+
+	vk::Result createBufferResult = _allocator.createBuffer(&bufferInfo, &vmaallocInfo, &model._vertexBuffer._buffer, &model._vertexBuffer._allocation, nullptr);
+
+	_mainDeletionQueue.push_function([=]() {
+        _allocator.destroyBuffer(model._vertexBuffer._buffer, model._vertexBuffer._allocation);
+    });
+
+	//copy vertex data
+	void* data;
+	vk::Result mapBufferResult = _allocator.mapMemory(model._vertexBuffer._allocation, &data);
+	memcpy(data, model._vertices.data(), model._vertices.size() * sizeof(Vertex));
+	_allocator.unmapMemory(model._vertexBuffer._allocation);
 }
