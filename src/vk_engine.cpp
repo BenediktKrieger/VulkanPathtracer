@@ -529,8 +529,8 @@ void VulkanEngine::load_models()
 
 	//vertex colors, all green
 	_triangleModel._vertices[0].color = { 0.f, 1.f, 0.0f, 1.0}; //pure green
-	_triangleModel._vertices[1].color = { 0.f, 1.f, 0.0f, 1.0}; //pure green
-	_triangleModel._vertices[2].color = { 0.f, 1.f, 0.0f, 1.0}; //pure green
+	_triangleModel._vertices[1].color = { 0.f, 0.f, 1.0f, 1.0}; //pure green
+	_triangleModel._vertices[2].color = { 1.f, 0.f, 0.0f, 1.0}; //pure green
 
 	// //we don't care about the vertex normals
 	//_triangleModel.load_from_glb(ASSET_PATH"/flighthelmet.glb");
