@@ -3,6 +3,7 @@
 #include <vk_types.h>
 #include <vector>
 #include <vk_utils.h>
+#include <vk_model.h>
 
 class VulkanEngine
 {

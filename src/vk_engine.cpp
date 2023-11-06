@@ -18,6 +18,9 @@ void VulkanEngine::init()
 		_windowExtent.height,
 		window_flags);
 
+	Model model;
+	model.load_from_gltf( ASSET_PATH"/flighthelmet.glb");
+
 	init_vulkan();
 
 	init_swapchain();
@@ -32,7 +35,6 @@ void VulkanEngine::init()
 
 	init_pipelines();
 
-	// everything went fine
 	_isInitialized = true;
 }
 

@@ -8,6 +8,11 @@
 
 namespace vkutils
 {   
+    class AllocatedBuffer {
+    public:
+        vk::Buffer _buffer;
+        vma::Allocation _allocation;
+    };
     class PipelineBuilder {
     public:
         std::vector<vk::PipelineShaderStageCreateInfo> _shaderStages;
