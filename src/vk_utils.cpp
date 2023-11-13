@@ -222,12 +222,12 @@ vk::PresentModeKHR vkutils::chooseSwapPresentMode(const std::vector<vk::PresentM
 {
     for (const auto &availablePresentMode : availablePresentModes)
     {
-        if (availablePresentMode == vk::PresentModeKHR::eFifoRelaxed)
+        if (availablePresentMode == vk::PresentModeKHR::eMailbox)
         {
             return availablePresentMode;
         }
     }
-    return vk::PresentModeKHR::eFifo;
+    return vk::PresentModeKHR::eFifoRelaxed;
 }
 
 vk::Extent2D vkutils::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities, vk::Extent2D &currentExtend)
@@ -263,4 +263,36 @@ vk::ImageView vkutils::createImageView(vk::Device &device, vk::Image &image, vk:
         std::cerr << "Exception Thrown: " << e.what();
     }
     return imageView;
+}
+
+void vkutils::copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size)
+{
+    vk::CommandBufferAllocateInfo allocInfo{};
+    allocInfo.level = vk::CommandBufferLevel::ePrimary;
+    allocInfo.commandPool = pool;
+    allocInfo.commandBufferCount = 1;
+
+    vk::CommandBuffer commandBuffer;
+    std::vector<vk::CommandBuffer> commandBuffers = device.allocateCommandBuffers(allocInfo);
+    commandBuffer = commandBuffers[0];
+
+    vk::CommandBufferBeginInfo beginInfo{};
+    beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+
+    commandBuffer.begin(beginInfo);
+
+        vk::BufferCopy copyRegion{};
+        copyRegion.size = size;
+        commandBuffer.copyBuffer(srcBuffer, dstBuffer, 1, &copyRegion);
+
+    commandBuffer.end();
+
+    vk::SubmitInfo submitInfo{};
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &commandBuffer;
+
+    queue.submit(submitInfo, nullptr);
+    queue.waitIdle();
+
+    device.freeCommandBuffers(pool, 1, &commandBuffer);
 }

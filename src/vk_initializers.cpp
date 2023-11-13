@@ -110,8 +110,8 @@ VkPipelineRasterizationStateCreateInfo vkinit::rasterization_state_create_info(v
 	info.setRasterizerDiscardEnable(VK_FALSE);
 	info.setPolygonMode(polygonMode);
 	info.setLineWidth(1.0f);
-	info.setCullMode(vk::CullModeFlagBits::eNone);
-	info.setFrontFace(vk::FrontFace::eClockwise);
+	info.setCullMode(vk::CullModeFlagBits::eBack);
+	info.setFrontFace(vk::FrontFace::eCounterClockwise);
 	info.setDepthBiasEnable(VK_FALSE);
 	info.setDepthBiasConstantFactor(0.0f);
 	info.setDepthBiasClamp(0.0f);

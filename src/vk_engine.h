@@ -19,8 +19,11 @@ public:
 	std::vector<const char *> _instanceLayers = {
 		"VK_LAYER_KHRONOS_validation",
 		"VK_LAYER_LUNARG_monitor"};
-	std::vector<const char *> _instanceExtensions = {};
+	std::vector<const char *> _instanceExtensions = {
+		VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
+	};
 	std::vector<const char *> _deviceExtensions = {
+		VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
 		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
 		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,

@@ -59,6 +59,7 @@ void VulkanEngine::draw()
 
 	vk::Result waitFencesResult = _device.waitForFences(1, &_renderFence, true, 1000000000);
 	vk::Result resetFencesResult = _device.resetFences(1, &_renderFence);
+	_allocator.setCurrentFrameIndex(_frameNumber);
 	_mainCommandBuffer.reset();
 
 	uint32_t swapchainImageIndex;
@@ -84,8 +85,8 @@ void VulkanEngine::draw()
 		cmd.bindIndexBuffer(_triangleModel._indexBuffer._buffer, offset, vk::IndexType::eUint32);
 		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _modelPipeline);
 
-		glm::vec3 camPos = { 0.f, 0.3f, .75f};
-		glm::mat4 view = glm::lookAt(camPos, glm::vec3(0.f, -0.05f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+		glm::vec3 camPos = { 30.f, 30.f, 30.f};
+		glm::mat4 view = glm::lookAt(camPos, glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
 		glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
 		projection[1][1] *= -1;
 
@@ -278,7 +279,7 @@ void VulkanEngine::init_vulkan()
 	_graphicsQueue = _device.getQueue(indices.graphicsFamily.value(), 0);
 	_presentQueue = _device.getQueue(indices.presentFamily.value(), 0);
 
-	vma::AllocatorCreateInfo allocatorInfo = vma::AllocatorCreateInfo({}, _chosenGPU, _device, {}, {}, {}, {}, {}, _instance, VK_API_VERSION_1_2);
+	vma::AllocatorCreateInfo allocatorInfo = vma::AllocatorCreateInfo(vma::AllocatorCreateFlagBits::eExtMemoryBudget, _chosenGPU, _device, {}, {}, {}, {}, {}, _instance, VK_API_VERSION_1_2);
 	try
 	{
 		_allocator = vma::createAllocator(allocatorInfo);
@@ -287,6 +288,9 @@ void VulkanEngine::init_vulkan()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
+
+	std::vector<vma::Budget> heapBudgets = _allocator.getHeapBudgets();
+
 }
 
 void VulkanEngine::init_swapchain()
@@ -593,61 +597,88 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 
 void VulkanEngine::load_models()
 {
-	// //make the array 3 vertices long
-	// _triangleModel._vertices.resize(3);
-
-	// //vertex positions
-	// _triangleModel._vertices[0].pos = { 1.f, 1.f, 0.0f };
-	// _triangleModel._vertices[1].pos = {-1.f, 1.f, 0.0f };
-	// _triangleModel._vertices[2].pos = { 0.f,-1.f, 0.0f };
-
-	// //vertex colors, all green
-	// _triangleModel._vertices[0].color = { 0.f, 1.f, 0.0f, 1.0}; //pure green
-	// _triangleModel._vertices[1].color = { 0.f, 0.f, 1.0f, 1.0}; //pure green
-	// _triangleModel._vertices[2].color = { 1.f, 0.f, 0.0f, 1.0}; //pure green
-
-	// //we don't care about the vertex normals
-	_triangleModel.load_from_glb(ASSET_PATH"/flighthelmet.glb");
+	_triangleModel.load_from_glb(ASSET_PATH"/bistro_exterior.glb");
 
 	upload_model(_triangleModel);
 }
 
 void VulkanEngine::upload_model(Model &model)
 {
+	vk::DeviceSize vertexBufferSize = model._vertices.size() * sizeof(Vertex);
+	vk::DeviceSize indexBufferSize = model._indices.size() * sizeof(uint32_t);
+
+	std::cout << "Vertex Count: " << model._vertices.size() << std::endl;
+
+	//allocate vertex staging buffer
+	vk::BufferCreateInfo vertexStagingBufferInfo;
+	vertexStagingBufferInfo.size = vertexBufferSize;
+	vertexStagingBufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
+	
+	vma::AllocationCreateInfo vertexStagingBufferAllocInfo = {};
+	vertexStagingBufferAllocInfo.usage = vma::MemoryUsage::eAuto;
+	vertexStagingBufferAllocInfo.flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite;
+
+	vk::Result createVertexStagingBufferResult = _allocator.createBuffer(&vertexStagingBufferInfo, &vertexStagingBufferAllocInfo, &model._vertexStagingBuffer._buffer, &model._vertexStagingBuffer._allocation, nullptr);
+
+	void* dataVertex;
+	vk::Result mapVertexBufferResult = _allocator.mapMemory(model._vertexStagingBuffer._allocation, &dataVertex);
+	memcpy(dataVertex, model._vertices.data(), model._vertices.size() * sizeof(Vertex));
+	_allocator.unmapMemory(model._vertexStagingBuffer._allocation);
+
 	//allocate vertex buffer
+
 	vk::BufferCreateInfo vertexBufferInfo;
-	vertexBufferInfo.size = model._vertices.size() * sizeof(Vertex);
-	vertexBufferInfo.usage = vk::BufferUsageFlagBits::eVertexBuffer;
+	vertexBufferInfo.size = vertexBufferSize;
+	vertexBufferInfo.usage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer;
 	
 	vma::AllocationCreateInfo vertexBufferAllocInfo = {};
-	vertexBufferAllocInfo.usage = vma::MemoryUsage::eCpuToGpu;
+	vertexBufferAllocInfo.usage = vma::MemoryUsage::eAuto;
+	vertexBufferAllocInfo.flags = vma::AllocationCreateFlagBits::eDedicatedMemory;
+	vertexBufferAllocInfo.priority = 1.f;
 
 	vk::Result createVertexBufferResult = _allocator.createBuffer(&vertexBufferInfo, &vertexBufferAllocInfo, &model._vertexBuffer._buffer, &model._vertexBuffer._allocation, nullptr);
 
+	vkutils::copyBuffer(_device, _commandPool, _graphicsQueue, model._vertexStagingBuffer._buffer, model._vertexBuffer._buffer, vertexBufferSize);
+
 	_mainDeletionQueue.push_function([=]() {
+		_allocator.destroyBuffer(model._vertexStagingBuffer._buffer, model._vertexStagingBuffer._allocation);
         _allocator.destroyBuffer(model._vertexBuffer._buffer, model._vertexBuffer._allocation);
     });
 
-	void* dataVertex;
-	vk::Result mapVertexBufferResult = _allocator.mapMemory(model._vertexBuffer._allocation, &dataVertex);
-	memcpy(dataVertex, model._vertices.data(), model._vertices.size() * sizeof(Vertex));
-	_allocator.unmapMemory(model._vertexBuffer._allocation);
+	//allocate index staging Buffer
+
+	vk::BufferCreateInfo indexStagingBufferInfo;
+	indexStagingBufferInfo.size = indexBufferSize;
+	indexStagingBufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
+
+	vma::AllocationCreateInfo indexStagingBufferallocInfo = {};
+	indexStagingBufferallocInfo.usage = vma::MemoryUsage::eAuto;
+	indexStagingBufferallocInfo.flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite;
+
+	vk::Result createIndexStagingBufferResult = _allocator.createBuffer(&indexStagingBufferInfo, &indexStagingBufferallocInfo, &model._indexStagingBuffer._buffer, &model._indexStagingBuffer._allocation, nullptr);
+
+	void* dataIndex;
+	vk::Result mapIndexBufferResult = _allocator.mapMemory(model._indexStagingBuffer._allocation, &dataIndex);
+	memcpy(dataIndex, model._indices.data(), model._indices.size() * sizeof(uint32_t));
+	_allocator.unmapMemory(model._indexStagingBuffer._allocation);
+	
+	//allocate index Buffer
 
 	vk::BufferCreateInfo indexBufferInfo;
-	indexBufferInfo.size = model._indices.size() * sizeof(uint32_t);
-	indexBufferInfo.usage = vk::BufferUsageFlagBits::eIndexBuffer;
+	indexBufferInfo.size = indexBufferSize;
+	indexBufferInfo.usage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer;
 
 	vma::AllocationCreateInfo indexBufferallocInfo = {};
-	indexBufferallocInfo.usage = vma::MemoryUsage::eCpuToGpu;
+	indexBufferallocInfo.usage = vma::MemoryUsage::eAuto;
+	indexBufferallocInfo.flags = vma::AllocationCreateFlagBits::eDedicatedMemory;
+	indexBufferallocInfo.priority = 1.f;
 
 	vk::Result createIndexBufferResult = _allocator.createBuffer(&indexBufferInfo, &indexBufferallocInfo, &model._indexBuffer._buffer, &model._indexBuffer._allocation, nullptr);
 
+	vkutils::copyBuffer(_device, _commandPool, _graphicsQueue, model._indexStagingBuffer._buffer, model._indexBuffer._buffer, indexBufferSize);
+	
 	_mainDeletionQueue.push_function([=]() {
-        _allocator.destroyBuffer(model._indexBuffer._buffer, model._indexBuffer._allocation);
+    	_allocator.destroyBuffer(model._indexStagingBuffer._buffer, model._indexStagingBuffer._allocation);
+		_allocator.destroyBuffer(model._indexBuffer._buffer, model._indexBuffer._allocation);
     });
-
-	void* dataIndex;
-	vk::Result mapIndexBufferResult = _allocator.mapMemory(model._indexBuffer._allocation, &dataIndex);
-	memcpy(dataIndex, model._indices.data(), model._indices.size() * sizeof(uint32_t));
-	_allocator.unmapMemory(model._indexBuffer._allocation);
 }
