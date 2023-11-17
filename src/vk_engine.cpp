@@ -12,11 +12,7 @@ void VulkanEngine::init()
 
 	SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_VULKAN);
 
-	_window = SDL_CreateWindow(
-		"Vulkan Engine",
-		_windowExtent.width,
-		_windowExtent.height,
-		window_flags);
+	_window = SDL_CreateWindow("Vulkan Engine", _windowExtent.width, _windowExtent.height, window_flags);
 
 	init_vulkan();
 
@@ -30,9 +26,27 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
+	init_descriptors();
+
 	init_pipelines();
 
 	load_models();
+
+	glm::vec3 camPos = { 1.f, 1.f, 1.f};
+	glm::mat4 view = glm::lookAt(camPos, glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
+	glm::mat4 projection = glm::perspective(glm::radians(70.f), (float) _windowExtent.width / _windowExtent.height, 0.1f, 200.0f);
+	projection[1][1] *= -1;
+
+	vkutils::CameraData camData;
+	camData.proj = projection;
+	camData.view = view;
+	camData.viewproj = projection * view;
+
+	for (int i = 0; i < FRAME_OVERLAP; i++){
+		void* data = _allocator.mapMemory(_frames[i].cameraBuffer._allocation);
+			memcpy(data, &camData, sizeof(vkutils::CameraData));
+		_allocator.unmapMemory(_frames[i].cameraBuffer._allocation);
+	}
 
 	_isInitialized = true;
 }
@@ -57,15 +71,15 @@ void VulkanEngine::draw()
 	if (SDL_GetWindowFlags(_window) & SDL_WINDOW_MINIMIZED)
 		return;
 
-	vk::Result waitFencesResult = _device.waitForFences(1, &_renderFence, true, 1000000000);
-	vk::Result resetFencesResult = _device.resetFences(1, &_renderFence);
+	vk::Result waitFencesResult = _device.waitForFences(get_current_frame()._renderFence, true, 1000000000);
+	_device.resetFences(get_current_frame()._renderFence);
 	_allocator.setCurrentFrameIndex(_frameNumber);
-	_mainCommandBuffer.reset();
+	get_current_frame()._mainCommandBuffer.reset();
 
 	uint32_t swapchainImageIndex;
-	vk::Result aquireNextImageResult = _device.acquireNextImageKHR(_swapchain, 1000000000, _presentSemaphore, nullptr, &swapchainImageIndex);
+	vk::Result aquireNextImageResult = _device.acquireNextImageKHR(_swapchain, 1000000000, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex);
 
-	vk::CommandBuffer cmd = _mainCommandBuffer;
+	vk::CommandBuffer cmd = get_current_frame()._mainCommandBuffer;
 
 	vk::CommandBufferBeginInfo cmdBeginInfo = vkinit::command_buffer_begin_info(vk::CommandBufferUsageFlagBits::eOneTimeSubmit);
 
@@ -84,20 +98,15 @@ void VulkanEngine::draw()
 		cmd.bindVertexBuffers(0, 1, &_triangleModel._vertexBuffer._buffer, &offset);
 		cmd.bindIndexBuffer(_triangleModel._indexBuffer._buffer, offset, vk::IndexType::eUint32);
 		cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _modelPipeline);
-
-		glm::vec3 camPos = { 30.f, 30.f, 30.f};
-		glm::mat4 view = glm::lookAt(camPos, glm::vec3(0.f, 0.f, 0.f), glm::vec3(0.f, 1.f, 0.f));
-		glm::mat4 projection = glm::perspective(glm::radians(70.f), 1700.f / 900.f, 0.1f, 200.0f);
-		projection[1][1] *= -1;
+		cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _modelPipelineLayout, 0, get_current_frame().globalDescriptor, {});
 
 		for (auto node : _triangleModel._linearNodes)
 		{
 			for(auto primitive : node->primitives)
 			{
 				glm::mat4 model = glm::rotate(glm::mat4(1.f), glm::radians(_frameNumber * 0.4f), glm::vec3(0, 1, 0)) * node->getMatrix();
-				glm::mat4 mvp_matrix = projection * view * model;
 				vkutils::PushConstants constants;
-				constants.matrix = mvp_matrix;
+				constants.matrix = model;
 				cmd.pushConstants(_modelPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(vkutils::PushConstants), &constants);
 				cmd.drawIndexed(primitive->indexCount, 1, primitive->firstIndex, 0, 0);
 			}
@@ -109,20 +118,16 @@ void VulkanEngine::draw()
 
 	vk::SubmitInfo submit = vkinit::submit_info(&cmd);
 	vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-	submit.setPWaitDstStageMask(&waitStage);
-	submit.setWaitSemaphoreCount(1);
-	submit.setPWaitSemaphores(&_presentSemaphore);
-	submit.setSignalSemaphoreCount(1);
-	submit.setPSignalSemaphores(&_renderSemaphore);
+	submit.setWaitDstStageMask(waitStage);
+	submit.setWaitSemaphores(get_current_frame()._presentSemaphore);
+	submit.setSignalSemaphores(get_current_frame()._renderSemaphore);
 
-	vk::Result queueSubmitResult = _graphicsQueue.submit(1, &submit, _renderFence);
+	_graphicsQueue.submit(submit, get_current_frame()._renderFence);
 
 	vk::PresentInfoKHR presentInfo = vkinit::present_info();
-	presentInfo.setPSwapchains(&_swapchain);
-	presentInfo.setSwapchainCount(1);
-	presentInfo.setPWaitSemaphores(&_renderSemaphore);
-	presentInfo.setWaitSemaphoreCount(1);
-	presentInfo.setPImageIndices(&swapchainImageIndex);
+	presentInfo.setSwapchains(_swapchain);
+	presentInfo.setWaitSemaphores(get_current_frame()._renderSemaphore);
+	presentInfo.setImageIndices(swapchainImageIndex);
 
 	vk::Result queuePresentResult = _presentQueue.presentKHR(presentInfo);
 
@@ -145,21 +150,15 @@ void VulkanEngine::run()
 			{
 				bQuit = true;
 			}
-			else if (e.type == SDL_EVENT_KEY_DOWN)
-			{
-				if (e.key.keysym.sym == SDLK_SPACE)
-				{
-					_selectedShader += 1;
-					if (_selectedShader > 1)
-					{
-						_selectedShader = 0;
-					}
-				}
-			}
 		}
 
 		draw();
 	}
+}
+
+vkutils::FrameData& VulkanEngine::get_current_frame()
+{
+	return _frames[_frameNumber % FRAME_OVERLAP];
 }
 
 void VulkanEngine::init_vulkan()
@@ -184,7 +183,8 @@ void VulkanEngine::init_vulkan()
 			_instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT> instanceCreateInfoChain{
 				vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, _instanceLayers, _instanceExtensions),
-				vk::DebugUtilsMessengerCreateInfoEXT({}, _messageSeverityFlags, _messageTypeFlags, vkutils::debugCallback)};
+				vk::DebugUtilsMessengerCreateInfoEXT({}, _messageSeverityFlags, _messageTypeFlags, vkutils::debugCallback)
+			};
 			_instance = vk::createInstance(instanceCreateInfoChain.get<vk::InstanceCreateInfo>());
 		}
 		else
@@ -276,10 +276,11 @@ void VulkanEngine::init_vulkan()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
+	VULKAN_HPP_DEFAULT_DISPATCHER.init(_device);
 	_graphicsQueue = _device.getQueue(indices.graphicsFamily.value(), 0);
 	_presentQueue = _device.getQueue(indices.presentFamily.value(), 0);
 
-	vma::AllocatorCreateInfo allocatorInfo = vma::AllocatorCreateInfo(vma::AllocatorCreateFlagBits::eExtMemoryBudget, _chosenGPU, _device, {}, {}, {}, {}, {}, _instance, VK_API_VERSION_1_2);
+	vma::AllocatorCreateInfo allocatorInfo = vma::AllocatorCreateInfo(vma::AllocatorCreateFlagBits::eExtMemoryBudget | vma::AllocatorCreateFlagBits::eBufferDeviceAddress, _chosenGPU, _device, {}, {}, {}, {}, {}, _instance, VK_API_VERSION_1_2);
 	try
 	{
 		_allocator = vma::createAllocator(allocatorInfo);
@@ -298,7 +299,7 @@ void VulkanEngine::init_swapchain()
 	vkutils::SwapChainSupportDetails swapChainSupport = vkutils::querySwapChainSupport(_chosenGPU, _surface);
 
 	vk::SurfaceFormatKHR surfaceFormat = vkutils::chooseSwapSurfaceFormat(swapChainSupport.formats);
-	vk::PresentModeKHR presentMode = vkutils::chooseSwapPresentMode(swapChainSupport.presentModes);
+	vk::PresentModeKHR presentMode = vkutils::chooseSwapPresentMode(vk::PresentModeKHR::eMailbox, swapChainSupport.presentModes);
 	vk::Extent2D extent = vkutils::chooseSwapExtent(swapChainSupport.capabilities, _windowExtent);
 
 	uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
@@ -476,57 +477,122 @@ void VulkanEngine::init_framebuffers()
 void VulkanEngine::init_commands()
 {
 	vk::CommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
-	try
-	{
-		_commandPool = _device.createCommandPool(commandPoolInfo);
-	}
-	catch (std::exception &e)
-	{
-		std::cerr << "Exception Thrown: " << e.what();
-	}
+	for (int i = 0; i < FRAME_OVERLAP; i++) {
+		try
+		{
+			_frames[i]._commandPool = _device.createCommandPool(commandPoolInfo);
+		}
+		catch (std::exception &e)
+		{
+			std::cerr << "Exception Thrown: " << e.what();
+		}
 
-	VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_commandPool, 1, vk::CommandBufferLevel::ePrimary);
-	try
-	{
-		_mainCommandBuffer = _device.allocateCommandBuffers(cmdAllocInfo).front();
+		VkCommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1, vk::CommandBufferLevel::ePrimary);
+		try
+		{
+			_frames[i]._mainCommandBuffer = _device.allocateCommandBuffers(cmdAllocInfo).front();
+		}
+		catch (std::exception &e)
+		{
+			std::cerr << "Exception Thrown: " << e.what();
+		}
+		_mainDeletionQueue.push_function([=](){
+			_device.destroyCommandPool(_frames[i]._commandPool, nullptr);
+		});
 	}
-	catch (std::exception &e)
-	{
-		std::cerr << "Exception Thrown: " << e.what();
-	}
-
-	_mainDeletionQueue.push_function([=]()
-									 { _device.destroyCommandPool(_commandPool, nullptr); });
 }
 
 void VulkanEngine::init_sync_structures()
 {
 	vk::FenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(vk::FenceCreateFlagBits::eSignaled);
-	try
-	{
-		_renderFence = _device.createFence(fenceCreateInfo);
-	}
-	catch (std::exception &e)
-	{
-		std::cerr << "Exception Thrown: " << e.what();
-	}
-	_mainDeletionQueue.push_function([=]()
-									 { _device.destroyFence(_renderFence, nullptr); });
-
 	vk::SemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
-	try
-	{
-		_presentSemaphore = _device.createSemaphore(semaphoreCreateInfo);
-		_renderSemaphore = _device.createSemaphore(semaphoreCreateInfo);
+
+	for (int i = 0; i < FRAME_OVERLAP; i++) {     
+		try
+		{
+			_frames[i]._renderFence = _device.createFence(fenceCreateInfo);
+		}
+		catch (std::exception &e)
+		{
+			std::cerr << "Exception Thrown: " << e.what();
+		}
+		_mainDeletionQueue.push_function([=](){
+			_device.destroyFence(_frames[i]._renderFence, nullptr); 
+		});
+		try
+		{
+			_frames[i]._presentSemaphore = _device.createSemaphore(semaphoreCreateInfo);
+			_frames[i]._renderSemaphore = _device.createSemaphore(semaphoreCreateInfo);
+		}
+		catch (std::exception &e)
+		{
+			std::cerr << "Exception Thrown: " << e.what();
+		}
+		_mainDeletionQueue.push_function([=]()
+		{
+			_device.destroySemaphore(_frames[i]._presentSemaphore, nullptr);
+			_device.destroySemaphore(_frames[i]._renderSemaphore, nullptr); 
+		});
 	}
-	catch (std::exception &e)
+}
+
+void VulkanEngine::init_descriptors()
+{
+	std::vector<vk::DescriptorPoolSize> poolSizes =
 	{
-		std::cerr << "Exception Thrown: " << e.what();
+		{vk::DescriptorType::eUniformBuffer, 10 }
+	};
+
+	vk::DescriptorPoolCreateInfo pool_info;
+	pool_info.setMaxSets(10);
+	pool_info.setPoolSizes(poolSizes);
+
+	_descriptorPool = _device.createDescriptorPool(pool_info);
+
+	vk::DescriptorSetLayoutBinding camBufferBinding;
+	camBufferBinding.binding = 0;
+	camBufferBinding.descriptorCount = 1;
+	camBufferBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
+	camBufferBinding.stageFlags = vk::ShaderStageFlagBits::eVertex;
+
+	vk::DescriptorSetLayoutCreateInfo setinfo;
+	setinfo.setBindings(camBufferBinding);
+
+	_globalSetLayout = _device.createDescriptorSetLayout(setinfo);
+	
+	for (int i = 0; i < FRAME_OVERLAP; i++)
+	{
+		_frames[i].cameraBuffer = vkutils::create_buffer(_allocator, sizeof(vkutils::CameraData), vk::BufferUsageFlagBits::eUniformBuffer, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
+
+		vk::DescriptorSetAllocateInfo allocInfo;
+		allocInfo.descriptorPool = _descriptorPool;
+		allocInfo.setSetLayouts(_globalSetLayout);
+
+		_frames[i].globalDescriptor = _device.allocateDescriptorSets(allocInfo).front();
+
+		vk::DescriptorBufferInfo binfo;
+		binfo.buffer = _frames[i].cameraBuffer._buffer;
+		binfo.offset = 0;
+		binfo.range = sizeof(vkutils::CameraData);
+
+		vk::WriteDescriptorSet setWrite;
+		setWrite.dstBinding = 0;
+		setWrite.dstSet = _frames[i].globalDescriptor;
+		setWrite.descriptorCount = 1;
+		setWrite.descriptorType = vk::DescriptorType::eUniformBuffer;
+		setWrite.setBufferInfo(binfo);
+
+		_device.updateDescriptorSets(setWrite, {});
 	}
-	_mainDeletionQueue.push_function([=]()
-									 {
-		_device.destroySemaphore(_presentSemaphore, nullptr);
-		_device.destroySemaphore(_renderSemaphore, nullptr); });
+
+	_mainDeletionQueue.push_function([&]() {
+		_device.destroyDescriptorPool(_descriptorPool);
+		_device.destroyDescriptorSetLayout(_globalSetLayout);
+		for (int i = 0; i < FRAME_OVERLAP; i++)
+		{
+			_allocator.destroyBuffer(_frames[i].cameraBuffer._buffer, _frames[i].cameraBuffer._allocation);
+		}
+	});
 }
 
 void VulkanEngine::init_pipelines()
@@ -534,12 +600,10 @@ void VulkanEngine::init_pipelines()
 	vk::ShaderModule modelVertexShader = load_shader_module(vk::ShaderStageFlagBits::eVertex, "/triangle.vert");
 	vk::ShaderModule modelFragShader = load_shader_module(vk::ShaderStageFlagBits::eFragment, "/triangle.frag");
 
+	vk::PushConstantRange push_constants{vk::ShaderStageFlagBits::eVertex, 0, sizeof(vkutils::PushConstants)};
 	vk::PipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
-	std::array<vk::PushConstantRange, 1> push_constants;
-	push_constants[0].setOffset(0);
-	push_constants[0].setSize(sizeof(vkutils::PushConstants));
-	push_constants[0].setStageFlags(vk::ShaderStageFlagBits::eVertex);
 	pipeline_layout_info.setPushConstantRanges(push_constants);
+	pipeline_layout_info.setSetLayouts(_globalSetLayout);
 
 	_modelPipelineLayout = _device.createPipelineLayout(pipeline_layout_info, nullptr);
 
@@ -597,9 +661,10 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 
 void VulkanEngine::load_models()
 {
-	_triangleModel.load_from_glb(ASSET_PATH"/bistro_exterior.glb");
+	_triangleModel.load_from_glb(ASSET_PATH"/flighthelmet.glb");
 
 	upload_model(_triangleModel);
+	init_bottom_level_acceleration_structure(_triangleModel);
 }
 
 void VulkanEngine::upload_model(Model &model)
@@ -608,77 +673,173 @@ void VulkanEngine::upload_model(Model &model)
 	vk::DeviceSize indexBufferSize = model._indices.size() * sizeof(uint32_t);
 
 	std::cout << "Vertex Count: " << model._vertices.size() << std::endl;
-
 	//allocate vertex staging buffer
-	vk::BufferCreateInfo vertexStagingBufferInfo;
-	vertexStagingBufferInfo.size = vertexBufferSize;
-	vertexStagingBufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
-	
-	vma::AllocationCreateInfo vertexStagingBufferAllocInfo = {};
-	vertexStagingBufferAllocInfo.usage = vma::MemoryUsage::eAuto;
-	vertexStagingBufferAllocInfo.flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite;
+	model._vertexStagingBuffer = vkutils::create_buffer(_allocator, vertexBufferSize, vk::BufferUsageFlagBits::eTransferSrc , vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 
-	vk::Result createVertexStagingBufferResult = _allocator.createBuffer(&vertexStagingBufferInfo, &vertexStagingBufferAllocInfo, &model._vertexStagingBuffer._buffer, &model._vertexStagingBuffer._allocation, nullptr);
-
-	void* dataVertex;
-	vk::Result mapVertexBufferResult = _allocator.mapMemory(model._vertexStagingBuffer._allocation, &dataVertex);
+	void* dataVertex = _allocator.mapMemory(model._vertexStagingBuffer._allocation);
 	memcpy(dataVertex, model._vertices.data(), model._vertices.size() * sizeof(Vertex));
 	_allocator.unmapMemory(model._vertexStagingBuffer._allocation);
 
 	//allocate vertex buffer
+	model._vertexBuffer = vkutils::create_buffer(_allocator, vertexBufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::AllocationCreateFlagBits::eDedicatedMemory);
 
-	vk::BufferCreateInfo vertexBufferInfo;
-	vertexBufferInfo.size = vertexBufferSize;
-	vertexBufferInfo.usage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eVertexBuffer;
-	
-	vma::AllocationCreateInfo vertexBufferAllocInfo = {};
-	vertexBufferAllocInfo.usage = vma::MemoryUsage::eAuto;
-	vertexBufferAllocInfo.flags = vma::AllocationCreateFlagBits::eDedicatedMemory;
-	vertexBufferAllocInfo.priority = 1.f;
-
-	vk::Result createVertexBufferResult = _allocator.createBuffer(&vertexBufferInfo, &vertexBufferAllocInfo, &model._vertexBuffer._buffer, &model._vertexBuffer._allocation, nullptr);
-
-	vkutils::copyBuffer(_device, _commandPool, _graphicsQueue, model._vertexStagingBuffer._buffer, model._vertexBuffer._buffer, vertexBufferSize);
-
-	_mainDeletionQueue.push_function([=]() {
-		_allocator.destroyBuffer(model._vertexStagingBuffer._buffer, model._vertexStagingBuffer._allocation);
-        _allocator.destroyBuffer(model._vertexBuffer._buffer, model._vertexBuffer._allocation);
-    });
+	vkutils::copyBuffer(_device, _frames[0]._commandPool, _graphicsQueue, model._vertexStagingBuffer._buffer, model._vertexBuffer._buffer, vertexBufferSize);
 
 	//allocate index staging Buffer
+	model._indexStagingBuffer = vkutils::create_buffer(_allocator, indexBufferSize, vk::BufferUsageFlagBits::eTransferSrc, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 
-	vk::BufferCreateInfo indexStagingBufferInfo;
-	indexStagingBufferInfo.size = indexBufferSize;
-	indexStagingBufferInfo.usage = vk::BufferUsageFlagBits::eTransferSrc;
-
-	vma::AllocationCreateInfo indexStagingBufferallocInfo = {};
-	indexStagingBufferallocInfo.usage = vma::MemoryUsage::eAuto;
-	indexStagingBufferallocInfo.flags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite;
-
-	vk::Result createIndexStagingBufferResult = _allocator.createBuffer(&indexStagingBufferInfo, &indexStagingBufferallocInfo, &model._indexStagingBuffer._buffer, &model._indexStagingBuffer._allocation, nullptr);
-
-	void* dataIndex;
-	vk::Result mapIndexBufferResult = _allocator.mapMemory(model._indexStagingBuffer._allocation, &dataIndex);
+	void* dataIndex = _allocator.mapMemory(model._indexStagingBuffer._allocation);
 	memcpy(dataIndex, model._indices.data(), model._indices.size() * sizeof(uint32_t));
 	_allocator.unmapMemory(model._indexStagingBuffer._allocation);
 	
 	//allocate index Buffer
+	model._indexBuffer = vkutils::create_buffer(_allocator, indexBufferSize, vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::AllocationCreateFlagBits::eDedicatedMemory);
 
-	vk::BufferCreateInfo indexBufferInfo;
-	indexBufferInfo.size = indexBufferSize;
-	indexBufferInfo.usage = vk::BufferUsageFlagBits::eTransferDst | vk::BufferUsageFlagBits::eIndexBuffer;
-
-	vma::AllocationCreateInfo indexBufferallocInfo = {};
-	indexBufferallocInfo.usage = vma::MemoryUsage::eAuto;
-	indexBufferallocInfo.flags = vma::AllocationCreateFlagBits::eDedicatedMemory;
-	indexBufferallocInfo.priority = 1.f;
-
-	vk::Result createIndexBufferResult = _allocator.createBuffer(&indexBufferInfo, &indexBufferallocInfo, &model._indexBuffer._buffer, &model._indexBuffer._allocation, nullptr);
-
-	vkutils::copyBuffer(_device, _commandPool, _graphicsQueue, model._indexStagingBuffer._buffer, model._indexBuffer._buffer, indexBufferSize);
+	vkutils::copyBuffer(_device, _frames[0]._commandPool, _graphicsQueue, model._indexStagingBuffer._buffer, model._indexBuffer._buffer, indexBufferSize);
 	
+	_allocator.destroyBuffer(model._vertexStagingBuffer._buffer, model._vertexStagingBuffer._allocation);
+	_allocator.destroyBuffer(model._indexStagingBuffer._buffer, model._indexStagingBuffer._allocation);
 	_mainDeletionQueue.push_function([=]() {
-    	_allocator.destroyBuffer(model._indexStagingBuffer._buffer, model._indexStagingBuffer._allocation);
+		_allocator.destroyBuffer(model._vertexBuffer._buffer, model._vertexBuffer._allocation);
 		_allocator.destroyBuffer(model._indexBuffer._buffer, model._indexBuffer._allocation);
     });
+}
+
+void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
+{
+	std::vector<vk::TransformMatrixKHR> transformMatrices{};
+	for (auto node : model._linearNodes) {
+		for (auto primitive : node->primitives) {
+			if (primitive->indexCount > 0) {
+				vk::TransformMatrixKHR transformMatrix{};
+				auto m = glm::mat3x4(glm::transpose(node->getMatrix()));
+				memcpy(&transformMatrix, (void*)&m, sizeof(glm::mat3x4));
+				transformMatrices.push_back(transformMatrix);
+			}
+		}
+	}
+	vk::DeviceSize transformSize = transformMatrices.size() * sizeof(vk::TransformMatrixKHR);
+	_transformBuffer = vkutils::create_buffer(_allocator, transformSize, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
+	_mainDeletionQueue.push_function([=]() {
+		_allocator.destroyBuffer(_transformBuffer._buffer, _transformBuffer._allocation);
+	});
+	void* dataTransform = _allocator.mapMemory(_transformBuffer._allocation);
+	memcpy(dataTransform, transformMatrices.data(), transformSize);
+	_allocator.unmapMemory(_transformBuffer._allocation);
+
+	// Build BLAS
+	uint32_t maxPrimCount{ 0 };
+	std::vector<uint32_t> maxPrimitiveCounts{};
+	std::vector<vk::AccelerationStructureGeometryKHR> geometries{};
+	std::vector<vk::AccelerationStructureBuildRangeInfoKHR> buildRangeInfos{};
+	std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> pBuildRangeInfos{};
+	vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress{};
+	vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress{};
+	vk::DeviceOrHostAddressConstKHR transformBufferDeviceAddress{};
+	vk::BufferDeviceAddressInfo vertexBufferAdressInfo(model._vertexBuffer._buffer);
+	vk::BufferDeviceAddressInfo indexBufferAdressInfo(model._indexBuffer._buffer);
+	vk::BufferDeviceAddressInfo transformBufferAdressInfo(_transformBuffer._buffer);
+	std::vector<vkutils::GeometryNode> geometryNodes{};
+	for (auto node : model._linearNodes) {
+		for (auto primitive : node->primitives) {
+			if (primitive->indexCount > 0) {
+				//Device Addresses
+				vertexBufferDeviceAddress.deviceAddress = _device.getBufferAddress(vertexBufferAdressInfo);
+				indexBufferDeviceAddress.deviceAddress = _device.getBufferAddress(vertexBufferAdressInfo) + primitive->firstIndex * sizeof(uint32_t);
+				transformBufferDeviceAddress.deviceAddress = _device.getBufferAddress(transformBufferAdressInfo) + static_cast<uint32_t>(geometries.size()) * sizeof(vk::TransformMatrixKHR);
+
+				vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
+				triangles.vertexFormat = vk::Format::eR32G32B32Sfloat;
+				triangles.maxVertex = primitive->vertexCount;
+				triangles.vertexStride = sizeof(Vertex);
+				triangles.indexType = vk::IndexType::eUint32;
+				triangles.vertexData = vertexBufferDeviceAddress;
+				triangles.indexData = indexBufferDeviceAddress;
+				triangles.transformData = transformBufferDeviceAddress;
+
+				vk::AccelerationStructureGeometryKHR geometry;
+				geometry.geometryType = vk::GeometryTypeKHR::eTriangles;
+				geometry.geometry.triangles = triangles;
+
+				geometries.push_back(geometry);
+				maxPrimitiveCounts.push_back(primitive->indexCount / 3);
+				maxPrimCount += primitive->indexCount / 3;
+
+				vk::AccelerationStructureBuildRangeInfoKHR buildRangeInfo;
+				buildRangeInfo.firstVertex = 0;
+				buildRangeInfo.primitiveOffset = 0;
+				buildRangeInfo.primitiveCount = primitive->indexCount / 3;
+				buildRangeInfo.transformOffset = 0;
+				buildRangeInfos.push_back(buildRangeInfo);
+				
+				//push Material in same order to Reference it
+				vkutils::GeometryNode geometryNode{};
+				geometryNode.vertexBufferDeviceAddress = vertexBufferDeviceAddress.deviceAddress;
+				geometryNode.indexBufferDeviceAddress = indexBufferDeviceAddress.deviceAddress;
+				geometryNodes.push_back(geometryNode);
+			}
+		}
+	}
+	for (auto& rangeInfo : buildRangeInfos) {
+		pBuildRangeInfos.push_back(&rangeInfo);
+	}
+	// Get size info
+	vk::AccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo;
+	accelerationStructureBuildGeometryInfo.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
+	accelerationStructureBuildGeometryInfo.flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace;
+	accelerationStructureBuildGeometryInfo.setGeometries(geometries);
+	const uint32_t numTriangles = maxPrimCount;
+	auto accelerationStructureBuildSizesInfo = _device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, maxPrimitiveCounts);
+
+	//Build BLAS Buffer
+	_bottomLevelASBuffer = vkutils::create_buffer(_allocator, accelerationStructureBuildSizesInfo.accelerationStructureSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR, vma::AllocationCreateFlagBits::eDedicatedMemory);
+
+	//Get BLAS Handle
+	vk::AccelerationStructureCreateInfoKHR accelerationStructureCreateInfo;
+	accelerationStructureCreateInfo.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
+	accelerationStructureCreateInfo.buffer = _bottomLevelASBuffer._buffer;
+	accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
+	_bottomLevelAS = _device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
+
+	_mainDeletionQueue.push_function([=]() {
+		_allocator.destroyBuffer(_bottomLevelASBuffer._buffer, _bottomLevelASBuffer._allocation);
+		_device.destroyAccelerationStructureKHR(_bottomLevelAS);
+	});
+
+	// Create ScratchBuffer
+	auto scratchBuffer = vkutils::create_buffer(_allocator, accelerationStructureBuildSizesInfo.buildScratchSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::AllocationCreateFlagBits::eDedicatedMemory);
+	vk::BufferDeviceAddressInfo scratchBufferAdressInfo(scratchBuffer._buffer);
+	vk::DeviceOrHostAddressConstKHR scratchBufferAddress;
+	scratchBufferAddress.deviceAddress = _device.getBufferAddress(scratchBufferAdressInfo);
+
+	accelerationStructureBuildGeometryInfo.mode = vk::BuildAccelerationStructureModeKHR::eBuild;
+	accelerationStructureBuildGeometryInfo.dstAccelerationStructure = _bottomLevelAS;
+	accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = scratchBufferAddress.deviceAddress;
+
+	vk::CommandBufferAllocateInfo allocInfo{};
+    allocInfo.level = vk::CommandBufferLevel::ePrimary;
+    allocInfo.commandPool = _frames[0]._commandPool;
+    allocInfo.commandBufferCount = 1;
+
+    vk::CommandBuffer commandBuffer = _device.allocateCommandBuffers(allocInfo).front();
+
+    vk::CommandBufferBeginInfo beginInfo{};
+    beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+
+    commandBuffer.begin(beginInfo);
+		commandBuffer.buildAccelerationStructuresKHR(1, &accelerationStructureBuildGeometryInfo, pBuildRangeInfos.data());
+    commandBuffer.end();
+
+    vk::SubmitInfo submitInfo{};
+    submitInfo.setCommandBuffers(commandBuffer);
+    _graphicsQueue.submit(submitInfo);
+    _graphicsQueue.waitIdle();
+    _device.freeCommandBuffers(_frames[0]._commandPool, commandBuffer);
+
+	vk::AccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo;
+	accelerationDeviceAddressInfo.accelerationStructure = _bottomLevelAS;
+	_bottomLevelDeviceAddress = _device.getAccelerationStructureAddressKHR(accelerationDeviceAddressInfo);
+
+	//delete Scratch Buffer
+	_allocator.destroyBuffer(scratchBuffer._buffer, scratchBuffer._allocation);
 }

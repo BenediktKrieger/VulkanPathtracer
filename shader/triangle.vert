@@ -8,16 +8,23 @@ layout (location = 4) in vec4 vJoint;
 layout (location = 5) in vec4 vWeight;
 layout (location = 6) in vec4 vTangent;
 
+layout(set = 0, binding = 0) uniform  CameraBuffer{
+	mat4 viewMatrix;
+	mat4 projMartix;
+	mat4 viewprojMatrix;
+} cameraData;
+
 layout( push_constant ) uniform constants
 {
 	vec4 data;
-	mat4 render_matrix;
+	mat4 modelMatrix;
 } PushConstants;
 
 layout (location = 0) out vec3 outNormal;
 
 void main()
 {
-	gl_Position = PushConstants.render_matrix * vec4(vPosition, 1.0f);
+	mat4 transformMatrix = (cameraData.viewprojMatrix * PushConstants.modelMatrix);
+	gl_Position = transformMatrix * vec4(vPosition, 1.0f);
 	outNormal = vNormal;
 }

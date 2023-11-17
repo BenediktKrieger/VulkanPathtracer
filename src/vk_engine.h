@@ -5,6 +5,8 @@
 #include <vk_utils.h>
 #include <vk_model.h>
 
+constexpr unsigned int FRAME_OVERLAP = 2;
+
 class VulkanEngine
 {
 public:
@@ -44,17 +46,13 @@ public:
 	vk::PhysicalDevice _chosenGPU;
 	vk::Device _device;
 
-	vk::Semaphore _presentSemaphore, _renderSemaphore;
-	vk::Fence _renderFence;
+	vkutils::FrameData _frames[FRAME_OVERLAP];
 
 	vk::Queue _graphicsQueue;
 	uint32_t _graphicsQueueFamily;
 
 	vk::Queue _presentQueue;
 	uint32_t _presentQueueFamily;
-
-	vk::CommandPool _commandPool;
-	vk::CommandBuffer _mainCommandBuffer;
 
 	vk::RenderPass _renderPass;
 
@@ -76,12 +74,23 @@ public:
 	vkutils::AllocatedImage _depthImage;
 	vk::Format _depthFormat;
 
+	vk::DescriptorPool _descriptorPool;
+	vk::DescriptorSetLayout _globalSetLayout;
+
+	vkutils::AllocatedBuffer _transformBuffer;
+	vkutils::AllocatedBuffer _bottomLevelASBuffer;
+	vk::DeviceAddress _bottomLevelDeviceAddress;
+	vk::AccelerationStructureKHR _bottomLevelAS;
+
 	vkutils::DeletionQueue _mainDeletionQueue;
+
 
 	void init();
 	void cleanup();
 	void draw();
 	void run();
+
+	vkutils::FrameData& get_current_frame();
 
 private:
 	void init_vulkan();
@@ -96,11 +105,15 @@ private:
 
 	void init_sync_structures();
 
+	void init_descriptors();
+
 	void init_pipelines();
 
 	void load_models();
 
 	void upload_model(Model& model);
+
+	void init_bottom_level_acceleration_structure(Model &model);
 
 	vk::ShaderModule load_shader_module(vk::ShaderStageFlagBits type, std::string filePath);
 };

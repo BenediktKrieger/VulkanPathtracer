@@ -31,7 +31,7 @@ vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::Ren
     try
     {
         vk::Result result;
-        std::tie(result, newPipeline) = device.createGraphicsPipeline(nullptr, pipelineInfo);
+        std::tie(result, newPipeline) = device.createGraphicsPipeline({}, pipelineInfo);
         if (result != vk::Result::eSuccess)
         {
             throw std::runtime_error("failed to create graphics Pipeline!");
@@ -218,16 +218,16 @@ vk::SurfaceFormatKHR vkutils::chooseSwapSurfaceFormat(const std::vector<vk::Surf
     return availableFormats[0];
 }
 
-vk::PresentModeKHR vkutils::chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes)
+vk::PresentModeKHR vkutils::chooseSwapPresentMode(const vk::PresentModeKHR preferedPresentMode, const std::vector<vk::PresentModeKHR> &availablePresentModes)
 {
     for (const auto &availablePresentMode : availablePresentModes)
     {
-        if (availablePresentMode == vk::PresentModeKHR::eMailbox)
+        if (availablePresentMode == preferedPresentMode)
         {
             return availablePresentMode;
         }
     }
-    return vk::PresentModeKHR::eFifoRelaxed;
+    return vk::PresentModeKHR::eMailbox;
 }
 
 vk::Extent2D vkutils::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities, vk::Extent2D &currentExtend)
@@ -263,6 +263,21 @@ vk::ImageView vkutils::createImageView(vk::Device &device, vk::Image &image, vk:
         std::cerr << "Exception Thrown: " << e.what();
     }
     return imageView;
+}
+
+vkutils::AllocatedBuffer vkutils::create_buffer(vma::Allocator &allocator, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::AllocationCreateFlags memoryFlags, vma::MemoryUsage memoryUsage)
+{
+    vk::BufferCreateInfo bufferInfo;
+	bufferInfo.size = size;
+	bufferInfo.usage = bufferUsage;
+	
+	vma::AllocationCreateInfo bufferAllocInfo = {};
+	bufferAllocInfo.usage = memoryUsage;
+	bufferAllocInfo.flags = memoryFlags;
+
+    vkutils::AllocatedBuffer allocatedBuffer;
+	std::tie(allocatedBuffer._buffer, allocatedBuffer._allocation) = allocator.createBuffer(bufferInfo, bufferAllocInfo);
+    return allocatedBuffer;
 }
 
 void vkutils::copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size)

@@ -7,7 +7,27 @@
 
 
 namespace vkutils
-{   
+{    
+    class AllocatedBuffer {
+    public:
+        vk::Buffer _buffer;
+        vma::Allocation _allocation;
+    };
+    class CameraData{
+    public:
+        glm::mat4 view;
+        glm::mat4 proj;
+        glm::mat4 viewproj;
+    };
+    class FrameData {
+    public: 
+        vk::Semaphore _presentSemaphore, _renderSemaphore;
+        vk::Fence _renderFence;	
+        vk::CommandPool _commandPool;
+        vk::CommandBuffer _mainCommandBuffer;
+        AllocatedBuffer cameraBuffer;
+	    vk::DescriptorSet globalDescriptor;
+    };
     class AllocatedImage {
     public:
         vk::Image _image;
@@ -17,11 +37,6 @@ namespace vkutils
     public:
         glm::vec4 data;
         glm::mat4 matrix;
-    };
-    class AllocatedBuffer {
-    public:
-        vk::Buffer _buffer;
-        vma::Allocation _allocation;
     };
     class PipelineBuilder {
     public:
@@ -58,6 +73,11 @@ namespace vkutils
         std::vector<vk::SurfaceFormatKHR> formats;
         std::vector<vk::PresentModeKHR> presentModes;
     };
+    class GeometryNode {
+    public:
+		uint64_t vertexBufferDeviceAddress;
+		uint64_t indexBufferDeviceAddress;
+	};
     VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
     bool checkValidationLayerSupport(std::vector<const char *> &instanceLayers);
     bool isDeviceSuitable(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface, std::vector<const char *> &device_extensions);
@@ -65,8 +85,9 @@ namespace vkutils
     bool checkDeviceExtensionSupport(vk::PhysicalDevice &physicalDevice, std::vector<const char *> &device_extensions);
     SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface);
     vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats);
-    vk::PresentModeKHR chooseSwapPresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes);
+    vk::PresentModeKHR chooseSwapPresentMode(const vk::PresentModeKHR preferedPresentMode, const std::vector<vk::PresentModeKHR> &availablePresentModes);
     vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities, vk::Extent2D &currentExtend);
     vk::ImageView createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags);
+    AllocatedBuffer create_buffer(vma::Allocator &allocator, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::AllocationCreateFlags memoryFlags, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto);
     void copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
 }

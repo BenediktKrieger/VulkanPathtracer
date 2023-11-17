@@ -5,6 +5,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define TINYGLTF_USE_CPP14
 #include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan_extension_inspection.hpp>
 #include <vk_mem_alloc.hpp>
 #include <vk_shaderConverter.h>
 #include <tiny_gltf.h>
