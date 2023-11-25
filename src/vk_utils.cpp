@@ -210,7 +210,7 @@ vk::SurfaceFormatKHR vkutils::chooseSwapSurfaceFormat(const std::vector<vk::Surf
 {
     for (const auto &availableFormat : availableFormats)
     {
-        if (availableFormat.format == vk::Format::eB8G8R8A8Srgb && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
+        if (availableFormat.format == vk::Format::eB8G8R8A8Unorm && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear)
         {
             return availableFormat;
         }
@@ -265,19 +265,30 @@ vk::ImageView vkutils::createImageView(vk::Device &device, vk::Image &image, vk:
     return imageView;
 }
 
-vkutils::AllocatedBuffer vkutils::create_buffer(vma::Allocator &allocator, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::AllocationCreateFlags memoryFlags, vma::MemoryUsage memoryUsage)
+vkutils::AllocatedBuffer vkutils::createBuffer(vma::Allocator &allocator, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
 {
     vk::BufferCreateInfo bufferInfo;
 	bufferInfo.size = size;
 	bufferInfo.usage = bufferUsage;
 	
-	vma::AllocationCreateInfo bufferAllocInfo = {};
+	vma::AllocationCreateInfo bufferAllocInfo;
 	bufferAllocInfo.usage = memoryUsage;
 	bufferAllocInfo.flags = memoryFlags;
 
     vkutils::AllocatedBuffer allocatedBuffer;
 	std::tie(allocatedBuffer._buffer, allocatedBuffer._allocation) = allocator.createBuffer(bufferInfo, bufferAllocInfo);
     return allocatedBuffer;
+}
+
+vkutils::AllocatedImage vkutils::createImage(vma::Allocator &allocator, vk::ImageCreateInfo imageInfo, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags allocationFlags)
+{
+    vma::AllocationCreateInfo imageAllocInfo;
+	imageAllocInfo.usage = memoryUsage;
+	imageAllocInfo.flags = allocationFlags;
+
+    vkutils::AllocatedImage allocatedImage;
+	std::tie(allocatedImage._image, allocatedImage._allocation) = allocator.createImage(imageInfo, imageAllocInfo);
+    return allocatedImage;
 }
 
 void vkutils::copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size)
@@ -310,4 +321,83 @@ void vkutils::copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue qu
     queue.waitIdle();
 
     device.freeCommandBuffers(pool, 1, &commandBuffer);
+}
+
+void vkutils::setImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, vk::ImageSubresourceRange subresourceRange, vk::PipelineStageFlags srcMask, vk::PipelineStageFlags dstMask)
+{
+    vk::ImageMemoryBarrier barrier;
+    barrier.srcQueueFamilyIndex = vk::QueueFamilyIgnored;
+    barrier.dstQueueFamilyIndex = vk::QueueFamilyIgnored;
+    barrier.oldLayout           = oldLayout;
+    barrier.newLayout           = newLayout;
+    barrier.image               = image;
+    barrier.subresourceRange    = subresourceRange;
+
+    switch (oldLayout)
+    {
+        case vk::ImageLayout::eUndefined:
+            barrier.srcAccessMask = vk::AccessFlagBits::eNone;
+            break;
+
+        case vk::ImageLayout::ePreinitialized:
+            barrier.srcAccessMask = vk::AccessFlagBits::eHostWrite;
+            break;
+
+        case vk::ImageLayout::eColorAttachmentOptimal:
+            barrier.srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+            break;
+
+        case vk::ImageLayout::eDepthStencilAttachmentOptimal:
+            barrier.srcAccessMask = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+            break;
+
+        case vk::ImageLayout::eTransferSrcOptimal:
+            barrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
+            break;
+
+        case vk::ImageLayout::eTransferDstOptimal:
+            barrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
+            break;
+
+        case vk::ImageLayout::eShaderReadOnlyOptimal:
+            barrier.srcAccessMask = vk::AccessFlagBits::eShaderRead;
+            break;
+        default:
+            break;
+    }
+
+    switch (newLayout)
+    {
+        case vk::ImageLayout::eTransferDstOptimal:
+            barrier.dstAccessMask = vk::AccessFlagBits::eTransferWrite;
+            break;
+
+        case vk::ImageLayout::eTransferSrcOptimal:
+            barrier.dstAccessMask = vk::AccessFlagBits::eTransferRead;
+            break;
+
+        case vk::ImageLayout::eColorAttachmentOptimal:
+            barrier.dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite;
+            break;
+
+        case vk::ImageLayout::eDepthStencilAttachmentOptimal:
+            barrier.dstAccessMask = barrier.dstAccessMask | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+            break;
+
+        case vk::ImageLayout::eShaderReadOnlyOptimal:
+            if (barrier.srcAccessMask == vk::AccessFlagBits::eNone)
+            {
+                barrier.srcAccessMask = vk::AccessFlagBits::eHostWrite | vk::AccessFlagBits::eTransferWrite;
+            }
+            barrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+            break;
+        default:
+            break;
+    }
+    cmd.pipelineBarrier(srcMask, dstMask, {}, {}, {}, barrier);
+}
+
+uint32_t vkutils::alignedSize(uint32_t value, uint32_t alignment)
+{
+    return (value + alignment - 1) & ~(alignment - 1);
 }

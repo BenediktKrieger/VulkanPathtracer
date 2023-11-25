@@ -7,17 +7,25 @@
 
 
 namespace vkutils
-{    
+{
     class AllocatedBuffer {
     public:
         vk::Buffer _buffer;
         vma::Allocation _allocation;
     };
+    class AllocatedImage {
+    public:
+        vk::Image _image;
+        vk::ImageView _view;
+        vma::Allocation _allocation;
+    };
     class CameraData{
     public:
-        glm::mat4 view;
-        glm::mat4 proj;
+        glm::mat4 invView;
+        glm::mat4 invProj;
         glm::mat4 viewproj;
+        glm::vec4 camPos;
+        glm::vec4 camDir;
     };
     class FrameData {
     public: 
@@ -25,13 +33,10 @@ namespace vkutils
         vk::Fence _renderFence;	
         vk::CommandPool _commandPool;
         vk::CommandBuffer _mainCommandBuffer;
-        AllocatedBuffer cameraBuffer;
-	    vk::DescriptorSet globalDescriptor;
-    };
-    class AllocatedImage {
-    public:
-        vk::Image _image;
-        vma::Allocation _allocation;
+        AllocatedBuffer _cameraBuffer;
+	    vk::DescriptorSet _rasterizerDescriptor;
+        vk::DescriptorSet _raytracerDescriptor;
+        AllocatedImage _storageImage;
     };
     class PushConstants {
     public:
@@ -88,6 +93,9 @@ namespace vkutils
     vk::PresentModeKHR chooseSwapPresentMode(const vk::PresentModeKHR preferedPresentMode, const std::vector<vk::PresentModeKHR> &availablePresentModes);
     vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities, vk::Extent2D &currentExtend);
     vk::ImageView createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags);
-    AllocatedBuffer create_buffer(vma::Allocator &allocator, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::AllocationCreateFlags memoryFlags, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto);
+    AllocatedBuffer createBuffer(vma::Allocator &allocator, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
+    AllocatedImage createImage(vma::Allocator &allocator, vk::ImageCreateInfo imageInfo, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
     void copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
+    void setImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, vk::ImageSubresourceRange subresourceRange, vk::PipelineStageFlags srcMask = vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlags dstMask = vk::PipelineStageFlagBits::eAllCommands);
+    uint32_t alignedSize(uint32_t value, uint32_t alignment);
 }

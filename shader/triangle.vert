@@ -8,9 +8,10 @@ layout (location = 4) in vec4 vJoint;
 layout (location = 5) in vec4 vWeight;
 layout (location = 6) in vec4 vTangent;
 
-layout(set = 0, binding = 0) uniform  CameraBuffer{
-	mat4 viewMatrix;
-	mat4 projMartix;
+layout(set = 0, binding = 0) uniform  CameraBuffer
+{
+	mat4 viewInverse;
+	mat4 projInverse;
 	mat4 viewprojMatrix;
 } cameraData;
 

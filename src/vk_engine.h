@@ -4,8 +4,9 @@
 #include <vector>
 #include <vk_utils.h>
 #include <vk_model.h>
+#include <vk_shaderConverter.h>
 
-constexpr unsigned int FRAME_OVERLAP = 2;
+constexpr unsigned int FRAME_OVERLAP = 1;
 
 class VulkanEngine
 {
@@ -44,6 +45,7 @@ public:
 	vk::Instance _instance;
 	vk::DebugUtilsMessengerEXT _debug_messenger;
 	vk::PhysicalDevice _chosenGPU;
+	vk::PhysicalDeviceRayTracingPipelinePropertiesKHR _raytracingPipelineProperties;
 	vk::Device _device;
 
 	vkutils::FrameData _frames[FRAME_OVERLAP];
@@ -64,9 +66,15 @@ public:
 	std::vector<vk::Image> _swapchainImages;
 	std::vector<vk::ImageView> _swapchainImageViews;
 
-	vk::PipelineLayout _modelPipelineLayout;
+	vk::PipelineLayout _rasterizerPipelineLayout;
+	vk::PipelineLayout _raytracerPipelineLayout;
+	vkutils::AllocatedBuffer _raygenShaderBindingTable;
+	vkutils::AllocatedBuffer _missShaderBindingTable;
+	vkutils::AllocatedBuffer _hitShaderBindingTable;
 
-	vk::Pipeline _modelPipeline;
+	vk::Pipeline _rasterizerPipeline;
+	vk::Pipeline _raytracerPipeline;
+	std::vector<vk::RayTracingShaderGroupCreateInfoKHR> _shaderGroups;
 	
 	Model _triangleModel;
 
@@ -74,15 +82,29 @@ public:
 	vkutils::AllocatedImage _depthImage;
 	vk::Format _depthFormat;
 
-	vk::DescriptorPool _descriptorPool;
-	vk::DescriptorSetLayout _globalSetLayout;
+	vk::DescriptorPool _rasterizerDescriptorPool;
+	vk::DescriptorPool _raytracerDescriptorPool;
+	vk::DescriptorSetLayout _rasterizerSetLayout;
+	vk::DescriptorSetLayout _raytracerSetLayout;
 
-	vkutils::AllocatedBuffer _transformBuffer;
+	//vkutils::AllocatedBuffer _transformBuffer;
+
 	vkutils::AllocatedBuffer _bottomLevelASBuffer;
 	vk::DeviceAddress _bottomLevelDeviceAddress;
 	vk::AccelerationStructureKHR _bottomLevelAS;
+	
+	vkutils::AllocatedBuffer _topLevelASBuffer;
+	vk::DeviceAddress _topLevelDeviceAddress;
+	vk::AccelerationStructureKHR _topLevelAS;
+
+	vkutils::AllocatedImage _storageImage;
 
 	vkutils::DeletionQueue _mainDeletionQueue;
+
+	uint32_t _indexCount;
+	vkutils::AllocatedBuffer _vertexBuffer;
+	vkutils::AllocatedBuffer _indexBuffer;
+	vkutils::AllocatedBuffer _transformBuffer;
 
 
 	void init();
@@ -114,6 +136,12 @@ private:
 	void upload_model(Model& model);
 
 	void init_bottom_level_acceleration_structure(Model &model);
+
+	void init_top_level_acceleration_structure();
+
+	vkutils::AllocatedImage createStorageImage();
+
+	void createShaderBindingTable();
 
 	vk::ShaderModule load_shader_module(vk::ShaderStageFlagBits type, std::string filePath);
 };

@@ -1,5 +1,4 @@
-//glsl version 4.5
-#version 450
+#version 460
 
 layout (location = 0) in vec3 inNormal;
 

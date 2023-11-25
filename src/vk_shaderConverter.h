@@ -1,6 +1,7 @@
+#pragma once
+
 #include <vk_types.h>
 #include <glslang/SPIRV/GlslangToSpv.h>
-#include <iostream>
 #include <sstream>
 #include <fstream>
 

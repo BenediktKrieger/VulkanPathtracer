@@ -131,6 +131,14 @@ EShLanguage vkshader::FindLanguage(const vk::ShaderStageFlagBits shader_type)
         return EShLangFragment;
     case vk::ShaderStageFlagBits::eCompute:
         return EShLangCompute;
+    case vk::ShaderStageFlagBits::eClosestHitKHR:
+        return EShLangClosestHit;
+    case vk::ShaderStageFlagBits::eAnyHitKHR:
+        return EShLangAnyHit;
+    case vk::ShaderStageFlagBits::eMissKHR:
+        return EShLangMiss;
+    case vk::ShaderStageFlagBits::eRaygenKHR:
+        return EShLangRayGen;
     default:
         return EShLangVertex;
     }
@@ -148,6 +156,7 @@ bool vkshader::GLSLtoSPV(const vk::ShaderStageFlagBits shader_type, const std::s
     const char *pshader = shaderCodeGlsl.c_str();
     EShLanguage stage = vkshader::FindLanguage(shader_type);
     glslang::TShader shader(stage);
+    shader.setEnvTarget(glslang::EShTargetLanguage::EShTargetSpv, glslang::EShTargetLanguageVersion::EShTargetSpv_1_4);
     glslang::TProgram program;
     const char *shaderStrings[1];
     EShMessages messages = (EShMessages)(EShMsgSpvRules | EShMsgVulkanRules);
@@ -157,7 +166,7 @@ bool vkshader::GLSLtoSPV(const vk::ShaderStageFlagBits shader_type, const std::s
     TBuiltInResource Resources = {};
     InitResources(Resources);
 
-    if (!shader.parse(&Resources, 100, false, messages))
+    if (!shader.parse(&Resources, 460, false, messages))
     {
         puts(shader.getInfoLog());
         puts(shader.getInfoDebugLog());

@@ -82,8 +82,6 @@ public:
 	std::vector<Material> _materials{};
 	std::vector<tinygltf::Image> _images{};
 	std::vector<vk::TransformMatrixKHR> _transforms{};
-	vkutils::AllocatedBuffer _vertexStagingBuffer;
-	vkutils::AllocatedBuffer _indexStagingBuffer;
 	vkutils::AllocatedBuffer _vertexBuffer;
 	vkutils::AllocatedBuffer _indexBuffer;
 	bool load_from_glb(const char *filename);
