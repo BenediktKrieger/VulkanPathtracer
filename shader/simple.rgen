@@ -3,34 +3,75 @@
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D image;
-layout(binding = 2, set = 0) uniform CameraProperties 
-{
-	mat4 viewInv;
-	mat4 projInv;
-	mat4 viewProj;
-	vec4 camPos;
-	vec4 camDir;
-} cam;
 
-layout(location = 0) rayPayloadEXT vec3 hitValue;
+layout( push_constant ) uniform constants
+{
+	mat4 invProj;
+	mat4 invView;
+	mat4 model;
+	uint accumulatedFrames;
+} PushConstants;
+
+struct RayPayload {
+	vec3 color;
+	uint recursion;
+	float weight;
+};
+
+layout(location = 0) rayPayloadEXT RayPayload Payload;
+
+uvec3 pcg3d(uvec3 v) {
+  v = v * 1664525u + 1013904223u;
+  v.x += v.y * v.z;
+  v.y += v.z * v.x;
+  v.z += v.x * v.y;
+  v ^= v >> 16u;
+  v.x += v.y * v.z;
+  v.y += v.z * v.x;
+  v.z += v.x * v.y;
+  return v;
+}
+vec3 random3(vec3 f) {
+  return uintBitsToFloat((pcg3d(floatBitsToUint(f)) & 0x007FFFFFu) | 0x3F800000u) - 1.0;
+}
+float random(vec2 xy, float z) {
+  return random3(vec3(xy, z)).x;
+}
 
 void main() 
 {
-	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
-	const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-	vec2 d = inUV * 2.0 - 1.0;
-
-	vec4 origin = cam.viewInv * vec4(0,0,0,1);
-	vec4 target = cam.projInv * vec4(d.x, d.y, 1, 1) ;
-	vec4 direction = cam.viewInv * vec4(normalize(target.xyz), 0) ;
+	vec4 origin = PushConstants.invView * vec4(0,0,0,1);
+	uint accFrames = PushConstants.accumulatedFrames;
 
 	float tmin = 0.001;
 	float tmax = 10000.0;
+	uint spp = 1;
 
-    hitValue = vec3(0.0);
+	vec3 sumofHitValues = vec3(0.0);
 
+	for(uint i = 0; i < spp; i++){
+		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(random3(vec3(gl_LaunchIDEXT.xy, (i+accFrames) * 1.0 / spp)).xy);
+		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
+		vec2 d = inUV * 2.0 - 1.0;
+		vec4 target = PushConstants.invProj * vec4(d.x, d.y, 1, 1);
+		vec4 direction = PushConstants.invView * vec4(normalize(target.xyz), 0);
+		
+		Payload.color = vec3(0.0);
+		Payload.recursion = 0;
+		Payload.weight = 1.0;
 
-    traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
 
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(hitValue, 1.0));
+		sumofHitValues += Payload.color;
+	}
+
+	vec4 oldColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
+	
+	vec3 newColor = vec3(sqrt(sumofHitValues.x / spp), sqrt(sumofHitValues.y / spp), sqrt(sumofHitValues.z / spp));
+	
+	if(accFrames > 1) {
+		newColor = oldColor.xyz * ((accFrames - 1.0) / (1.0 * accFrames)) + newColor * (1.0 / (1.0 * accFrames));
+	}
+
+	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
 }

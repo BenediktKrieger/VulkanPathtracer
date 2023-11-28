@@ -5,10 +5,12 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define TINYGLTF_USE_CPP14
 #include <vulkan/vulkan.hpp>
-#include <vulkan/vulkan_extension_inspection.hpp>
+#include <SDL.h>
+#include <SDL_vulkan.h>
 #include <vk_mem_alloc.hpp>
 #include <tiny_gltf.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/string_cast.hpp>
 #include <iostream>

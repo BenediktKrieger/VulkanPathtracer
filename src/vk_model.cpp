@@ -275,12 +275,7 @@ void Model::loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &inp
 					return;
 				}
 			}
-			Primitive *primitive = new Primitive{};
-			primitive->firstIndex = firstIndex;
-			primitive->indexCount = indexCount;
-			primitive->firstVertex = firstVertex;
-			primitive->vertexCount = vertexCount;
-			primitive->materialIndex = glTFPrimitive.material;
+			Primitive *primitive = new Primitive(firstIndex, indexCount, firstVertex, vertexCount, glTFPrimitive.material > -1 ? _materials[glTFPrimitive.material] : _materials.back());
 			node->primitives.push_back(primitive);
 		}
 	}

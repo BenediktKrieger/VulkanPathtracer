@@ -4,15 +4,16 @@ vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::Ren
 {
     vk::PipelineViewportStateCreateInfo viewportState;
     viewportState.setViewportCount(1);
-    viewportState.setPViewports(&_viewport);
     viewportState.setScissorCount(1);
-    viewportState.setPScissors(&_scissor);
 
     vk::PipelineColorBlendStateCreateInfo colorBlending;
     colorBlending.setLogicOpEnable(VK_FALSE);
     colorBlending.setLogicOp(vk::LogicOp::eCopy);
     colorBlending.setAttachmentCount(1);
     colorBlending.setPAttachments(&_colorBlendAttachment);
+
+    vk::PipelineDynamicStateCreateInfo dynamicState;
+    dynamicState.setDynamicStates(_dynamicStates);
 
     vk::GraphicsPipelineCreateInfo pipelineInfo;
     pipelineInfo.setStageCount((uint32_t)_shaderStages.size());
@@ -25,6 +26,7 @@ vk::Pipeline vkutils::PipelineBuilder::build_pipeline(vk::Device device, vk::Ren
     pipelineInfo.setPMultisampleState(&_multisampling);
     pipelineInfo.setPColorBlendState(&colorBlending);
     pipelineInfo.setLayout(_pipelineLayout);
+    pipelineInfo.setPDynamicState(&dynamicState);
     pipelineInfo.setRenderPass(pass);
 
     vk::Pipeline newPipeline;
@@ -278,6 +280,32 @@ vkutils::AllocatedBuffer vkutils::createBuffer(vma::Allocator &allocator, vk::De
     vkutils::AllocatedBuffer allocatedBuffer;
 	std::tie(allocatedBuffer._buffer, allocatedBuffer._allocation) = allocator.createBuffer(bufferInfo, bufferAllocInfo);
     return allocatedBuffer;
+}
+
+vkutils::AllocatedBuffer vkutils::deviceBufferFromData(vk::Device &device, vk::CommandPool &commandPool, vk::Queue &queue, vma::Allocator &allocator, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
+{
+    vkutils::AllocatedBuffer stagingBuffer = vkutils::createBuffer(allocator, size, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
+
+    void* mapped = allocator.mapMemory(stagingBuffer._allocation);
+	    memcpy(mapped, data, size);
+	allocator.unmapMemory(stagingBuffer._allocation);
+
+    vkutils::AllocatedBuffer buffer = vkutils::createBuffer(allocator, size, vk::BufferUsageFlagBits::eTransferDst | bufferUsage, memoryUsage, memoryFlags);
+    vkutils::copyBuffer(device, commandPool, queue, stagingBuffer._buffer, buffer._buffer, size);
+    allocator.destroyBuffer(stagingBuffer._buffer, stagingBuffer._allocation);
+
+    return buffer;
+}
+
+vkutils::AllocatedBuffer vkutils::hostBufferFromData(vma::Allocator &allocator, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
+{
+    vkutils::AllocatedBuffer buffer = vkutils::createBuffer(allocator, size, bufferUsage, memoryUsage, memoryFlags);
+
+    void* mapped = allocator.mapMemory(buffer._allocation);
+	    memcpy(mapped, data, size);
+	allocator.unmapMemory(buffer._allocation);
+
+    return buffer;
 }
 
 vkutils::AllocatedImage vkutils::createImage(vma::Allocator &allocator, vk::ImageCreateInfo imageInfo, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags allocationFlags)

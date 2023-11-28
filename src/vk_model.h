@@ -22,10 +22,6 @@ struct Material
 		ALPHAMODE_MASK,
 		ALPHAMODE_BLEND
 	};
-	AlphaMode alphaMode = ALPHAMODE_OPAQUE;
-	float alphaCutoff = 1.0f;
-	float metallicFactor = 1.0f;
-	float roughnessFactor = 1.0f;
 	glm::vec4 baseColorFactor = glm::vec4(1.0f);
 	int32_t baseColorTexture = -1;
 	int32_t metallicRoughnessTexture = -1;
@@ -34,6 +30,10 @@ struct Material
 	int32_t emissiveTexture = -1;
 	int32_t specularGlossinessTexture = -1;
 	int32_t diffuseTexture = -1;
+	float alphaCutoff = 1.0f;
+	float metallicFactor = 1.0f;
+	float roughnessFactor = 1.0f;
+	AlphaMode alphaMode = ALPHAMODE_OPAQUE;
 };
 
 struct Primitive
@@ -42,7 +42,9 @@ struct Primitive
 	uint32_t indexCount;
 	uint32_t firstVertex;
 	uint32_t vertexCount;
-	uint32_t materialIndex;
+	Material& material;
+
+	Primitive(uint32_t firstIndex, uint32_t indexCount, uint32_t firstVertex, uint32_t vertexCount, Material& material) : firstIndex(firstIndex), indexCount(indexCount), firstVertex(firstVertex), vertexCount(vertexCount), material(material) {};
 };
 
 struct Node
@@ -63,8 +65,11 @@ struct Node
 struct Vertex
 {
 	glm::vec3 pos;
+	float pad0;
 	glm::vec3 normal;
+	float pad1;
 	glm::vec2 uv;
+	float pad2[2];
 	glm::vec4 color;
 	glm::vec4 joint0;
 	glm::vec4 weight0;
@@ -89,4 +94,5 @@ private:
 	void loadImages(tinygltf::Model &input);
 	void loadMaterials(tinygltf::Model &input);
 	void loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &input, Node *parent, std::vector<uint32_t> &indexBuffer, std::vector<Vertex> &vertexBuffer);
+	void loadMaterials(const tinygltf::Model &input);
 };

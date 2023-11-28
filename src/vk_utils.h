@@ -33,28 +33,28 @@ namespace vkutils
         vk::Fence _renderFence;	
         vk::CommandPool _commandPool;
         vk::CommandBuffer _mainCommandBuffer;
-        AllocatedBuffer _cameraBuffer;
 	    vk::DescriptorSet _rasterizerDescriptor;
         vk::DescriptorSet _raytracerDescriptor;
         AllocatedImage _storageImage;
     };
     class PushConstants {
     public:
-        glm::vec4 data;
-        glm::mat4 matrix;
+        glm::mat4 proj;
+        glm::mat4 view;
+        glm::mat4 model;
+        uint32_t accumulatedFrames;
     };
     class PipelineBuilder {
     public:
         std::vector<vk::PipelineShaderStageCreateInfo> _shaderStages;
         vk::PipelineVertexInputStateCreateInfo _vertexInputInfo;
         vk::PipelineInputAssemblyStateCreateInfo _inputAssembly;
-        vk::Viewport _viewport;
-        vk::Rect2D _scissor;
         vk::PipelineRasterizationStateCreateInfo _rasterizer;
         vk::PipelineColorBlendAttachmentState _colorBlendAttachment;
         vk::PipelineMultisampleStateCreateInfo _multisampling;
         vk::PipelineLayout _pipelineLayout;
         vk::PipelineDepthStencilStateCreateInfo _depthStencil;
+        std::vector<vk::DynamicState> _dynamicStates;
         vk::Pipeline build_pipeline(vk::Device device, vk::RenderPass pass);
     };
     class DeletionQueue
@@ -80,8 +80,21 @@ namespace vkutils
     };
     class GeometryNode {
     public:
-		uint64_t vertexBufferDeviceAddress;
-		uint64_t indexBufferDeviceAddress;
+		int32_t indexOffset;
+		int32_t vertexOffset;
+        int32_t baseColorTexture;
+        int32_t metallicRoughnessTexture;
+        int32_t normalTexture;
+        int32_t occlusionTexture;
+        int32_t emissiveTexture;
+        int32_t specularGlossinessTexture;
+        int32_t diffuseTexture;
+        float alphaCutoff;
+        float metallicFactor;
+        float roughnessFactor;
+        float baseColorFactor[4];
+        uint32_t alphaMode;
+        float pad[3];
 	};
     VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
     bool checkValidationLayerSupport(std::vector<const char *> &instanceLayers);
@@ -94,6 +107,8 @@ namespace vkutils
     vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities, vk::Extent2D &currentExtend);
     vk::ImageView createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags);
     AllocatedBuffer createBuffer(vma::Allocator &allocator, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
+    AllocatedBuffer deviceBufferFromData(vk::Device &device, vk::CommandPool &commandPool, vk::Queue &queue, vma::Allocator &allocator, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
+    AllocatedBuffer hostBufferFromData(vma::Allocator &allocator, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
     AllocatedImage createImage(vma::Allocator &allocator, vk::ImageCreateInfo imageInfo, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
     void copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
     void setImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, vk::ImageSubresourceRange subresourceRange, vk::PipelineStageFlags srcMask = vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlags dstMask = vk::PipelineStageFlagBits::eAllCommands);

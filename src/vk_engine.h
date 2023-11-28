@@ -5,6 +5,7 @@
 #include <vk_utils.h>
 #include <vk_model.h>
 #include <vk_shaderConverter.h>
+#include <Camera.h>
 
 constexpr unsigned int FRAME_OVERLAP = 1;
 
@@ -12,12 +13,16 @@ class VulkanEngine
 {
 public:
 	bool _isInitialized{false};
+	bool _framebufferResized{false};
 	uint32_t _frameNumber{0};
 	int _selectedShader{0};
+	vkutils::PushConstants PushConstants;
 
-	vk::Extent2D _windowExtent{2560, 1440};
+	vk::Extent2D _windowExtent{1920, 1080};
 
-	struct SDL_Window *_window{nullptr};
+	struct SDL_Window* _window{nullptr};
+
+	Camera cam;
 
 	std::vector<const char *> _instanceLayers = {
 		"VK_LAYER_KHRONOS_validation",
@@ -87,8 +92,6 @@ public:
 	vk::DescriptorSetLayout _rasterizerSetLayout;
 	vk::DescriptorSetLayout _raytracerSetLayout;
 
-	//vkutils::AllocatedBuffer _transformBuffer;
-
 	vkutils::AllocatedBuffer _bottomLevelASBuffer;
 	vk::DeviceAddress _bottomLevelDeviceAddress;
 	vk::AccelerationStructureKHR _bottomLevelAS;
@@ -98,14 +101,12 @@ public:
 	vk::AccelerationStructureKHR _topLevelAS;
 
 	vkutils::AllocatedImage _storageImage;
+	
+	std::vector<vkutils::GeometryNode> _materials;
+	vkutils::AllocatedBuffer _materialBuffer;
 
+	vkutils::DeletionQueue _resizeDeletionQueue;
 	vkutils::DeletionQueue _mainDeletionQueue;
-
-	uint32_t _indexCount;
-	vkutils::AllocatedBuffer _vertexBuffer;
-	vkutils::AllocatedBuffer _indexBuffer;
-	vkutils::AllocatedBuffer _transformBuffer;
-
 
 	void init();
 	void cleanup();
@@ -142,6 +143,10 @@ private:
 	vkutils::AllocatedImage createStorageImage();
 
 	void createShaderBindingTable();
+
+	void updateBuffers();
+
+	void recreateSwapchain();
 
 	vk::ShaderModule load_shader_module(vk::ShaderStageFlagBits type, std::string filePath);
 };
