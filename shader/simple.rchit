@@ -45,6 +45,8 @@ struct RayPayload {
 	vec3 color;
 	uint recursion;
   float weight;
+  vec3 origin;
+  vec3 dir;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
@@ -95,10 +97,8 @@ void main()
   
   Payload.color = (1-Payload.weight) * Payload.color + Payload.weight * vec3(0.0);
   Payload.recursion += 1;
-  if(Payload.recursion < 5) {
-    Payload.weight *= 0.5;
-    float epsilon = 0.01;
-    vec3 origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT + normal * epsilon;
-    traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin, epsilon, newDir, 10000.0, 0);
-  }
+  Payload.weight *= 0.5;
+  float epsilon = 0.001;
+  Payload.origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT + normal * epsilon;
+  Payload.dir = newDir;
 }

@@ -16,26 +16,23 @@ struct RayPayload {
 	vec3 color;
 	uint recursion;
 	float weight;
+	vec3 origin;
+	vec3 dir;
 };
 
 layout(location = 0) rayPayloadEXT RayPayload Payload;
 
-uvec3 pcg3d(uvec3 v) {
-  v = v * 1664525u + 1013904223u;
-  v.x += v.y * v.z;
-  v.y += v.z * v.x;
-  v.z += v.x * v.y;
-  v ^= v >> 16u;
-  v.x += v.y * v.z;
-  v.y += v.z * v.x;
-  v.z += v.x * v.y;
-  return v;
-}
-vec3 random3(vec3 f) {
-  return uintBitsToFloat((pcg3d(floatBitsToUint(f)) & 0x007FFFFFu) | 0x3F800000u) - 1.0;
-}
-float random(vec2 xy, float z) {
-  return random3(vec3(xy, z)).x;
+float halton(uint base, uint index)
+{
+	float result = 0.;
+	float f = 1.;
+	while (index > 0)
+	{
+		f = f / float(base);
+		result += f * float(index % base);
+		index = index / base;
+	}
+	return result;
 }
 
 void main() 
@@ -49,8 +46,13 @@ void main()
 
 	vec3 sumofHitValues = vec3(0.0);
 
+	uint offset = (gl_LaunchIDEXT.y * gl_LaunchIDEXT.x + gl_LaunchIDEXT.x) * spp + accFrames;
+	vec2 haltonSafe;
 	for(uint i = 0; i < spp; i++){
-		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(random3(vec3(gl_LaunchIDEXT.xy, (i+accFrames) * 1.0 / spp)).xy);
+		uint haltonIndex = offset + i;
+		vec2 haltonOffset = (vec2(halton(2, haltonIndex), halton(3, haltonIndex)) - .5);
+		haltonSafe = haltonOffset;
+		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + haltonOffset;
 		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
 		vec2 d = inUV * 2.0 - 1.0;
 		vec4 target = PushConstants.invProj * vec4(d.x, d.y, 1, 1);
@@ -59,8 +61,13 @@ void main()
 		Payload.color = vec3(0.0);
 		Payload.recursion = 0;
 		Payload.weight = 1.0;
+		Payload.origin = origin.xyz;
+		Payload.dir = direction.xyz;
 
-		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
+		if(Payload.recursion < 5) {
+			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
+		}
 
 		sumofHitValues += Payload.color;
 	}
@@ -69,9 +76,12 @@ void main()
 	
 	vec3 newColor = vec3(sqrt(sumofHitValues.x / spp), sqrt(sumofHitValues.y / spp), sqrt(sumofHitValues.z / spp));
 	
-	if(accFrames > 1) {
-		newColor = oldColor.xyz * ((accFrames - 1.0) / (1.0 * accFrames)) + newColor * (1.0 / (1.0 * accFrames));
+	if(accFrames > 0) {
+		newColor = oldColor.xyz * ((accFrames - 1.0) /  accFrames) + newColor * (1.0 / accFrames);
 	}
 
+	if(haltonSafe.x < -0.5 || haltonSafe.x > 0.5 || haltonSafe.y < -0.5 || haltonSafe.y > 0.5){
+		newColor = vec3(1, 0, 0);
+	}
 	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
 }

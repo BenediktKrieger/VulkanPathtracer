@@ -970,7 +970,7 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 
 void VulkanEngine::load_models()
 {
-	_triangleModel.load_from_glb(ASSET_PATH"/bistro_exterior.glb");
+	_triangleModel.load_from_glb(ASSET_PATH"/san_miguel.glb");
 
 	upload_model(_triangleModel);
 	init_bottom_level_acceleration_structure(_triangleModel);
