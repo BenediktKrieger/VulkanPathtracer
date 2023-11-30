@@ -47,12 +47,10 @@ void main()
 	vec3 sumofHitValues = vec3(0.0);
 
 	uint offset = (gl_LaunchIDEXT.y * gl_LaunchIDEXT.x + gl_LaunchIDEXT.x) * spp + accFrames;
-	vec2 haltonSafe;
 	for(uint i = 0; i < spp; i++){
 		uint haltonIndex = offset + i;
-		vec2 haltonOffset = (vec2(halton(2, haltonIndex), halton(3, haltonIndex)) - .5);
-		haltonSafe = haltonOffset;
-		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + haltonOffset;
+		vec2 haltonValue = (vec2(halton(2, haltonIndex), halton(3, haltonIndex)) - .5);
+		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + haltonValue;
 		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
 		vec2 d = inUV * 2.0 - 1.0;
 		vec4 target = PushConstants.invProj * vec4(d.x, d.y, 1, 1);
@@ -80,8 +78,5 @@ void main()
 		newColor = oldColor.xyz * ((accFrames - 1.0) /  accFrames) + newColor * (1.0 / accFrames);
 	}
 
-	if(haltonSafe.x < -0.5 || haltonSafe.x > 0.5 || haltonSafe.y < -0.5 || haltonSafe.y > 0.5){
-		newColor = vec3(1, 0, 0);
-	}
 	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
 }
