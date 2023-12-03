@@ -8,9 +8,9 @@ void VulkanEngine::init()
 {
 	SDL_Init(SDL_INIT_VIDEO);
 
-	_window = SDL_CreateWindow("Vulkan Engine", _windowExtent.width, _windowExtent.height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+	_core._window = SDL_CreateWindow("Vulkan Engine", _core._windowExtent.width, _core._windowExtent.height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
-	cam = Camera(Camera::Type::eTrackBall, _window, _windowExtent.width, _windowExtent.height, glm::vec3(0.5f), glm::vec3(0.f));
+	cam = Camera(Camera::Type::eTrackBall, _core._window, _core._windowExtent.width, _core._windowExtent.height, glm::vec3(0.5f), glm::vec3(0.f));
 
 	init_vulkan();
 
@@ -23,6 +23,8 @@ void VulkanEngine::init()
 	init_commands();
 
 	init_sync_structures();
+
+	init_accumulation_image();
 
 	load_models();
 
@@ -40,31 +42,31 @@ void VulkanEngine::cleanup()
 {
 	if (_isInitialized)
 	{
-		_device.waitIdle();
+		_core._device.waitIdle();
 		_mainDeletionQueue.flush();
 		_resizeDeletionQueue.flush();
-		_instance.destroySurfaceKHR(_surface);
-		_allocator.destroy();
-		_device.destroy();
-		_instance.destroyDebugUtilsMessengerEXT(_debug_messenger);
-		_instance.destroy();
-		SDL_DestroyWindow(_window);
+		_core._instance.destroySurfaceKHR(_core._surface);
+		_core._allocator.destroy();
+		_core._device.destroy();
+		_core._instance.destroyDebugUtilsMessengerEXT(_core._debug_messenger);
+		_core._instance.destroy();
+		SDL_DestroyWindow(_core._window);
 	}
 }
 
 void VulkanEngine::draw()
 {
-	if (SDL_GetWindowFlags(_window) & SDL_WINDOW_MINIMIZED)
+	if (SDL_GetWindowFlags(_core._window) & SDL_WINDOW_MINIMIZED)
 		return;
 
-	vk::Result waitFencesResult = _device.waitForFences(get_current_frame()._renderFence, true, UINT64_MAX);
-	_allocator.setCurrentFrameIndex(_frameNumber);
+	vk::Result waitFencesResult = _core._device.waitForFences(get_current_frame()._renderFence, true, UINT64_MAX);
+	_core._allocator.setCurrentFrameIndex(_frameNumber);
 	get_current_frame()._mainCommandBuffer.reset();
 
 	uint32_t swapchainImageIndex;
 	vk::Result aquireNextImageResult;
 	try{
-		aquireNextImageResult = _device.acquireNextImageKHR(_swapchain, UINT64_MAX, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex);
+		aquireNextImageResult = _core._device.acquireNextImageKHR(_core._swapchain, UINT64_MAX, get_current_frame()._presentSemaphore, nullptr, &swapchainImageIndex);
 	}
 	catch(const std::exception& e){
 		std::cerr << e.what() << '\n';
@@ -76,7 +78,7 @@ void VulkanEngine::draw()
 	else if(aquireNextImageResult != vk::Result::eSuccess){
 		throw std::runtime_error("failed to acquire swap chain image!");
 	}
-	_device.resetFences(get_current_frame()._renderFence);
+	_core._device.resetFences(get_current_frame()._renderFence);
 
 	vk::CommandBuffer cmd = get_current_frame()._mainCommandBuffer;
 
@@ -88,7 +90,7 @@ void VulkanEngine::draw()
 	cmd.begin(cmdBeginInfo);
 		if(_selectedShader == 0)
 		{
-			vk::RenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _windowExtent, _framebuffers[swapchainImageIndex]);
+			vk::RenderPassBeginInfo rpInfo = vkinit::renderpass_begin_info(_renderPass, _core._windowExtent, _core._framebuffers[swapchainImageIndex]);
 			vk::ClearValue colorClear;
 			colorClear.color = vk::ClearColorValue(0.1f, 0.1f, 0.1f, 1.0f);
 			vk::ClearValue depthClear;
@@ -102,8 +104,8 @@ void VulkanEngine::draw()
 			vk::Viewport viewport;
 			viewport.x = 0.0f;
 			viewport.y = 0.0f;
-			viewport.width = static_cast<float>(_windowExtent.width);
-			viewport.height = static_cast<float>(_windowExtent.height);
+			viewport.width = static_cast<float>(_core._windowExtent.width);
+			viewport.height = static_cast<float>(_core._windowExtent.height);
 			viewport.minDepth = 0.0f;
 			viewport.maxDepth = 1.0f;
 			cmd.setViewport(0, 1, &viewport);
@@ -111,7 +113,7 @@ void VulkanEngine::draw()
 			vk::Rect2D scissor;
 			scissor.offset.x = 0;
 			scissor.offset.y = 0;
-			scissor.extent = _windowExtent;
+			scissor.extent = _core._windowExtent;
 			cmd.setScissor(0, scissor);
 
 			cmd.bindVertexBuffers(0, 1, &_triangleModel._vertexBuffer._buffer, &offset);
@@ -137,21 +139,21 @@ void VulkanEngine::draw()
 			vk::DeviceOrHostAddressConstKHR raygenAddress;
 			vk::BufferDeviceAddressInfo raygenAddressInfo(_raygenShaderBindingTable._buffer);
 			vk::StridedDeviceAddressRegionKHR raygenShaderSbtEntry;
-			raygenShaderSbtEntry.deviceAddress = _device.getBufferAddress(raygenAddressInfo);;
+			raygenShaderSbtEntry.deviceAddress = _core._device.getBufferAddress(raygenAddressInfo);;
 			raygenShaderSbtEntry.stride = handleSizeAligned;
 			raygenShaderSbtEntry.size = handleSizeAligned;
 
 			vk::DeviceOrHostAddressConstKHR missAddress;
 			vk::BufferDeviceAddressInfo missAddressInfo(_missShaderBindingTable._buffer);
 			vk::StridedDeviceAddressRegionKHR missShaderSbtEntry;
-			missShaderSbtEntry.deviceAddress = _device.getBufferAddress(missAddressInfo);
+			missShaderSbtEntry.deviceAddress = _core._device.getBufferAddress(missAddressInfo);
 			missShaderSbtEntry.stride = handleSizeAligned;
 			missShaderSbtEntry.size = handleSizeAligned;
 
 			vk::DeviceOrHostAddressConstKHR hitAddress;
 			vk::BufferDeviceAddressInfo hitAddressInfo(_hitShaderBindingTable._buffer);
 			vk::StridedDeviceAddressRegionKHR hitShaderSbtEntry;
-			hitShaderSbtEntry.deviceAddress = _device.getBufferAddress(hitAddressInfo);
+			hitShaderSbtEntry.deviceAddress = _core._device.getBufferAddress(hitAddressInfo);
 			hitShaderSbtEntry.stride = handleSizeAligned;
 			hitShaderSbtEntry.size = handleSizeAligned;
 
@@ -160,9 +162,9 @@ void VulkanEngine::draw()
 			cmd.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, _raytracerPipeline);
 			cmd.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, _raytracerPipelineLayout, 0, 1, &get_current_frame()._raytracerDescriptor, 0, 0);
 			cmd.pushConstants(_raytracerPipelineLayout, vk::ShaderStageFlagBits::eRaygenKHR, 0, sizeof(vkutils::PushConstants), &PushConstants);
-			cmd.traceRaysKHR(&raygenShaderSbtEntry, &missShaderSbtEntry, &hitShaderSbtEntry, &callableShaderSbtEntry, _windowExtent.width, _windowExtent.height, 1);
+			cmd.traceRaysKHR(&raygenShaderSbtEntry, &missShaderSbtEntry, &hitShaderSbtEntry, &callableShaderSbtEntry, _core._windowExtent.width, _core._windowExtent.height, 1);
 
-			vkutils::setImageLayout(cmd, _swapchainImages[swapchainImageIndex], vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, subresourceRange);
+			vkutils::setImageLayout(cmd, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, subresourceRange);
 			vkutils::setImageLayout(cmd, get_current_frame()._storageImage._image, vk::ImageLayout::eGeneral,  vk::ImageLayout::eTransferSrcOptimal, subresourceRange);
 
 			vk::ImageCopy copyRegion;
@@ -170,11 +172,11 @@ void VulkanEngine::draw()
 			copyRegion.srcOffset = vk::Offset3D(0, 0, 0 );
 			copyRegion.dstSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
 			copyRegion.dstOffset = vk::Offset3D(0, 0, 0 );
-			copyRegion.extent = vk::Extent3D(_windowExtent.width, _windowExtent.height, 1);
+			copyRegion.extent = vk::Extent3D(_core._windowExtent.width, _core._windowExtent.height, 1);
 			
-			cmd.copyImage(get_current_frame()._storageImage._image, vk::ImageLayout::eTransferSrcOptimal, _swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal, copyRegion);
+			cmd.copyImage(get_current_frame()._storageImage._image, vk::ImageLayout::eTransferSrcOptimal, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
-			vkutils::setImageLayout(cmd, _swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR, subresourceRange);
+			vkutils::setImageLayout(cmd, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR, subresourceRange);
 			vkutils::setImageLayout(cmd, get_current_frame()._storageImage._image, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eGeneral, subresourceRange);
 			PushConstants.accumulatedFrames++;
 		}
@@ -186,14 +188,14 @@ void VulkanEngine::draw()
 	submit.setWaitSemaphores(get_current_frame()._presentSemaphore);
 	submit.setSignalSemaphores(get_current_frame()._renderSemaphore);
 
-	_graphicsQueue.submit(submit, get_current_frame()._renderFence);
+	_core._graphicsQueue.submit(submit, get_current_frame()._renderFence);
 
 	vk::PresentInfoKHR presentInfo = vkinit::present_info();
-	presentInfo.setSwapchains(_swapchain);
+	presentInfo.setSwapchains(_core._swapchain);
 	presentInfo.setWaitSemaphores(get_current_frame()._renderSemaphore);
 	presentInfo.setImageIndices(swapchainImageIndex);
 
-	vk::Result queuePresentResult = _presentQueue.presentKHR(presentInfo);
+	vk::Result queuePresentResult = _core._presentQueue.presentKHR(presentInfo);
 	if (queuePresentResult == vk::Result::eErrorOutOfDateKHR || queuePresentResult == vk::Result::eSuboptimalKHR || _framebufferResized) {
 		_framebufferResized = false;
 		recreateSwapchain();
@@ -231,8 +233,8 @@ void VulkanEngine::run()
 			else if(e.type == SDL_EVENT_WINDOW_RESIZED || e.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)
 			{
 				int w, h;
-				SDL_GetWindowSizeInPixels(_window, &w, &h);
-				if(_windowExtent.width != w || _windowExtent.height != h) {
+				SDL_GetWindowSizeInPixels(_core._window, &w, &h);
+				if(_core._windowExtent.width != w || _core._windowExtent.height != h) {
 					_framebufferResized = true;
 				}
 			}
@@ -251,16 +253,16 @@ vkutils::FrameData& VulkanEngine::get_current_frame()
 
 void VulkanEngine::init_vulkan()
 {
-	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = _dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
+	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = _core._dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
-	if (bUseValidationLayers && !vkutils::checkValidationLayerSupport(_instanceLayers))
+	if (bUseValidationLayers && !vkutils::checkValidationLayerSupport(_core._instanceLayers))
 	{
 		throw std::runtime_error("validation layers requested, but not available!");
 	}
 	unsigned int sdl_extensions_count = 0;
 	SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count, NULL);
-	_instanceExtensions.resize(sdl_extensions_count);
-	SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count, _instanceExtensions.data());
+	_core._instanceExtensions.resize(sdl_extensions_count);
+	SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count, _core._instanceExtensions.data());
 
 	vk::ApplicationInfo applicationInfo("Vulkan Pathtracer", VK_MAKE_VERSION(0, 0, 1), "VulkanEngine", 1, VK_API_VERSION_1_2);
 
@@ -268,31 +270,31 @@ void VulkanEngine::init_vulkan()
 	{
 		if (bUseValidationLayers)
 		{
-			_instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+			_core._instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT> instanceCreateInfoChain{
-				vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, _instanceLayers, _instanceExtensions),
-				vk::DebugUtilsMessengerCreateInfoEXT({}, _messageSeverityFlags, _messageTypeFlags, vkutils::debugCallback)
+				vk::InstanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, _core._instanceLayers, _core._instanceExtensions),
+				vk::DebugUtilsMessengerCreateInfoEXT({}, _core._messageSeverityFlags, _core._messageTypeFlags, vkutils::debugCallback)
 			};
-			_instance = vk::createInstance(instanceCreateInfoChain.get<vk::InstanceCreateInfo>());
+			_core._instance = vk::createInstance(instanceCreateInfoChain.get<vk::InstanceCreateInfo>());
 		}
 		else
 		{
-			vk::InstanceCreateInfo instanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, {}, _instanceExtensions);
-			_instance = vk::createInstance(instanceCreateInfo);
+			vk::InstanceCreateInfo instanceCreateInfo(vk::InstanceCreateFlags(), &applicationInfo, {}, _core._instanceExtensions);
+			_core._instance = vk::createInstance(instanceCreateInfo);
 		}
 	}
 	catch (std::exception &e)
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
-	VULKAN_HPP_DEFAULT_DISPATCHER.init(_instance);
+	VULKAN_HPP_DEFAULT_DISPATCHER.init(_core._instance);
 
 	if (bUseValidationLayers)
 	{
-		vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo({}, _messageSeverityFlags, _messageTypeFlags, vkutils::debugCallback);
+		vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo({}, _core._messageSeverityFlags, _core._messageTypeFlags, vkutils::debugCallback);
 		try
 		{
-			_debug_messenger = _instance.createDebugUtilsMessengerEXT(debugMessengerCreateInfo, nullptr);
+			_core._debug_messenger = _core._instance.createDebugUtilsMessengerEXT(debugMessengerCreateInfo, nullptr);
 		}
 		catch (std::exception &e)
 		{
@@ -300,16 +302,16 @@ void VulkanEngine::init_vulkan()
 		}
 	}
 
-	SDL_Vulkan_CreateSurface(_window, _instance, reinterpret_cast<VkSurfaceKHR *>(&_surface));
+	SDL_Vulkan_CreateSurface(_core._window, _core._instance, reinterpret_cast<VkSurfaceKHR *>(&_core._surface));
 
-	std::vector<vk::PhysicalDevice> devices = _instance.enumeratePhysicalDevices();
+	std::vector<vk::PhysicalDevice> devices = _core._instance.enumeratePhysicalDevices();
 	bool deviceFound = false;
 	for (auto &device : devices)
 	{
-		if (vkutils::isDeviceSuitable(device, _surface, _deviceExtensions))
+		if (vkutils::isDeviceSuitable(device, _core._surface, _core._deviceExtensions))
 		{
 			deviceFound = true;
-			_chosenGPU = device;
+			_core._chosenGPU = device;
 			break;
 		}
 	}
@@ -318,7 +320,7 @@ void VulkanEngine::init_vulkan()
 		throw std::runtime_error("failed to find a suitable GPU!");
 	}
 
-	vkutils::QueueFamilyIndices indices = vkutils::findQueueFamilies(_chosenGPU, _surface);
+	vkutils::QueueFamilyIndices indices = vkutils::findQueueFamilies(_core._chosenGPU, _core._surface);
 	std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
 	std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 	float queuePriority = 1.0f;
@@ -329,21 +331,21 @@ void VulkanEngine::init_vulkan()
 	}
 
 	// MacOS portability extension
-	std::vector<vk::ExtensionProperties> extensionProperties = _chosenGPU.enumerateDeviceExtensionProperties();
+	std::vector<vk::ExtensionProperties> extensionProperties = _core._chosenGPU.enumerateDeviceExtensionProperties();
 	for (auto extensionProperty : extensionProperties)
 	{
 		if (std::string(extensionProperty.extensionName.data()) == std::string(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME))
-			_deviceExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+			_core._deviceExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
 	}
 
 	vk::DeviceCreateInfo createInfo;
 	if (bUseValidationLayers)
 	{
-		createInfo = vk::DeviceCreateInfo({}, queueCreateInfos, _instanceLayers, _deviceExtensions, {});
+		createInfo = vk::DeviceCreateInfo({}, queueCreateInfos, _core._instanceLayers, _core._deviceExtensions, {});
 	}
 	else
 	{
-		createInfo = vk::DeviceCreateInfo({}, queueCreateInfos, {}, _deviceExtensions, {});
+		createInfo = vk::DeviceCreateInfo({}, queueCreateInfos, {}, _core._deviceExtensions, {});
 	}
 	vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceRayTracingPipelineFeaturesKHR, vk::PhysicalDeviceAccelerationStructureFeaturesKHR, vk::PhysicalDeviceBufferDeviceAddressFeatures, vk::PhysicalDeviceDescriptorIndexingFeatures> deviceCreateInfo = {
 		createInfo,
@@ -353,37 +355,37 @@ void VulkanEngine::init_vulkan()
 		vk::PhysicalDeviceBufferDeviceAddressFeatures().setBufferDeviceAddress(true),
 		vk::PhysicalDeviceDescriptorIndexingFeatures().setRuntimeDescriptorArray(true)
 	};
-	auto _physicalDeviceProperties = _chosenGPU.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR, vk::PhysicalDeviceAccelerationStructurePropertiesKHR, vk::PhysicalDeviceDescriptorIndexingProperties>();
+	auto _physicalDeviceProperties = _core._chosenGPU.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR, vk::PhysicalDeviceAccelerationStructurePropertiesKHR, vk::PhysicalDeviceDescriptorIndexingProperties>();
 	_raytracingPipelineProperties = _physicalDeviceProperties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 	try
 	{
-		_device = _chosenGPU.createDevice(deviceCreateInfo.get<vk::DeviceCreateInfo>());
+		_core._device = _core._chosenGPU.createDevice(deviceCreateInfo.get<vk::DeviceCreateInfo>());
 	}
 	catch (std::exception &e)
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
-	VULKAN_HPP_DEFAULT_DISPATCHER.init(_device);
-	_graphicsQueue = _device.getQueue(indices.graphicsFamily.value(), 0);
-	_presentQueue = _device.getQueue(indices.presentFamily.value(), 0);
+	VULKAN_HPP_DEFAULT_DISPATCHER.init(_core._device);
+	_core._graphicsQueue = _core._device.getQueue(indices.graphicsFamily.value(), 0);
+	_core._presentQueue = _core._device.getQueue(indices.presentFamily.value(), 0);
 
-	vma::AllocatorCreateInfo allocatorInfo = vma::AllocatorCreateInfo(vma::AllocatorCreateFlagBits::eExtMemoryBudget | vma::AllocatorCreateFlagBits::eBufferDeviceAddress, _chosenGPU, _device, {}, {}, {}, {}, {}, _instance, VK_API_VERSION_1_2);
+	vma::AllocatorCreateInfo allocatorInfo = vma::AllocatorCreateInfo(vma::AllocatorCreateFlagBits::eExtMemoryBudget | vma::AllocatorCreateFlagBits::eBufferDeviceAddress, _core._chosenGPU, _core._device, {}, {}, {}, {}, {}, _core._instance, VK_API_VERSION_1_2);
 	try
 	{
-		_allocator = vma::createAllocator(allocatorInfo);
+		_core._allocator = vma::createAllocator(allocatorInfo);
 	}
 	catch (std::exception &e)
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 
-	std::vector<vma::Budget> heapBudgets = _allocator.getHeapBudgets();
+	std::vector<vma::Budget> heapBudgets = _core._allocator.getHeapBudgets();
 
 }
 
 void VulkanEngine::init_swapchain()
 {
-	vkutils::SwapChainSupportDetails swapChainSupport = vkutils::querySwapChainSupport(_chosenGPU, _surface);
+	vkutils::SwapChainSupportDetails swapChainSupport = vkutils::querySwapChainSupport(_core._chosenGPU, _core._surface);
 
 	vk::SurfaceFormatKHR surfaceFormat = vkutils::chooseSwapSurfaceFormat(swapChainSupport.formats);
 	vk::PresentModeKHR presentMode = vkutils::chooseSwapPresentMode(vk::PresentModeKHR::eMailbox, swapChainSupport.presentModes);
@@ -394,15 +396,15 @@ void VulkanEngine::init_swapchain()
 		imageCount = swapChainSupport.capabilities.maxImageCount;
 	}
 
-	vkutils::QueueFamilyIndices indices = vkutils::findQueueFamilies(_chosenGPU, _surface);
+	vkutils::QueueFamilyIndices indices = vkutils::findQueueFamilies(_core._chosenGPU, _core._surface);
 	uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
 
 	vk::SwapchainCreateInfoKHR createInfo;
-	createInfo.surface = _surface;
+	createInfo.surface = _core._surface;
 	createInfo.minImageCount = imageCount;
 	createInfo.imageFormat = surfaceFormat.format;
 	createInfo.imageColorSpace = surfaceFormat.colorSpace;
-	createInfo.imageExtent = _windowExtent;
+	createInfo.imageExtent = _core._windowExtent;
 	createInfo.imageArrayLayers = 1;
 	createInfo.imageUsage = vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferDst;
 	if (indices.graphicsFamily != indices.presentFamily)
@@ -421,70 +423,58 @@ void VulkanEngine::init_swapchain()
 	createInfo.clipped = VK_TRUE;
 	try
 	{
-		_swapchain = _device.createSwapchainKHR(createInfo);
+		_core._swapchain = _core._device.createSwapchainKHR(createInfo);
 	}
 	catch (std::exception &e)
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 	_resizeDeletionQueue.push_function([=](){
-		_device.destroySwapchainKHR(_swapchain);
+		_core._device.destroySwapchainKHR(_core._swapchain);
 	});
 
-	_swapchainImages = _device.getSwapchainImagesKHR(_swapchain);
-	_swachainImageFormat = surfaceFormat.format;
+	_core._swapchainImageFormat = surfaceFormat.format;
 
-	_swapchainImageViews.resize(_swapchainImages.size());
-	for (size_t i = 0; i < _swapchainImages.size(); i++)
+	_core._swapchainImages = _core._device.getSwapchainImagesKHR(_core._swapchain);
+
+	_core._swapchainImageViews.resize(_core._swapchainImages.size());
+	for (size_t i = 0; i < _core._swapchainImages.size(); i++)
 	{
-		_swapchainImageViews[i] = vkutils::createImageView(_device, _swapchainImages[i], _swachainImageFormat, vk::ImageAspectFlagBits::eColor);
+		_core._swapchainImageViews[i] = vkutils::createImageView(_core, _core._swapchainImages[i], _core._swapchainImageFormat, vk::ImageAspectFlagBits::eColor);
 	}
 
-	vk::Extent3D depthImageExtent = {
-		_windowExtent.width,
-		_windowExtent.height,
-		1
-	};
-
 	_depthFormat = vk::Format::eD32Sfloat;
-	vk::ImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat, vk::ImageUsageFlagBits::eDepthStencilAttachment, depthImageExtent);
-	vma::AllocationCreateInfo dimg_allocinfo = {};
-	dimg_allocinfo.setUsage(vma::MemoryUsage::eGpuOnly);
-	dimg_allocinfo.setRequiredFlags(vk::MemoryPropertyFlags(vk::MemoryPropertyFlagBits::eDeviceLocal));
-	std::tie(_depthImage._image, _depthImage._allocation) = _allocator.createImage(dimg_info, dimg_allocinfo);
-
-	vk::ImageViewCreateInfo dview_info = vkinit::imageview_create_info(_depthFormat, _depthImage._image, vk::ImageAspectFlagBits::eDepth);
-
-	_depthImageView = _device.createImageView(dview_info);
+	vk::ImageCreateInfo dimg_info = vkinit::image_create_info(_depthFormat, vk::ImageUsageFlagBits::eDepthStencilAttachment, vk::Extent3D{_core._windowExtent.width, _core._windowExtent.height, 1});
+	_depthImage = vkutils::createImage(_core, dimg_info, vk::ImageAspectFlagBits::eDepth, vma::MemoryUsage::eAutoPreferDevice);
 
 	_resizeDeletionQueue.push_function([=]() {
-		_device.destroyImageView(_depthImageView);
-		_allocator.destroyImage(_depthImage._image, _depthImage._allocation);
+		_core._device.destroyImageView(_depthImage._view);
+		_core._allocator.destroyImage(_depthImage._image, _depthImage._allocation);
 	});
 }
 
 void VulkanEngine::init_framebuffers()
 {
-	vk::FramebufferCreateInfo createInfo = vkinit::framebuffer_create_info(_renderPass, _windowExtent);
+	vk::FramebufferCreateInfo createInfo = vkinit::framebuffer_create_info(_renderPass, _core._windowExtent);
 
-	const uint32_t swapchain_imagecount = (uint32_t)_swapchainImages.size();
-	_framebuffers.resize(swapchain_imagecount);
+	const uint32_t swapchain_imagecount = (uint32_t)_core._swapchainImages.size();
+	_core._framebuffers.resize(swapchain_imagecount);
 
 	for (unsigned int i = 0; i < swapchain_imagecount; i++)
 	{
-		std::array<vk::ImageView, 2> attachments = {_swapchainImageViews[i], _depthImageView};
+		std::array<vk::ImageView, 2> attachments = {_core._swapchainImageViews[i], _depthImage._view};
 		createInfo.setAttachments(attachments);
 		try
 		{
-			_framebuffers[i] = _device.createFramebuffer(createInfo);
+			_core._framebuffers[i] = _core._device.createFramebuffer(createInfo);
 		}
 		catch (std::exception &e)
 		{
 			std::cerr << "Exception Thrown: " << e.what();
 		}
 		_resizeDeletionQueue.push_function([=](){
-			_device.destroyFramebuffer(_framebuffers[i]);
-			_device.destroyImageView(_swapchainImageViews[i]);
+			_core._device.destroyFramebuffer(_core._framebuffers[i]);
+			_core._device.destroyImageView(_core._swapchainImageViews[i]);
 		});
 	}
 }
@@ -492,7 +482,7 @@ void VulkanEngine::init_framebuffers()
 void VulkanEngine::init_default_renderpass()
 {
 	vk::AttachmentDescription color_attachment;
-	color_attachment.setFormat(_swachainImageFormat);
+	color_attachment.setFormat(_core._swapchainImageFormat);
 	color_attachment.setSamples(vk::SampleCountFlagBits::e1);
 	color_attachment.setLoadOp(vk::AttachmentLoadOp::eClear);
 	color_attachment.setStoreOp(vk::AttachmentStoreOp::eStore);
@@ -549,24 +539,39 @@ void VulkanEngine::init_default_renderpass()
 
 	try
 	{
-		_renderPass = _device.createRenderPass(render_pass_info);
+		_renderPass = _core._device.createRenderPass(render_pass_info);
 	}
 	catch (std::exception &e)
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
 	_resizeDeletionQueue.push_function([=](){ 
-		_device.destroyRenderPass(_renderPass, nullptr); 
+		_core._device.destroyRenderPass(_renderPass, nullptr); 
 	});
 }
 
 void VulkanEngine::init_commands()
 {
-	vk::CommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_graphicsQueueFamily, vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
+	vk::CommandPoolCreateInfo commandPoolInfo = vkinit::command_pool_create_info(_core._graphicsQueueFamily);
+
+	try
+	{
+		_core._cmdPool = _core._device.createCommandPool(commandPoolInfo);
+	}
+	catch (std::exception &e)
+	{
+		std::cerr << "Exception Thrown: " << e.what();
+	}
+	_mainDeletionQueue.push_function([=](){
+		_core._device.destroyCommandPool(_core._cmdPool, nullptr);
+	});
+
+	commandPoolInfo = vkinit::command_pool_create_info(_core._graphicsQueueFamily, vk::CommandPoolCreateFlagBits::eResetCommandBuffer);
+
 	for (int i = 0; i < FRAME_OVERLAP; i++) {
 		try
 		{
-			_frames[i]._commandPool = _device.createCommandPool(commandPoolInfo);
+			_frames[i]._commandPool = _core._device.createCommandPool(commandPoolInfo);
 		}
 		catch (std::exception &e)
 		{
@@ -576,14 +581,14 @@ void VulkanEngine::init_commands()
 		vk::CommandBufferAllocateInfo cmdAllocInfo = vkinit::command_buffer_allocate_info(_frames[i]._commandPool, 1, vk::CommandBufferLevel::ePrimary);
 		try
 		{
-			_frames[i]._mainCommandBuffer = _device.allocateCommandBuffers(cmdAllocInfo).front();
+			_frames[i]._mainCommandBuffer = _core._device.allocateCommandBuffers(cmdAllocInfo).front();
 		}
 		catch (std::exception &e)
 		{
 			std::cerr << "Exception Thrown: " << e.what();
 		}
 		_mainDeletionQueue.push_function([=](){
-			_device.destroyCommandPool(_frames[i]._commandPool, nullptr);
+			_core._device.destroyCommandPool(_frames[i]._commandPool, nullptr);
 		});
 	}
 }
@@ -596,19 +601,19 @@ void VulkanEngine::init_sync_structures()
 	for (int i = 0; i < FRAME_OVERLAP; i++) {     
 		try
 		{
-			_frames[i]._renderFence = _device.createFence(fenceCreateInfo);
+			_frames[i]._renderFence = _core._device.createFence(fenceCreateInfo);
 		}
 		catch (std::exception &e)
 		{
 			std::cerr << "Exception Thrown: " << e.what();
 		}
 		_resizeDeletionQueue.push_function([=](){
-			_device.destroyFence(_frames[i]._renderFence, nullptr); 
+			_core._device.destroyFence(_frames[i]._renderFence, nullptr); 
 		});
 		try
 		{
-			_frames[i]._presentSemaphore = _device.createSemaphore(semaphoreCreateInfo);
-			_frames[i]._renderSemaphore = _device.createSemaphore(semaphoreCreateInfo);
+			_frames[i]._presentSemaphore = _core._device.createSemaphore(semaphoreCreateInfo);
+			_frames[i]._renderSemaphore = _core._device.createSemaphore(semaphoreCreateInfo);
 		}
 		catch (std::exception &e)
 		{
@@ -616,10 +621,19 @@ void VulkanEngine::init_sync_structures()
 		}
 		_resizeDeletionQueue.push_function([=]()
 		{
-			_device.destroySemaphore(_frames[i]._presentSemaphore, nullptr);
-			_device.destroySemaphore(_frames[i]._renderSemaphore, nullptr); 
+			_core._device.destroySemaphore(_frames[i]._presentSemaphore, nullptr);
+			_core._device.destroySemaphore(_frames[i]._renderSemaphore, nullptr); 
 		});
 	}
+}
+
+void VulkanEngine::init_accumulation_image()
+{
+	_accumulationImage = createStorageImage(vk::Format::eR32G32B32A32Sfloat, 3840, 3840);
+	_mainDeletionQueue.push_function([=]() {
+		_core._allocator.destroyImage(_accumulationImage._image, _accumulationImage._allocation);
+		_core._device.destroyImageView(_accumulationImage._view); 
+	});
 }
 
 void VulkanEngine::init_pipelines()
@@ -635,7 +649,7 @@ void VulkanEngine::init_pipelines()
 		vk::DescriptorSetLayoutCreateInfo setinfo;
 		setinfo.setBindings(materialBufferBinding);
 
-		_rasterizerSetLayout = _device.createDescriptorSetLayout(setinfo);
+		_rasterizerSetLayout = _core._device.createDescriptorSetLayout(setinfo);
 
 		vk::ShaderModule vertexShader = load_shader_module(vk::ShaderStageFlagBits::eVertex, "/triangle.vert");
 		vk::ShaderModule fragShader = load_shader_module(vk::ShaderStageFlagBits::eFragment, "/triangle.frag");
@@ -645,7 +659,7 @@ void VulkanEngine::init_pipelines()
 		vk::PushConstantRange push_constants{vk::ShaderStageFlagBits::eVertex, 0, sizeof(vkutils::PushConstants)};
 		pipeline_layout_info.setPushConstantRanges(push_constants);
 
-		_rasterizerPipelineLayout = _device.createPipelineLayout(pipeline_layout_info);
+		_rasterizerPipelineLayout = _core._device.createPipelineLayout(pipeline_layout_info);
 
 		VertexInputDescription vertexDescription = Vertex::get_vertex_description();
 
@@ -668,15 +682,15 @@ void VulkanEngine::init_pipelines()
 		pipelineBuilder._pipelineLayout = _rasterizerPipelineLayout;
 		pipelineBuilder._dynamicStates = std::vector<vk::DynamicState> {vk::DynamicState::eViewport, vk::DynamicState::eScissor};
 		pipelineBuilder._depthStencil = vkinit::depth_stencil_create_info(true, true, vk::CompareOp::eLessOrEqual);
-		_rasterizerPipeline = pipelineBuilder.build_pipeline(_device, _renderPass);
+		_rasterizerPipeline = pipelineBuilder.build_pipeline(_core._device, _renderPass);
 
-		_device.destroyShaderModule(fragShader);
-		_device.destroyShaderModule(vertexShader);
+		_core._device.destroyShaderModule(fragShader);
+		_core._device.destroyShaderModule(vertexShader);
 
 		_mainDeletionQueue.push_function([=]() {
-			_device.destroyPipeline(_rasterizerPipeline);
-			_device.destroyPipelineLayout(_rasterizerPipelineLayout);
-			_device.destroyDescriptorSetLayout(_rasterizerSetLayout);
+			_core._device.destroyPipeline(_rasterizerPipeline);
+			_core._device.destroyPipelineLayout(_rasterizerPipelineLayout);
+			_core._device.destroyDescriptorSetLayout(_rasterizerSetLayout);
 		});
 	}
 
@@ -694,43 +708,58 @@ void VulkanEngine::init_pipelines()
 		resultImageLayoutBinding.descriptorCount = 1;
 		resultImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eRaygenKHR;
 
+		vk::DescriptorSetLayoutBinding sccumulationImageLayoutBinding;
+		sccumulationImageLayoutBinding.binding = 2;
+		sccumulationImageLayoutBinding.descriptorType = vk::DescriptorType::eStorageImage;
+		sccumulationImageLayoutBinding.descriptorCount = 1;
+		sccumulationImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eRaygenKHR;
+
 		vk::DescriptorSetLayoutBinding indexBufferBinding;
-		indexBufferBinding.binding = 2;
+		indexBufferBinding.binding = 3;
 		indexBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		indexBufferBinding.descriptorCount = 1;
 		indexBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
 
 		vk::DescriptorSetLayoutBinding vertexBufferBinding;
-		vertexBufferBinding.binding = 3;
+		vertexBufferBinding.binding = 4;
 		vertexBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		vertexBufferBinding.descriptorCount = 1;
 		vertexBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
 
 		vk::DescriptorSetLayoutBinding materialBufferBinding;
-		materialBufferBinding.binding = 4;
+		materialBufferBinding.binding = 5;
 		materialBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		materialBufferBinding.descriptorCount = 1;
 		materialBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
 
+		vk::DescriptorSetLayoutBinding textureLayoutBinding{};
+        textureLayoutBinding.binding = 6;
+        textureLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+        textureLayoutBinding.descriptorCount = _triangleModel._textures.size();
+        textureLayoutBinding.pImmutableSamplers = nullptr;
+        textureLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
+
 		std::vector<vk::DescriptorSetLayoutBinding> bindings({
 			accelerationStructureLayoutBinding,
 			resultImageLayoutBinding,
+			sccumulationImageLayoutBinding,
 			indexBufferBinding,
 			vertexBufferBinding,
-			materialBufferBinding
+			materialBufferBinding,
+			textureLayoutBinding
 		});
 
 		vk::DescriptorSetLayoutCreateInfo setinfo;
 		setinfo.setBindings(bindings);
 
-		_raytracerSetLayout = _device.createDescriptorSetLayout(setinfo);
+		_raytracerSetLayout = _core._device.createDescriptorSetLayout(setinfo);
 
 		vk::PipelineLayoutCreateInfo pipeline_layout_info = vkinit::pipeline_layout_create_info();
 		pipeline_layout_info.setSetLayouts(_raytracerSetLayout);
 		vk::PushConstantRange push_constants{vk::ShaderStageFlagBits::eRaygenKHR, 0, sizeof(vkutils::PushConstants)};
 		pipeline_layout_info.setPushConstantRanges(push_constants);
 
-		_raytracerPipelineLayout = _device.createPipelineLayout(pipeline_layout_info);
+		_raytracerPipelineLayout = _core._device.createPipelineLayout(pipeline_layout_info);
 
 		std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
 		vk::ShaderModule raygenShader, missShader, hitShader;
@@ -786,7 +815,7 @@ void VulkanEngine::init_pipelines()
 		try
 		{
 			vk::Result result;
-			std::tie(result, _raytracerPipeline) = _device.createRayTracingPipelineKHR({}, {}, rayTracingPipelineInfo);
+			std::tie(result, _raytracerPipeline) = _core._device.createRayTracingPipelineKHR({}, {}, rayTracingPipelineInfo);
 			if (result != vk::Result::eSuccess)
 			{
 				throw std::runtime_error("failed to create graphics Pipeline!");
@@ -797,14 +826,14 @@ void VulkanEngine::init_pipelines()
 			std::cerr << "Exception Thrown: " << e.what();
 		}
 
-		_device.destroyShaderModule(raygenShader);
-		_device.destroyShaderModule(missShader);
-		_device.destroyShaderModule(hitShader);
+		_core._device.destroyShaderModule(raygenShader);
+		_core._device.destroyShaderModule(missShader);
+		_core._device.destroyShaderModule(hitShader);
 
 		_mainDeletionQueue.push_function([=]() {
-			_device.destroyPipeline(_raytracerPipeline);
-			_device.destroyPipelineLayout(_raytracerPipelineLayout);
-			_device.destroyDescriptorSetLayout(_raytracerSetLayout);
+			_core._device.destroyPipeline(_raytracerPipeline);
+			_core._device.destroyPipelineLayout(_raytracerPipelineLayout);
+			_core._device.destroyDescriptorSetLayout(_raytracerSetLayout);
 		});
 	}
 }
@@ -822,7 +851,7 @@ void VulkanEngine::init_descriptors()
 		pool_info.setMaxSets(2);
 		pool_info.setPoolSizes(poolSizes);
 
-		_rasterizerDescriptorPool = _device.createDescriptorPool(pool_info);
+		_rasterizerDescriptorPool = _core._device.createDescriptorPool(pool_info);
 		
 		for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
@@ -830,7 +859,7 @@ void VulkanEngine::init_descriptors()
 			allocInfo.descriptorPool = _rasterizerDescriptorPool;
 			allocInfo.setSetLayouts(_rasterizerSetLayout);
 
-			_frames[i]._rasterizerDescriptor = _device.allocateDescriptorSets(allocInfo).front();
+			_frames[i]._rasterizerDescriptor = _core._device.allocateDescriptorSets(allocInfo).front();
 
 			vk::DescriptorBufferInfo binfo;
 			binfo.buffer = _materialBuffer._buffer;
@@ -844,7 +873,7 @@ void VulkanEngine::init_descriptors()
 			setWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
 			setWrite.setBufferInfo(binfo);
 
-			_device.updateDescriptorSets(setWrite, {});
+			_core._device.updateDescriptorSets(setWrite, {});
 		}
 	}
 	//init raytracing descriptors
@@ -852,25 +881,27 @@ void VulkanEngine::init_descriptors()
 		std::vector<vk::DescriptorPoolSize> poolSizes = {
 			{ vk::DescriptorType::eAccelerationStructureKHR, 1 },
 			{ vk::DescriptorType::eStorageImage, 1 },
+			{ vk::DescriptorType::eStorageImage, 1 },
 			{ vk::DescriptorType::eStorageBuffer, 1 },
 			{ vk::DescriptorType::eStorageBuffer, 1 },
-			{ vk::DescriptorType::eStorageBuffer, 1 }
+			{ vk::DescriptorType::eStorageBuffer, 1 },
+			{ vk::DescriptorType::eCombinedImageSampler, static_cast<uint32_t>(_triangleModel._textures.size())}
 		};
 		vk::DescriptorPoolCreateInfo pool_info;
 		pool_info.setMaxSets(2);
 		pool_info.setPoolSizes(poolSizes);
 
-		_raytracerDescriptorPool = _device.createDescriptorPool(pool_info);
+		_raytracerDescriptorPool = _core._device.createDescriptorPool(pool_info);
 
 		for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
-			_frames[i]._storageImage = createStorageImage();
+			_frames[i]._storageImage = createStorageImage(_core._swapchainImageFormat, _core._windowExtent.width, _core._windowExtent.height);
 
 			vk::DescriptorSetAllocateInfo allocInfo;
 			allocInfo.descriptorPool = _raytracerDescriptorPool;
 			allocInfo.setSetLayouts(_raytracerSetLayout);
 
-			_frames[i]._raytracerDescriptor = _device.allocateDescriptorSets(allocInfo).front();
+			_frames[i]._raytracerDescriptor = _core._device.allocateDescriptorSets(allocInfo).front();
 
 			vk::WriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo;
 			descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
@@ -882,15 +913,25 @@ void VulkanEngine::init_descriptors()
 			accelerationStructureWrite.descriptorCount = 1;
 			accelerationStructureWrite.descriptorType = vk::DescriptorType::eAccelerationStructureKHR;
 
-			vk::DescriptorImageInfo storageImageDescriptor;
-			storageImageDescriptor.imageView = _frames[i]._storageImage._view;
-			storageImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
+			vk::DescriptorImageInfo resultImageDescriptor;
+			resultImageDescriptor.imageView = _frames[i]._storageImage._view;
+			resultImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
 			vk::WriteDescriptorSet resultImageWrite;
 			resultImageWrite.dstSet = _frames[i]._raytracerDescriptor;
 			resultImageWrite.descriptorType = vk::DescriptorType::eStorageImage;
 			resultImageWrite.dstBinding = 1;
-			resultImageWrite.pImageInfo = &storageImageDescriptor;
+			resultImageWrite.pImageInfo = &resultImageDescriptor;
 			resultImageWrite.descriptorCount = 1;
+
+			vk::DescriptorImageInfo accumulationImageDescriptor;
+			accumulationImageDescriptor.imageView = _accumulationImage._view;
+			accumulationImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
+			vk::WriteDescriptorSet accumulationImageWrite;
+			accumulationImageWrite.dstSet = _frames[i]._raytracerDescriptor;
+			accumulationImageWrite.descriptorType = vk::DescriptorType::eStorageImage;
+			accumulationImageWrite.dstBinding = 2;
+			accumulationImageWrite.pImageInfo = &accumulationImageDescriptor;
+			accumulationImageWrite.descriptorCount = 1;
 
 			vk::DescriptorBufferInfo indexDescriptor;
 			indexDescriptor.buffer = _triangleModel._indexBuffer._buffer;
@@ -899,7 +940,7 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet indexBufferWrite;
 			indexBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			indexBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
-			indexBufferWrite.dstBinding = 2;
+			indexBufferWrite.dstBinding = 3;
 			indexBufferWrite.pBufferInfo = &indexDescriptor;
 			indexBufferWrite.descriptorCount = 1;
 
@@ -910,7 +951,7 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet vertexBufferWrite;
 			vertexBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			vertexBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
-			vertexBufferWrite.dstBinding = 3;
+			vertexBufferWrite.dstBinding = 4;
 			vertexBufferWrite.pBufferInfo = &vertexDescriptor;
 			vertexBufferWrite.descriptorCount = 1;
 
@@ -921,29 +962,39 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet uniformBufferWrite;
 			uniformBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			uniformBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
-			uniformBufferWrite.dstBinding = 4;
+			uniformBufferWrite.dstBinding = 5;
 			uniformBufferWrite.pBufferInfo = &uboDescriptor;
 			uniformBufferWrite.descriptorCount = 1;
+
+			vk::WriteDescriptorSet textureImageWrite;
+            textureImageWrite.dstSet = _frames[i]._raytracerDescriptor;
+            textureImageWrite.dstBinding = 6;
+            textureImageWrite.dstArrayElement = 0;
+            textureImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+			std::vector<vk::DescriptorImageInfo> imageInfos = _triangleModel.getTextureDescriptors();
+            textureImageWrite.setImageInfo(imageInfos);
 
 			std::vector<vk::WriteDescriptorSet> setWrites = {
 				accelerationStructureWrite,
 				resultImageWrite,
+				accumulationImageWrite,
 				indexBufferWrite,
 				vertexBufferWrite,
-				uniformBufferWrite
+				uniformBufferWrite,
+				textureImageWrite
 			};
-			_device.updateDescriptorSets(setWrites, {});
+			_core._device.updateDescriptorSets(setWrites, {});
 		}
 	}
 	_mainDeletionQueue.push_function([&]() {
-		_device.destroyDescriptorPool(_raytracerDescriptorPool);
-		_device.destroyDescriptorPool(_rasterizerDescriptorPool);
+		_core._device.destroyDescriptorPool(_raytracerDescriptorPool);
+		_core._device.destroyDescriptorPool(_rasterizerDescriptorPool);
 	});
 	_resizeDeletionQueue.push_function([&]() {
 		for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
-			_allocator.destroyImage(_frames[i]._storageImage._image, _frames[i]._storageImage._allocation);
-			_device.destroyImageView(_frames[i]._storageImage._view);
+			_core._allocator.destroyImage(_frames[i]._storageImage._image, _frames[i]._storageImage._allocation);
+			_core._device.destroyImageView(_frames[i]._storageImage._view);
 		}
 	});
 }
@@ -957,7 +1008,7 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 	vk::ShaderModule shaderModule;
 	try
 	{
-		shaderModule = _device.createShaderModule(createInfo);
+		shaderModule = _core._device.createShaderModule(createInfo);
 	}
 	catch (std::exception &e)
 	{
@@ -970,8 +1021,11 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 
 void VulkanEngine::load_models()
 {
+	_triangleModel = Model(&_core);
 	_triangleModel.load_from_glb(ASSET_PATH"/san_miguel.glb");
-
+	_mainDeletionQueue.push_function([&]() {
+		_triangleModel.destroy();
+	});
 	upload_model(_triangleModel);
 	init_bottom_level_acceleration_structure(_triangleModel);
 	init_top_level_acceleration_structure();
@@ -979,7 +1033,7 @@ void VulkanEngine::load_models()
 
 void VulkanEngine::updateBuffers() {
 	glm::mat4 view = cam.getView();
-	glm::mat4 projection = glm::perspective(glm::radians(75.f), (float) _windowExtent.width / _windowExtent.height, 0.1f, 1000.0f);
+	glm::mat4 projection = glm::perspective(glm::radians(75.f), (float) _core._windowExtent.width / _core._windowExtent.height, 0.1f, 1000.0f);
 	projection[1][1] *= -1;
 
 	if(_selectedShader == 0)
@@ -1006,13 +1060,8 @@ void VulkanEngine::upload_model(Model &model)
 	vk::DeviceSize indexBufferSize = model._indices.size() * sizeof(uint32_t);
 
 	std::cout << "Vertex Count: " << model._vertices.size() << std::endl;
-	model._vertexBuffer = vkutils::deviceBufferFromData(_device, _frames[0]._commandPool, _graphicsQueue, _allocator, (void*) model._vertices.data(), vertexBufferSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
-	model._indexBuffer = vkutils::deviceBufferFromData(_device, _frames[0]._commandPool, _graphicsQueue, _allocator, (void*) model._indices.data(), indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
-
-	_mainDeletionQueue.push_function([=]() {
-		_allocator.destroyBuffer(model._vertexBuffer._buffer, model._vertexBuffer._allocation);
-		_allocator.destroyBuffer(model._indexBuffer._buffer, model._indexBuffer._allocation);
-    });
+	model._vertexBuffer = vkutils::deviceBufferFromData(_core, (void*) model._vertices.data(), vertexBufferSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
+	model._indexBuffer = vkutils::deviceBufferFromData(_core, (void*) model._indices.data(), indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
 }
 
 void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
@@ -1030,7 +1079,7 @@ void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
 	}
 
 	vk::DeviceSize transformBufferSize = transformMatrices.size() * sizeof(vk::TransformMatrixKHR);
-	vkutils::AllocatedBuffer transformBuffer = vkutils::deviceBufferFromData(_device, _frames[0]._commandPool, _graphicsQueue, _allocator, transformMatrices.data(), transformBufferSize, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
+	vkutils::AllocatedBuffer transformBuffer = vkutils::deviceBufferFromData(_core, transformMatrices.data(), transformBufferSize, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
 
 	// Build BLAS
 	uint32_t maxPrimCount{ 0 };
@@ -1051,9 +1100,9 @@ void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
 				vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress;
 				vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress;
 				vk::DeviceOrHostAddressConstKHR transformBufferDeviceAddress;
-				vertexBufferDeviceAddress.deviceAddress = _device.getBufferAddress(vertexBufferAdressInfo);
-				indexBufferDeviceAddress.deviceAddress = _device.getBufferAddress(indexBufferAdressInfo) + primitive->firstIndex * sizeof(uint32_t);
-				transformBufferDeviceAddress.deviceAddress = _device.getBufferAddress(transformBufferAdressInfo) + static_cast<uint32_t>(geometries.size()) * sizeof(vk::TransformMatrixKHR);
+				vertexBufferDeviceAddress.deviceAddress = _core._device.getBufferAddress(vertexBufferAdressInfo);
+				indexBufferDeviceAddress.deviceAddress = _core._device.getBufferAddress(indexBufferAdressInfo) + primitive->firstIndex * sizeof(uint32_t);
+				transformBufferDeviceAddress.deviceAddress = _core._device.getBufferAddress(transformBufferAdressInfo) + static_cast<uint32_t>(geometries.size()) * sizeof(vk::TransformMatrixKHR);
 
 				//Create Geometry for every gltf primitive (node)
 				vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
@@ -1114,32 +1163,32 @@ void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
 	accelerationStructureBuildGeometryInfo.geometryCount = static_cast<uint32_t>(geometries.size());
 	accelerationStructureBuildGeometryInfo.pGeometries = geometries.data();
 
-	auto accelerationStructureBuildSizesInfo = _device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, maxPrimitiveCounts);
+	auto accelerationStructureBuildSizesInfo = _core._device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, maxPrimitiveCounts);
 
 	//Build BLAS Buffer
-	_bottomLevelASBuffer = vkutils::createBuffer(_allocator, accelerationStructureBuildSizesInfo.accelerationStructureSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR, vma::MemoryUsage::eAutoPreferDevice);
+	_bottomLevelASBuffer = vkutils::createBuffer(_core, accelerationStructureBuildSizesInfo.accelerationStructureSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR, vma::MemoryUsage::eAutoPreferDevice);
 
 	vk::DeviceSize geometryNodesBufferSize = static_cast<uint32_t>(_materials.size()) * sizeof(vkutils::GeometryNode);
-	_materialBuffer =  vkutils::deviceBufferFromData(_device, _frames[0]._commandPool, _graphicsQueue, _allocator, _materials.data(), geometryNodesBufferSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice);
+	_materialBuffer =  vkutils::deviceBufferFromData(_core, _materials.data(), geometryNodesBufferSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice);
 
 	//Get BLAS Handle
 	vk::AccelerationStructureCreateInfoKHR accelerationStructureCreateInfo;
 	accelerationStructureCreateInfo.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
 	accelerationStructureCreateInfo.buffer = _bottomLevelASBuffer._buffer;
 	accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-	_bottomLevelAS = _device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
+	_bottomLevelAS = _core._device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
 
 	_mainDeletionQueue.push_function([=]() {
-		_allocator.destroyBuffer(_materialBuffer._buffer, _materialBuffer._allocation);
-		_allocator.destroyBuffer(_bottomLevelASBuffer._buffer, _bottomLevelASBuffer._allocation);
-		_device.destroyAccelerationStructureKHR(_bottomLevelAS);
+		_core._allocator.destroyBuffer(_materialBuffer._buffer, _materialBuffer._allocation);
+		_core._allocator.destroyBuffer(_bottomLevelASBuffer._buffer, _bottomLevelASBuffer._allocation);
+		_core._device.destroyAccelerationStructureKHR(_bottomLevelAS);
 	});
 
 	// Create ScratchBuffer
-	vkutils::AllocatedBuffer scratchBuffer = vkutils::createBuffer(_allocator, accelerationStructureBuildSizesInfo.buildScratchSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eDedicatedMemory);
+	vkutils::AllocatedBuffer scratchBuffer = vkutils::createBuffer(_core, accelerationStructureBuildSizesInfo.buildScratchSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eDedicatedMemory);
 	vk::BufferDeviceAddressInfo scratchBufferAdressInfo(scratchBuffer._buffer);
 	vk::DeviceOrHostAddressConstKHR scratchBufferAddress;
-	scratchBufferAddress.deviceAddress = _device.getBufferAddress(scratchBufferAdressInfo);
+	scratchBufferAddress.deviceAddress = _core._device.getBufferAddress(scratchBufferAdressInfo);
 
 	accelerationStructureBuildGeometryInfo.mode = vk::BuildAccelerationStructureModeKHR::eBuild;
 	accelerationStructureBuildGeometryInfo.dstAccelerationStructure = _bottomLevelAS;
@@ -1148,10 +1197,10 @@ void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
 	// Create Single-Use CommandBuffer and Build Acceleration Structure on GPU
 	vk::CommandBufferAllocateInfo allocInfo{};
     allocInfo.level = vk::CommandBufferLevel::ePrimary;
-    allocInfo.commandPool = _frames[0]._commandPool;
+    allocInfo.commandPool = _core._cmdPool;
     allocInfo.commandBufferCount = 1;
 
-    vk::CommandBuffer commandBuffer = _device.allocateCommandBuffers(allocInfo).front();
+    vk::CommandBuffer commandBuffer = _core._device.allocateCommandBuffers(allocInfo).front();
 
     vk::CommandBufferBeginInfo beginInfo{};
     beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
@@ -1162,17 +1211,17 @@ void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
 
     vk::SubmitInfo submitInfo{};
     submitInfo.setCommandBuffers(commandBuffer);
-    _graphicsQueue.submit(submitInfo);
-    _graphicsQueue.waitIdle();
-    _device.freeCommandBuffers(_frames[0]._commandPool, commandBuffer);
+    _core._graphicsQueue.submit(submitInfo);
+    _core._graphicsQueue.waitIdle();
+    _core._device.freeCommandBuffers(_core._cmdPool, commandBuffer);
 
 	vk::AccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo;
 	accelerationDeviceAddressInfo.accelerationStructure = _bottomLevelAS;
-	_bottomLevelDeviceAddress = _device.getAccelerationStructureAddressKHR(accelerationDeviceAddressInfo);
+	_bottomLevelDeviceAddress = _core._device.getAccelerationStructureAddressKHR(accelerationDeviceAddressInfo);
 
 	//delete Scratch Buffer
-	_allocator.destroyBuffer(scratchBuffer._buffer, scratchBuffer._allocation);
-	_allocator.destroyBuffer(transformBuffer._buffer, transformBuffer._allocation);
+	_core._allocator.destroyBuffer(scratchBuffer._buffer, scratchBuffer._allocation);
+	_core._allocator.destroyBuffer(transformBuffer._buffer, transformBuffer._allocation);
 }
 
 void VulkanEngine::init_top_level_acceleration_structure()
@@ -1187,11 +1236,11 @@ void VulkanEngine::init_top_level_acceleration_structure()
 
 	vk::AccelerationStructureInstanceKHR instance(transformMatrix, 0, 0xFF, 0, vk::GeometryInstanceFlagBitsKHR::eTriangleFacingCullDisable, _bottomLevelDeviceAddress);
 
-	vkutils::AllocatedBuffer instancesBuffer = vkutils::deviceBufferFromData(_device, _frames[0]._commandPool, _graphicsQueue, _allocator, &instance, sizeof(vk::AccelerationStructureInstanceKHR), vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
+	vkutils::AllocatedBuffer instancesBuffer = vkutils::deviceBufferFromData(_core, &instance, sizeof(vk::AccelerationStructureInstanceKHR), vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
 
 	vk::DeviceOrHostAddressConstKHR instanceDataDeviceAddress;
 	vk::BufferDeviceAddressInfo instanceBufferAdressInfo(instancesBuffer._buffer);
-	instanceDataDeviceAddress.deviceAddress = _device.getBufferAddress(instanceBufferAdressInfo);
+	instanceDataDeviceAddress.deviceAddress = _core._device.getBufferAddress(instanceBufferAdressInfo);
 
 	vk::AccelerationStructureGeometryInstancesDataKHR instances(VK_FALSE, instanceDataDeviceAddress);
 
@@ -1207,26 +1256,26 @@ void VulkanEngine::init_top_level_acceleration_structure()
 
 	uint32_t primitive_count = 1;
 
-	auto accelerationStructureBuildSizesInfo = _device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, primitive_count);
+	auto accelerationStructureBuildSizesInfo = _core._device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, primitive_count);
 
-	_topLevelASBuffer = vkutils::createBuffer(_allocator, accelerationStructureBuildSizesInfo.accelerationStructureSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eDedicatedMemory);
+	_topLevelASBuffer = vkutils::createBuffer(_core, accelerationStructureBuildSizesInfo.accelerationStructureSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eDedicatedMemory);
 
 	vk::AccelerationStructureCreateInfoKHR accelerationStructureCreateInfo;
 	accelerationStructureCreateInfo.buffer = _topLevelASBuffer._buffer;
 	accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
 	accelerationStructureCreateInfo.type = vk::AccelerationStructureTypeKHR::eTopLevel;
 
-	_topLevelAS = _device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
+	_topLevelAS = _core._device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
 
 	_mainDeletionQueue.push_function([=]() {
-		_allocator.destroyBuffer(_topLevelASBuffer._buffer, _topLevelASBuffer._allocation);
-		_device.destroyAccelerationStructureKHR(_topLevelAS);
+		_core._allocator.destroyBuffer(_topLevelASBuffer._buffer, _topLevelASBuffer._allocation);
+		_core._device.destroyAccelerationStructureKHR(_topLevelAS);
 	});
 
-	vkutils::AllocatedBuffer scratchBuffer = vkutils::createBuffer(_allocator, accelerationStructureBuildSizesInfo.buildScratchSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eDedicatedMemory);
+	vkutils::AllocatedBuffer scratchBuffer = vkutils::createBuffer(_core, accelerationStructureBuildSizesInfo.buildScratchSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eDedicatedMemory);
 	vk::BufferDeviceAddressInfo scratchBufferAdressInfo(scratchBuffer._buffer);
 	vk::DeviceOrHostAddressConstKHR scratchBufferAddress;
-	scratchBufferAddress.deviceAddress = _device.getBufferAddress(scratchBufferAdressInfo);
+	scratchBufferAddress.deviceAddress = _core._device.getBufferAddress(scratchBufferAdressInfo);
 
 	accelerationStructureBuildGeometryInfo.mode = vk::BuildAccelerationStructureModeKHR::eBuild;
 	accelerationStructureBuildGeometryInfo.dstAccelerationStructure = _topLevelAS;
@@ -1242,10 +1291,10 @@ void VulkanEngine::init_top_level_acceleration_structure()
 
 	vk::CommandBufferAllocateInfo allocInfo{};
     allocInfo.level = vk::CommandBufferLevel::ePrimary;
-    allocInfo.commandPool = _frames[0]._commandPool;
+    allocInfo.commandPool = _core._cmdPool;
     allocInfo.commandBufferCount = 1;
 
-    vk::CommandBuffer cmd = _device.allocateCommandBuffers(allocInfo).front();
+    vk::CommandBuffer cmd = _core._device.allocateCommandBuffers(allocInfo).front();
 
     vk::CommandBufferBeginInfo beginInfo{};
     beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
@@ -1256,26 +1305,26 @@ void VulkanEngine::init_top_level_acceleration_structure()
 
     vk::SubmitInfo submitInfo{};
     submitInfo.setCommandBuffers(cmd);
-    _graphicsQueue.submit(submitInfo);
-    _graphicsQueue.waitIdle();
-    _device.freeCommandBuffers(_frames[0]._commandPool, cmd);
+    _core._graphicsQueue.submit(submitInfo);
+    _core._graphicsQueue.waitIdle();
+    _core._device.freeCommandBuffers(_core._cmdPool, cmd);
 
 	vk::AccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo;
 	accelerationDeviceAddressInfo.accelerationStructure = _topLevelAS;
 
-	_topLevelDeviceAddress = _device.getAccelerationStructureAddressKHR(accelerationDeviceAddressInfo);
+	_topLevelDeviceAddress = _core._device.getAccelerationStructureAddressKHR(accelerationDeviceAddressInfo);
 
-	_allocator.destroyBuffer(scratchBuffer._buffer, scratchBuffer._allocation);
-	_allocator.destroyBuffer(instancesBuffer._buffer, instancesBuffer._allocation);
+	_core._allocator.destroyBuffer(scratchBuffer._buffer, scratchBuffer._allocation);
+	_core._allocator.destroyBuffer(instancesBuffer._buffer, instancesBuffer._allocation);
 }
 
-vkutils::AllocatedImage VulkanEngine::createStorageImage()
+vkutils::AllocatedImage VulkanEngine::createStorageImage(vk::Format format, uint32_t width, uint32_t height)
 {
 	vk::ImageCreateInfo imageInfo;
 	imageInfo.imageType = vk::ImageType::e2D;
-	imageInfo.format = _swachainImageFormat;
-	imageInfo.extent.width = _windowExtent.width;
-	imageInfo.extent.height = _windowExtent.height;
+	imageInfo.format = format;
+	imageInfo.extent.width = width;
+	imageInfo.extent.height = height;
 	imageInfo.extent.depth = 1;
 	imageInfo.mipLevels = 1;
 	imageInfo.arrayLayers = 1;
@@ -1283,41 +1332,20 @@ vkutils::AllocatedImage VulkanEngine::createStorageImage()
 	imageInfo.tiling = vk::ImageTiling::eOptimal;
 	imageInfo.usage = vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eStorage;
 	imageInfo.initialLayout = vk::ImageLayout::eUndefined;
-	vkutils::AllocatedImage storageImage = vkutils::createImage(_allocator, imageInfo, vma::MemoryUsage::eAutoPreferDevice);
+	vkutils::AllocatedImage storageImage = vkutils::createImage(_core, imageInfo, vk::ImageAspectFlagBits::eColor, vma::MemoryUsage::eAutoPreferDevice);
 
-	vk::ImageSubresourceRange subresourceRange;
-	subresourceRange.aspectMask = vk::ImageAspectFlagBits::eColor;
-	subresourceRange.baseMipLevel = 0;
-	subresourceRange.levelCount = 1;
-	subresourceRange.baseArrayLayer = 0;
-	subresourceRange.layerCount = 1;
-
-	vk::ImageViewCreateInfo colorImageView;
-	colorImageView.viewType = vk::ImageViewType::e2D;
-	colorImageView.format = _swachainImageFormat;
-	colorImageView.subresourceRange = subresourceRange;
-	colorImageView.image = storageImage._image;
-	storageImage._view = _device.createImageView(colorImageView);
-
-	vk::CommandBufferAllocateInfo allocInfo{};
-    allocInfo.level = vk::CommandBufferLevel::ePrimary;
-    allocInfo.commandPool = _frames[0]._commandPool;
-    allocInfo.commandBufferCount = 1;
-
-    vk::CommandBuffer cmd = _device.allocateCommandBuffers(allocInfo).front();
-
+    vk::CommandBuffer cmd = vkutils::getCommandBuffer(_core);
     vk::CommandBufferBeginInfo beginInfo{};
     beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-
     cmd.begin(beginInfo);
 		vkutils::setImageLayout(cmd, storageImage._image, vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral, { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 });
     cmd.end();
 
     vk::SubmitInfo submitInfo{};
     submitInfo.setCommandBuffers(cmd);
-    _graphicsQueue.submit(submitInfo);
-    _graphicsQueue.waitIdle();
-    _device.freeCommandBuffers(_frames[0]._commandPool, cmd);
+    _core._graphicsQueue.submit(submitInfo);
+    _core._graphicsQueue.waitIdle();
+    _core._device.freeCommandBuffers(_core._cmdPool, cmd);
 
 	return storageImage;
 }
@@ -1328,42 +1356,42 @@ void VulkanEngine::createShaderBindingTable() {
 	const uint32_t groupCount = static_cast<uint32_t>(_shaderGroups.size());
 	const uint32_t sbtSize = groupCount * handleSizeAligned;
 
-	auto shaderHandleStorage = _device.getRayTracingShaderGroupHandlesKHR<uint8_t>(_raytracerPipeline, (uint32_t) 0, groupCount, (size_t) sbtSize);
+	auto shaderHandleStorage = _core._device.getRayTracingShaderGroupHandlesKHR<uint8_t>(_raytracerPipeline, (uint32_t) 0, groupCount, (size_t) sbtSize);
 
 	const vk::BufferUsageFlags bufferUsageFlags = vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress;
 	const vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto;
 	const vma::AllocationCreateFlags allocationFlags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite;
-	_raygenShaderBindingTable = vkutils::createBuffer(_allocator, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
-	_missShaderBindingTable =  vkutils::createBuffer(_allocator, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
-	_hitShaderBindingTable =  vkutils::createBuffer(_allocator, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
+	_raygenShaderBindingTable = vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
+	_missShaderBindingTable =  vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
+	_hitShaderBindingTable =  vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
 
 	// Copy handles
-	void* dataRaygen = _allocator.mapMemory(_raygenShaderBindingTable._allocation);
+	void* dataRaygen = _core._allocator.mapMemory(_raygenShaderBindingTable._allocation);
 		memcpy(dataRaygen, shaderHandleStorage.data(), handleSize);
-	_allocator.unmapMemory(_raygenShaderBindingTable._allocation);
+	_core._allocator.unmapMemory(_raygenShaderBindingTable._allocation);
 
-	void* dataMiss = _allocator.mapMemory(_missShaderBindingTable._allocation);
+	void* dataMiss = _core._allocator.mapMemory(_missShaderBindingTable._allocation);
 		memcpy(dataMiss, shaderHandleStorage.data() + handleSizeAligned, handleSize);
-	_allocator.unmapMemory(_missShaderBindingTable._allocation);
+	_core._allocator.unmapMemory(_missShaderBindingTable._allocation);
 
-	void* dataHit = _allocator.mapMemory(_hitShaderBindingTable._allocation);
+	void* dataHit = _core._allocator.mapMemory(_hitShaderBindingTable._allocation);
 		memcpy(dataHit, shaderHandleStorage.data() + handleSizeAligned * 2, handleSize);
-	_allocator.unmapMemory(_hitShaderBindingTable._allocation);
+	_core._allocator.unmapMemory(_hitShaderBindingTable._allocation);
 
 	_mainDeletionQueue.push_function([=]() {
-		_allocator.destroyBuffer(_raygenShaderBindingTable._buffer, _raygenShaderBindingTable._allocation);
-		_allocator.destroyBuffer(_missShaderBindingTable._buffer, _missShaderBindingTable._allocation);
-		_allocator.destroyBuffer(_hitShaderBindingTable._buffer, _hitShaderBindingTable._allocation);
+		_core._allocator.destroyBuffer(_raygenShaderBindingTable._buffer, _raygenShaderBindingTable._allocation);
+		_core._allocator.destroyBuffer(_missShaderBindingTable._buffer, _missShaderBindingTable._allocation);
+		_core._allocator.destroyBuffer(_hitShaderBindingTable._buffer, _hitShaderBindingTable._allocation);
 	});
 }
 
 void VulkanEngine::recreateSwapchain() {
-	_device.waitIdle();
+	_core._device.waitIdle();
 	_framebufferResized = false;
 	int w, h;
-	SDL_GetWindowSizeInPixels(_window, &w, &h);
-	_windowExtent = vk::Extent2D{static_cast<uint32_t>(w), static_cast<uint32_t>(h)};
-	cam.updateSize(_windowExtent.width, _windowExtent.height);
+	SDL_GetWindowSizeInPixels(_core._window, &w, &h);
+	_core._windowExtent = vk::Extent2D{static_cast<uint32_t>(w), static_cast<uint32_t>(h)};
+	cam.updateSize(_core._windowExtent.width, _core._windowExtent.height);
 
 	_resizeDeletionQueue.flush();
 	
@@ -1373,28 +1401,27 @@ void VulkanEngine::recreateSwapchain() {
 	init_sync_structures();
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{
-		_frames[i]._storageImage = createStorageImage();
+		_frames[i]._storageImage = createStorageImage(_core._swapchainImageFormat, _core._windowExtent.width, _core._windowExtent.height);
 
-		vk::DescriptorImageInfo storageImageDescriptor;
-		storageImageDescriptor.imageView = _frames[i]._storageImage._view;
-		storageImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
-
+		vk::DescriptorImageInfo resultImageDescriptor;
+		resultImageDescriptor.imageView = _frames[i]._storageImage._view;
+		resultImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
 		vk::WriteDescriptorSet resultImageWrite;
 		resultImageWrite.dstSet = _frames[i]._raytracerDescriptor;
 		resultImageWrite.descriptorType = vk::DescriptorType::eStorageImage;
 		resultImageWrite.dstBinding = 1;
-		resultImageWrite.pImageInfo = &storageImageDescriptor;
+		resultImageWrite.pImageInfo = &resultImageDescriptor;
 		resultImageWrite.descriptorCount = 1;
 
 		std::vector<vk::WriteDescriptorSet> setWrites = {
 			resultImageWrite
 		};
-		_device.updateDescriptorSets(setWrites, {});
+		_core._device.updateDescriptorSets(setWrites, {});
 	}
 	_resizeDeletionQueue.push_function([&]() {
 		for (int i = 0; i < FRAME_OVERLAP; i++) {
-			_allocator.destroyImage(_frames[i]._storageImage._image, _frames[i]._storageImage._allocation);
-			_device.destroyImageView(_frames[i]._storageImage._view);
+			_core._allocator.destroyImage(_frames[i]._storageImage._image, _frames[i]._storageImage._allocation);
+			_core._device.destroyImageView(_frames[i]._storageImage._view);
 		}
 	});
 }

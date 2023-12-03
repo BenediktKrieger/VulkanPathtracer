@@ -6,76 +6,31 @@
 #include <vk_model.h>
 #include <vk_shaderConverter.h>
 #include <Camera.h>
+#include <Core.h>
 
-constexpr unsigned int FRAME_OVERLAP = 1;
+constexpr unsigned int FRAME_OVERLAP = 2;
 
 class VulkanEngine
 {
 public:
+	vk::Core _core;
 	bool _isInitialized{false};
 	bool _framebufferResized{false};
 	uint32_t _frameNumber{0};
 	int _selectedShader{0};
+
 	vkutils::PushConstants PushConstants;
-
-	vk::Extent2D _windowExtent{1920, 1080};
-
-	struct SDL_Window* _window{nullptr};
-
 	Camera cam;
 
-	std::vector<const char *> _instanceLayers = {
-		"VK_LAYER_KHRONOS_validation",
-		"VK_LAYER_LUNARG_monitor"};
-	std::vector<const char *> _instanceExtensions = {
-		VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
-	};
-	std::vector<const char *> _deviceExtensions = {
-		VK_EXT_MEMORY_BUDGET_EXTENSION_NAME,
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-		VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-		VK_KHR_BUFFER_DEVICE_ADDRESS_EXTENSION_NAME,
-		VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-		VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-		VK_KHR_SPIRV_1_4_EXTENSION_NAME,
-		VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME};
-
-	vk::DynamicLoader _dl;
-	vk::DebugUtilsMessageSeverityFlagsEXT _messageSeverityFlags = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
-	vk::DebugUtilsMessageTypeFlagsEXT _messageTypeFlags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
-
-	vma::Allocator _allocator;
-
-	vk::Instance _instance;
-	vk::DebugUtilsMessengerEXT _debug_messenger;
-	vk::PhysicalDevice _chosenGPU;
-	vk::PhysicalDeviceRayTracingPipelinePropertiesKHR _raytracingPipelineProperties;
-	vk::Device _device;
-
 	vkutils::FrameData _frames[FRAME_OVERLAP];
-
-	vk::Queue _graphicsQueue;
-	uint32_t _graphicsQueueFamily;
-
-	vk::Queue _presentQueue;
-	uint32_t _presentQueueFamily;
-
 	vk::RenderPass _renderPass;
-
-	vk::SurfaceKHR _surface;
-	vk::SwapchainKHR _swapchain;
-	vk::Format _swachainImageFormat;
-
-	std::vector<vk::Framebuffer> _framebuffers;
-	std::vector<vk::Image> _swapchainImages;
-	std::vector<vk::ImageView> _swapchainImageViews;
-
 	vk::PipelineLayout _rasterizerPipelineLayout;
 	vk::PipelineLayout _raytracerPipelineLayout;
 	vkutils::AllocatedBuffer _raygenShaderBindingTable;
 	vkutils::AllocatedBuffer _missShaderBindingTable;
 	vkutils::AllocatedBuffer _hitShaderBindingTable;
+
+	vk::PhysicalDeviceRayTracingPipelinePropertiesKHR _raytracingPipelineProperties;
 
 	vk::Pipeline _rasterizerPipeline;
 	vk::Pipeline _raytracerPipeline;
@@ -83,9 +38,8 @@ public:
 	
 	Model _triangleModel;
 
-	vk::ImageView _depthImageView;
-	vkutils::AllocatedImage _depthImage;
 	vk::Format _depthFormat;
+	vkutils::AllocatedImage _depthImage;
 
 	vk::DescriptorPool _rasterizerDescriptorPool;
 	vk::DescriptorPool _raytracerDescriptorPool;
@@ -100,7 +54,7 @@ public:
 	vk::DeviceAddress _topLevelDeviceAddress;
 	vk::AccelerationStructureKHR _topLevelAS;
 
-	vkutils::AllocatedImage _storageImage;
+	vkutils::AllocatedImage _accumulationImage;
 	
 	std::vector<vkutils::GeometryNode> _materials;
 	vkutils::AllocatedBuffer _materialBuffer;
@@ -128,6 +82,8 @@ private:
 
 	void init_sync_structures();
 
+	void init_accumulation_image();
+
 	void init_descriptors();
 
 	void init_pipelines();
@@ -140,7 +96,7 @@ private:
 
 	void init_top_level_acceleration_structure();
 
-	vkutils::AllocatedImage createStorageImage();
+	vkutils::AllocatedImage createStorageImage(vk::Format format, uint32_t width, uint32_t height);
 
 	void createShaderBindingTable();
 

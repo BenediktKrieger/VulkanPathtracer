@@ -1,7 +1,6 @@
 #pragma once
 
-#include <vk_types.h>
-#include <vector>
+#include <Core.h>
 #include <vk_utils.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -12,6 +11,13 @@ struct VertexInputDescription
 	std::vector<vk::VertexInputBindingDescription> bindings;
 	std::vector<vk::VertexInputAttributeDescription> attributes;
 	vk::PipelineVertexInputStateCreateFlags flags;
+};
+
+struct Texture
+{
+	vkutils::AllocatedImage image;
+	uint32_t index;
+	vk::DescriptorImageInfo descriptor;
 };
 
 struct Material
@@ -84,15 +90,23 @@ public:
 	std::vector<Node *> _linearNodes{};
 	std::vector<uint32_t> _indices{};
 	std::vector<Vertex> _vertices{};
+	std::vector<Texture> _textures{};
 	std::vector<Material> _materials{};
 	std::vector<tinygltf::Image> _images{};
 	std::vector<vk::TransformMatrixKHR> _transforms{};
 	vkutils::AllocatedBuffer _vertexBuffer;
 	vkutils::AllocatedBuffer _indexBuffer;
+	vk::Sampler _sampler;
+	vk::Core* core;
+	Model();
+	Model(vk::Core* core);
+	void destroy();
 	bool load_from_glb(const char *filename);
+	std::vector<vk::DescriptorImageInfo> getTextureDescriptors();
 private:
 	void loadImages(tinygltf::Model &input);
 	void loadMaterials(tinygltf::Model &input);
 	void loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &input, Node *parent, std::vector<uint32_t> &indexBuffer, std::vector<Vertex> &vertexBuffer);
 	void loadMaterials(const tinygltf::Model &input);
+	uint32_t getTextureIndex(uint32_t index);
 };

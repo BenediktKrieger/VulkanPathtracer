@@ -71,16 +71,120 @@ VertexInputDescription Vertex::get_vertex_description()
 	return description;
 }
 
+Model::Model(): core(){}
+
+Model::Model(vk::Core* core): core(core){}
+
+void Model::destroy()
+{
+	for(Texture &texture : _textures){
+		core->_device.destroyImageView(texture.image._view);
+		core->_allocator.destroyImage(texture.image._image, texture.image._allocation);
+	}
+	core->_allocator.destroyBuffer(_vertexBuffer._buffer, _vertexBuffer._allocation);
+	core->_allocator.destroyBuffer(_indexBuffer._buffer, _indexBuffer._allocation);
+	core->_device.destroySampler(_sampler);
+}
+
 void Model::loadImages(tinygltf::Model &input)
 {
-	for (tinygltf::Image &image : input.images)
-	{
-		_images.push_back(image);
+	vk::SamplerCreateInfo samplerInfo;
+	samplerInfo.magFilter = vk::Filter::eLinear;
+	samplerInfo.minFilter = vk::Filter::eNearest;
+	samplerInfo.mipmapMode = vk::SamplerMipmapMode::eNearest;
+	samplerInfo.addressModeU = vk::SamplerAddressMode::eMirroredRepeat;
+	samplerInfo.addressModeV = vk::SamplerAddressMode::eMirroredRepeat;
+	samplerInfo.addressModeW = vk::SamplerAddressMode::eMirroredRepeat;
+	samplerInfo.compareOp = vk::CompareOp::eNever;
+	samplerInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
+	samplerInfo.maxLod = 1;
+	samplerInfo.maxAnisotropy = 8.0f;
+	samplerInfo.anisotropyEnable = true;
+	_sampler = core->_device.createSampler(samplerInfo);
+
+	for (tinygltf::Image &image : input.images) {
+		Texture texture;
+		unsigned char* buffer = nullptr;
+		vk::DeviceSize bufferSize = 0;
+		
+		bool deleteBuffer = false;
+		if (image.component == 3) {
+			bufferSize = image.width * image.height * 4;
+			buffer = new unsigned char[bufferSize];
+			unsigned char* rgba = buffer;
+			unsigned char* rgb = &image.image[0];
+			for (size_t i = 0; i < image.width * image.height; ++i) {
+				for (int32_t j = 0; j < 3; ++j) {
+					rgba[j] = rgb[j];
+				}
+				rgba += 4;
+				rgb += 3;
+			}
+			deleteBuffer = true;
+		}
+		else {
+			buffer = &image.image[0];
+			bufferSize = image.image.size();
+		}
+
+		vk::Format format = vk::Format::eR8G8B8A8Unorm;
+		uint32_t width = image.width;
+		uint32_t height = image.height;
+
+		auto formatProperties = core->_chosenGPU.getFormatProperties(format);
+		if(!(formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc) || !(formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitDst))
+		{
+			throw std::runtime_error("unsported Image Format!");
+		}
+
+		vk::ImageCreateInfo imageCreateInfo;
+		imageCreateInfo.imageType = vk::ImageType::e2D;
+		imageCreateInfo.format = format;
+		imageCreateInfo.mipLevels = 1;
+		imageCreateInfo.arrayLayers = 1;
+		imageCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
+		imageCreateInfo.extent = vk::Extent3D{ width, height, 1 };
+		imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
+		texture.image = vkutils::imageFromData(*core, buffer, imageCreateInfo, vk::ImageAspectFlagBits::eColor, vma::MemoryUsage::eAutoPreferDevice);
+
+		vk::DescriptorImageInfo imageInfo;
+		imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+		imageInfo.imageView = texture.image._view;
+		imageInfo.sampler = _sampler;
+		texture.descriptor = imageInfo;
+
+		texture.index = static_cast<uint32_t>(_textures.size());
+		_textures.push_back(texture);
+		if (deleteBuffer) {
+            delete[] buffer;
+        }
 	}
+
+	Texture emptyTexture;
+	unsigned char* buffer = new unsigned char[4];
+	memset(buffer, 0, 4);
+
+	vk::ImageCreateInfo imageCreateInfo;
+	imageCreateInfo.imageType = vk::ImageType::e2D;
+	imageCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
+	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.arrayLayers = 1;
+	imageCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
+	imageCreateInfo.extent = vk::Extent3D{ 1, 1, 1 };
+	imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
+	emptyTexture.image = vkutils::imageFromData(*core, buffer, imageCreateInfo, vk::ImageAspectFlagBits::eColor, vma::MemoryUsage::eAutoPreferDevice);
+	emptyTexture.index = static_cast<uint32_t>(_textures.size());
+	vk::DescriptorImageInfo imageInfo;
+	imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+	imageInfo.imageView = emptyTexture.image._view;
+	imageInfo.sampler = _sampler;
+	emptyTexture.descriptor = imageInfo;
+	_textures.push_back(emptyTexture);
 }
 
 void Model::loadMaterials(tinygltf::Model &input)
 {
+	uint32_t texture_count = static_cast<uint32_t>(_textures.size() - 1);
 	for (tinygltf::Material &mat : input.materials)
 	{
 		Material material;
@@ -113,24 +217,49 @@ void Model::loadMaterials(tinygltf::Model &input)
 		{
 			material.alphaCutoff = static_cast<float>(mat.additionalValues["alphaCutoff"].Factor());
 		}
-		int32_t baseColorTextureIndex = mat.values["baseColorTexture"].TextureIndex();
-		int32_t metallicRoughnessTextureIndex = mat.values["metallicRoughnessTexture"].TextureIndex();
-		int32_t normalTextureIndex = mat.values["normalTexture"].TextureIndex();
-		int32_t emissiveTextureIndex = mat.values["emissiveTexture"].TextureIndex();
-		int32_t occlusionTextureIndex = mat.values["occlusionTexture"].TextureIndex();
-		int32_t specularGlossinessTextureIndex = mat.values["specularGlossinessTexture"].TextureIndex();
-		int32_t diffuseTextureIndex = mat.values["diffuseTexture"].TextureIndex();
-		material.baseColorTexture = baseColorTextureIndex >= 0 && baseColorTextureIndex < _images.size() ? baseColorTextureIndex : -1;
-		material.metallicRoughnessTexture = metallicRoughnessTextureIndex >= 0 && metallicRoughnessTextureIndex < _images.size() ? metallicRoughnessTextureIndex : -1;
-		material.normalTexture = normalTextureIndex >= 0 && normalTextureIndex < _images.size() ? normalTextureIndex : -1;
-		material.emissiveTexture = emissiveTextureIndex >= 0 && emissiveTextureIndex < _images.size() ? emissiveTextureIndex : -1;
-		material.occlusionTexture = occlusionTextureIndex >= 0 && occlusionTextureIndex < _images.size() ? occlusionTextureIndex : -1;
-		material.specularGlossinessTexture = specularGlossinessTextureIndex >= 0 && specularGlossinessTextureIndex < _images.size() ? specularGlossinessTextureIndex : -1;
-		material.diffuseTexture = diffuseTextureIndex >= 0 && diffuseTextureIndex < _images.size() ? diffuseTextureIndex : -1;
+		if (mat.values.find("baseColorTexture") != mat.values.end()) {
+			material.baseColorTexture = getTextureIndex(input.textures[mat.values["baseColorTexture"].TextureIndex()].source);
+		}
+		if (mat.values.find("metallicRoughnessTexture") != mat.values.end()) {
+			int32_t metallicRoughnessTextureIndex = getTextureIndex(input.textures[mat.values["metallicRoughnessTexture"].TextureIndex()].source);
+		}
+		if (mat.values.find("normalTexture") != mat.values.end()) {
+			int32_t normalTextureIndex = getTextureIndex(input.textures[mat.values["normalTexture"].TextureIndex()].source);
+		}
+		if (mat.values.find("emissiveTexture") != mat.values.end()) {
+			int32_t emissiveTextureIndex = getTextureIndex(input.textures[mat.values["emissiveTexture"].TextureIndex()].source);
+		}
+		if (mat.values.find("occlusionTexture") != mat.values.end()) {
+			int32_t occlusionTextureIndex = getTextureIndex(input.textures[mat.values["occlusionTexture"].TextureIndex()].source);
+		}
+		if (mat.values.find("specularGlossinessTexture") != mat.values.end()) {
+			int32_t specularGlossinessTextureIndex = getTextureIndex(input.textures[mat.values["specularGlossinessTexture"].TextureIndex()].source);
+		}
+		if (mat.values.find("diffuseTexture") != mat.values.end()) {
+			int32_t diffuseTextureIndex = getTextureIndex(input.textures[mat.values["diffuseTexture"].TextureIndex()].source);
+		}
 
 		_materials.push_back(material);
 	}
 	_materials.push_back(Material());
+}
+
+uint32_t Model::getTextureIndex(uint32_t index)
+{
+	if (index < _textures.size() && index >= 0) {
+		return index;
+	}
+	return static_cast<uint32_t>(_textures.size() - 1);
+}
+
+std::vector<vk::DescriptorImageInfo> Model::getTextureDescriptors()
+{
+	std::vector<vk::DescriptorImageInfo> descriptorImageInfos(_textures.size());
+    for (size_t i = 0; i < _textures.size(); i++)
+    {
+        descriptorImageInfos[i] = _textures[i].descriptor;
+    }
+    return descriptorImageInfos;
 }
 
 void Model::loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &input, Node *parent, std::vector<uint32_t> &indexBuffer, std::vector<Vertex> &vertexBuffer)

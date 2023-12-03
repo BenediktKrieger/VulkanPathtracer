@@ -252,13 +252,21 @@ vk::Extent2D vkutils::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabil
     }
 }
 
-vk::ImageView vkutils::createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags)
+vk::CommandBuffer vkutils::getCommandBuffer(vk::Core &core, vk::CommandBufferLevel level, uint32_t count){
+    vk::CommandBufferAllocateInfo allocInfo;
+    allocInfo.level = vk::CommandBufferLevel::ePrimary;
+    allocInfo.commandPool = core._cmdPool;
+    allocInfo.commandBufferCount = 1;
+    return core._device.allocateCommandBuffers(allocInfo).front();
+}
+
+vk::ImageView vkutils::createImageView(vk::Core &core, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags)
 {
     vk::ImageViewCreateInfo createInfo({}, image, vk::ImageViewType::e2D, format, {}, vk::ImageSubresourceRange(aspectFlags, 0, 1, 0, 1));
     vk::ImageView imageView;
     try
     {
-        imageView = device.createImageView(createInfo);
+        imageView = core._device.createImageView(createInfo);
     }
     catch (std::exception &e)
     {
@@ -267,7 +275,7 @@ vk::ImageView vkutils::createImageView(vk::Device &device, vk::Image &image, vk:
     return imageView;
 }
 
-vkutils::AllocatedBuffer vkutils::createBuffer(vma::Allocator &allocator, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
+vkutils::AllocatedBuffer vkutils::createBuffer(vk::Core &core, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
 {
     vk::BufferCreateInfo bufferInfo;
 	bufferInfo.size = size;
@@ -278,56 +286,71 @@ vkutils::AllocatedBuffer vkutils::createBuffer(vma::Allocator &allocator, vk::De
 	bufferAllocInfo.flags = memoryFlags;
 
     vkutils::AllocatedBuffer allocatedBuffer;
-	std::tie(allocatedBuffer._buffer, allocatedBuffer._allocation) = allocator.createBuffer(bufferInfo, bufferAllocInfo);
+	std::tie(allocatedBuffer._buffer, allocatedBuffer._allocation) = core._allocator.createBuffer(bufferInfo, bufferAllocInfo);
     return allocatedBuffer;
 }
 
-vkutils::AllocatedBuffer vkutils::deviceBufferFromData(vk::Device &device, vk::CommandPool &commandPool, vk::Queue &queue, vma::Allocator &allocator, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
+vkutils::AllocatedBuffer vkutils::deviceBufferFromData(vk::Core &core, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
 {
-    vkutils::AllocatedBuffer stagingBuffer = vkutils::createBuffer(allocator, size, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
+    vkutils::AllocatedBuffer stagingBuffer = vkutils::createBuffer(core, size, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 
-    void* mapped = allocator.mapMemory(stagingBuffer._allocation);
+    void* mapped = core._allocator.mapMemory(stagingBuffer._allocation);
 	    memcpy(mapped, data, size);
-	allocator.unmapMemory(stagingBuffer._allocation);
+	core._allocator.unmapMemory(stagingBuffer._allocation);
 
-    vkutils::AllocatedBuffer buffer = vkutils::createBuffer(allocator, size, vk::BufferUsageFlagBits::eTransferDst | bufferUsage, memoryUsage, memoryFlags);
-    vkutils::copyBuffer(device, commandPool, queue, stagingBuffer._buffer, buffer._buffer, size);
-    allocator.destroyBuffer(stagingBuffer._buffer, stagingBuffer._allocation);
+    vkutils::AllocatedBuffer buffer = vkutils::createBuffer(core, size, vk::BufferUsageFlagBits::eTransferDst | bufferUsage, memoryUsage, memoryFlags);
+    vkutils::copyBuffer(core, stagingBuffer._buffer, buffer._buffer, size);
+    core._allocator.destroyBuffer(stagingBuffer._buffer, stagingBuffer._allocation);
 
     return buffer;
 }
 
-vkutils::AllocatedBuffer vkutils::hostBufferFromData(vma::Allocator &allocator, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
+vkutils::AllocatedBuffer vkutils::hostBufferFromData(vk::Core &core, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
 {
-    vkutils::AllocatedBuffer buffer = vkutils::createBuffer(allocator, size, bufferUsage, memoryUsage, memoryFlags);
+    vkutils::AllocatedBuffer buffer = vkutils::createBuffer(core, size, bufferUsage, memoryUsage, memoryFlags);
 
-    void* mapped = allocator.mapMemory(buffer._allocation);
+    void* mapped = core._allocator.mapMemory(buffer._allocation);
 	    memcpy(mapped, data, size);
-	allocator.unmapMemory(buffer._allocation);
+	core._allocator.unmapMemory(buffer._allocation);
 
     return buffer;
 }
 
-vkutils::AllocatedImage vkutils::createImage(vma::Allocator &allocator, vk::ImageCreateInfo imageInfo, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags allocationFlags)
+vkutils::AllocatedImage vkutils::createImage(vk::Core &core, vk::ImageCreateInfo imageInfo, vk::ImageAspectFlags aspectFlags, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
 {
     vma::AllocationCreateInfo imageAllocInfo;
 	imageAllocInfo.usage = memoryUsage;
-	imageAllocInfo.flags = allocationFlags;
+	imageAllocInfo.flags = memoryFlags;
 
     vkutils::AllocatedImage allocatedImage;
-	std::tie(allocatedImage._image, allocatedImage._allocation) = allocator.createImage(imageInfo, imageAllocInfo);
+	std::tie(allocatedImage._image, allocatedImage._allocation) = core._allocator.createImage(imageInfo, imageAllocInfo);
+    allocatedImage._view = vkutils::createImageView(core, allocatedImage._image, imageInfo.format, aspectFlags);
+
     return allocatedImage;
 }
 
-void vkutils::copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size)
+vkutils::AllocatedImage vkutils::imageFromData(vk::Core &core, void* data, vk::ImageCreateInfo imageInfo, vk::ImageAspectFlags aspectFlags, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
+{
+    vkutils::AllocatedBuffer srcBuffer = hostBufferFromData(core, data, imageInfo.extent.width * imageInfo.extent.height * 4, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
+    
+    imageInfo.usage |= vk::ImageUsageFlagBits::eTransferDst;
+    vkutils::AllocatedImage dstImage = createImage(core, imageInfo, aspectFlags, memoryUsage, memoryFlags);
+
+    copyImageBuffer(core, srcBuffer._buffer, dstImage._image, imageInfo.extent.width, imageInfo.extent.height);
+
+    core._allocator.destroyBuffer(srcBuffer._buffer, srcBuffer._allocation);
+    return dstImage;
+}
+
+void vkutils::copyBuffer(vk::Core &core, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size)
 {
     vk::CommandBufferAllocateInfo allocInfo{};
     allocInfo.level = vk::CommandBufferLevel::ePrimary;
-    allocInfo.commandPool = pool;
+    allocInfo.commandPool = core._cmdPool;
     allocInfo.commandBufferCount = 1;
 
     vk::CommandBuffer commandBuffer;
-    std::vector<vk::CommandBuffer> commandBuffers = device.allocateCommandBuffers(allocInfo);
+    std::vector<vk::CommandBuffer> commandBuffers = core._device.allocateCommandBuffers(allocInfo);
     commandBuffer = commandBuffers[0];
 
     vk::CommandBufferBeginInfo beginInfo{};
@@ -345,10 +368,52 @@ void vkutils::copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue qu
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &commandBuffer;
 
-    queue.submit(submitInfo, nullptr);
-    queue.waitIdle();
+    core._graphicsQueue.submit(submitInfo, nullptr);
+    core._graphicsQueue.waitIdle();
 
-    device.freeCommandBuffers(pool, 1, &commandBuffer);
+    core._device.freeCommandBuffers(core._cmdPool, 1, &commandBuffer);
+}
+
+void vkutils::copyImageBuffer(vk::Core &core, vk::Buffer srcBuffer, vk::Image dstImage, uint32_t width, uint32_t height)
+{
+    vk::CommandBufferAllocateInfo allocInfo{};
+    allocInfo.level = vk::CommandBufferLevel::ePrimary;
+    allocInfo.commandPool = core._cmdPool;
+    allocInfo.commandBufferCount = 1;
+
+    vk::CommandBuffer cmd = core._device.allocateCommandBuffers(allocInfo).front();
+
+    vk::CommandBufferBeginInfo beginInfo{};
+    beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
+
+    cmd.begin(beginInfo);
+
+        setImageLayout(cmd, dstImage, vk::ImageLayout::eUndefined,  vk::ImageLayout::eTransferDstOptimal, {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+
+        vk::BufferImageCopy copyRegion;
+        copyRegion.bufferOffset = 0;
+        copyRegion.bufferRowLength = 0;
+        copyRegion.bufferImageHeight = 0;
+        copyRegion.imageSubresource.aspectMask = vk::ImageAspectFlagBits::eColor;
+        copyRegion.imageSubresource.mipLevel = 0;
+        copyRegion.imageSubresource.baseArrayLayer = 0;
+        copyRegion.imageSubresource.layerCount = 1;
+        copyRegion.imageOffset = vk::Offset3D{0, 0, 0};
+        copyRegion.imageExtent = vk::Extent3D{width, height, 1};
+        cmd.copyBufferToImage(srcBuffer, dstImage,vk::ImageLayout::eTransferDstOptimal, 1, &copyRegion);
+
+        setImageLayout(cmd, dstImage, vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal, {vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1});
+
+    cmd.end();
+
+    vk::SubmitInfo submitInfo{};
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &cmd;
+
+    core._graphicsQueue.submit(submitInfo, nullptr);
+    core._graphicsQueue.waitIdle();
+
+    core._device.freeCommandBuffers(core._cmdPool, 1, &cmd);
 }
 
 void vkutils::setImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, vk::ImageSubresourceRange subresourceRange, vk::PipelineStageFlags srcMask, vk::PipelineStageFlags dstMask)

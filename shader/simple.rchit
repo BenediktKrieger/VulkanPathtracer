@@ -37,14 +37,15 @@ struct Vertex {
 };
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 2, set = 0) buffer Indices { uint i[]; } indices;
-layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices;
-layout(binding = 4, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
+layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
+layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
+layout(binding = 5, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
+layout(binding = 6, set = 0) uniform sampler2D texSampler[];
 
 struct RayPayload {
 	vec3 color;
 	uint recursion;
-  float weight;
+  vec3 attenuation;
   vec3 origin;
   vec3 dir;
 };
@@ -64,12 +65,12 @@ uvec3 pcg3d(uvec3 v) {
   v.z += v.x * v.y;
   return v;
 }
-vec3 random3(vec3 seed) {
+vec3 random_unit_vector(vec3 seed) {
   return normalize((uintBitsToFloat((pcg3d(floatBitsToUint(seed)) & 0x007FFFFFu) | 0x3F800000u) - 1.0) * 2 - vec3(1.0));
 }
 
 vec3 random_on_hemisphere(vec3 seed, const vec3 normal) {
-    vec3 on_unit_sphere = normalize(normal + random3(seed));
+    vec3 on_unit_sphere = random_unit_vector(seed);
     if (dot(on_unit_sphere, normal) > 0.0)
         return on_unit_sphere;
     else
@@ -93,12 +94,22 @@ void main()
   vec3 tangent =  TriVertices[0].tangent.xyz * barycentricCoords.x + TriVertices[1].tangent.xyz *  barycentricCoords.y + TriVertices[2].tangent.xyz *  barycentricCoords.z;
 	vec3 normal =   TriVertices[0].normal *       barycentricCoords.x + TriVertices[1].normal *       barycentricCoords.y + TriVertices[2].normal *       barycentricCoords.z;
   vec3 pos =      TriVertices[0].pos *             barycentricCoords.x + TriVertices[1].pos *          barycentricCoords.y + TriVertices[2].pos *          barycentricCoords.z;
-  vec3 newDir = random_on_hemisphere(pos, normal);
   
-  Payload.color = (1-Payload.weight) * Payload.color + Payload.weight * vec3(0.0);
+  vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT + normal * 0.001;
+  // vec3 reflectedDir = reflect(gl_WorldRayDirectionEXT, normal);
+  // metallic
+  // vec3 newDir = normalize(reflectedDir * 5 + random_unit_vector(pos));
+  // lambertian
+  vec3 newDir = normalize(normal * 1.001 + random_unit_vector(pos));
+
+  vec3 baseColor = vec3(1.0);
+  if(geometryNode.baseColorTexture >= 0){
+    baseColor = texture(texSampler[geometryNode.baseColorTexture], uv).xyz;
+  }
+
+  Payload.color *= (1-Payload.attenuation);
   Payload.recursion += 1;
-  Payload.weight *= 0.5;
-  float epsilon = 0.001;
-  Payload.origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT + normal * epsilon;
+  Payload.attenuation *= baseColor;
+  Payload.origin = newOrigin;
   Payload.dir = newDir;
 }

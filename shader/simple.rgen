@@ -3,6 +3,7 @@
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D image;
+layout(binding = 2, set = 0, rgba32f) uniform image2D accImage;
 
 layout( push_constant ) uniform constants
 {
@@ -15,7 +16,7 @@ layout( push_constant ) uniform constants
 struct RayPayload {
 	vec3 color;
 	uint recursion;
-	float weight;
+	vec3 attenuation;
 	vec3 origin;
 	vec3 dir;
 };
@@ -58,25 +59,26 @@ void main()
 		
 		Payload.color = vec3(0.0);
 		Payload.recursion = 0;
-		Payload.weight = 1.0;
+		Payload.attenuation = vec3(1.0);
 		Payload.origin = origin.xyz;
 		Payload.dir = direction.xyz;
 
 		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
-		if(Payload.recursion < 5) {
+		if(Payload.recursion < 7) {
 			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
 		}
 
 		sumofHitValues += Payload.color;
 	}
 
-	vec4 oldColor = imageLoad(image, ivec2(gl_LaunchIDEXT.xy));
+	vec4 oldColor = imageLoad(accImage, ivec2(gl_LaunchIDEXT.xy));
 	
-	vec3 newColor = vec3(sqrt(sumofHitValues.x / spp), sqrt(sumofHitValues.y / spp), sqrt(sumofHitValues.z / spp));
-	
-	if(accFrames > 0) {
+	vec3 newColor = sqrt(sumofHitValues / spp);
+
+	if(accFrames > 1) {
 		newColor = oldColor.xyz * ((accFrames - 1.0) /  accFrames) + newColor * (1.0 / accFrames);
 	}
 
+	imageStore(accImage, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
 	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
 }

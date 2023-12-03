@@ -1,10 +1,9 @@
 #pragma once
-#include <vk_types.h>
+#include <Core.h>
 #include <optional>
 #include <set>
 #include <functional>
 #include <deque>
-
 
 namespace vkutils
 {
@@ -105,12 +104,15 @@ namespace vkutils
     vk::SurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats);
     vk::PresentModeKHR chooseSwapPresentMode(const vk::PresentModeKHR preferedPresentMode, const std::vector<vk::PresentModeKHR> &availablePresentModes);
     vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR &capabilities, vk::Extent2D &currentExtend);
-    vk::ImageView createImageView(vk::Device &device, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags);
-    AllocatedBuffer createBuffer(vma::Allocator &allocator, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
-    AllocatedBuffer deviceBufferFromData(vk::Device &device, vk::CommandPool &commandPool, vk::Queue &queue, vma::Allocator &allocator, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
-    AllocatedBuffer hostBufferFromData(vma::Allocator &allocator, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
-    AllocatedImage createImage(vma::Allocator &allocator, vk::ImageCreateInfo imageInfo, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
-    void copyBuffer(vk::Device &device, vk::CommandPool &pool, vk::Queue queue, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
+    vk::CommandBuffer getCommandBuffer(vk::Core &core, vk::CommandBufferLevel level = vk::CommandBufferLevel::ePrimary, uint32_t count = 1);
+    vk::ImageView createImageView(vk::Core &core, vk::Image &image, vk::Format &format, vk::ImageAspectFlags aspectFlags);
+    AllocatedBuffer createBuffer(vk::Core &core, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
+    AllocatedBuffer deviceBufferFromData(vk::Core &core, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
+    AllocatedBuffer hostBufferFromData(vk::Core &core, void* data, vk::DeviceSize size, vk::BufferUsageFlags bufferUsage, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
+    AllocatedImage createImage(vk::Core &core, vk::ImageCreateInfo imageInfo, vk::ImageAspectFlags aspectFlags, vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto, vma::AllocationCreateFlags memoryFlags = {});
+    vkutils::AllocatedImage imageFromData(vk::Core &core, void* data, vk::ImageCreateInfo imageInfo, vk::ImageAspectFlags aspectFlags, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags = {});
+    void copyBuffer(vk::Core &core, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
+    void copyImageBuffer(vk::Core &core, vk::Buffer srcBuffer, vk::Image dstImage, uint32_t width, uint32_t height);
     void setImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, vk::ImageSubresourceRange subresourceRange, vk::PipelineStageFlags srcMask = vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlags dstMask = vk::PipelineStageFlagBits::eAllCommands);
     uint32_t alignedSize(uint32_t value, uint32_t alignment);
 }
