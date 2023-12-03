@@ -18,9 +18,11 @@ struct GeometryNode {
   float alphaCutoff;
   float metallicFactor;
   float roughnessFactor;
-  float baseColorFactor[4];
+  vec4 baseColorFactor;
+  vec4 emissiveFactor;
+  float emissiveStrength;
   uint alphaMode;
-  float pad[3];
+  float pad[2]; 
 };
 
 struct Vertex {
@@ -95,21 +97,26 @@ void main()
 	vec3 normal =   TriVertices[0].normal *       barycentricCoords.x + TriVertices[1].normal *       barycentricCoords.y + TriVertices[2].normal *       barycentricCoords.z;
   vec3 pos =      TriVertices[0].pos *             barycentricCoords.x + TriVertices[1].pos *          barycentricCoords.y + TriVertices[2].pos *          barycentricCoords.z;
   
-  vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT + normal * 0.001;
+  vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT + normal * 0.0001;
   // vec3 reflectedDir = reflect(gl_WorldRayDirectionEXT, normal);
   // metallic
   // vec3 newDir = normalize(reflectedDir * 5 + random_unit_vector(pos));
   // lambertian
-  vec3 newDir = normalize(normal * 1.001 + random_unit_vector(pos));
+  vec3 newDir = normalize(normal + random_unit_vector(pos));
 
   vec3 baseColor = vec3(1.0);
   if(geometryNode.baseColorTexture >= 0){
     baseColor = texture(texSampler[geometryNode.baseColorTexture], uv).xyz;
   }
-
-  Payload.color *= (1-Payload.attenuation);
-  Payload.recursion += 1;
-  Payload.attenuation *= baseColor;
-  Payload.origin = newOrigin;
-  Payload.dir = newDir;
+  if(geometryNode.emissiveStrength > 0.0001){
+    Payload.color = (1-Payload.attenuation) * Payload.color + Payload.attenuation * vec3(geometryNode.emissiveStrength);
+    Payload.attenuation = vec3(0.0);
+    Payload.recursion = 1000;
+  }else{
+    Payload.color *= (1-Payload.attenuation);
+    Payload.recursion += 1;
+    Payload.attenuation *= baseColor;
+    Payload.origin = newOrigin;
+    Payload.dir = newDir;
+  }
 }

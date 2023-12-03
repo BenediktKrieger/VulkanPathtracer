@@ -197,6 +197,18 @@ void Model::loadMaterials(tinygltf::Model &input)
 		{
 			material.metallicFactor = static_cast<float>(mat.values["metallicFactor"].Factor());
 		}
+		if (mat.values.find("emissiveFactor") != mat.values.end())
+		{
+			material.emissiveFactor = glm::vec4(glm::make_vec3(mat.values["emissiveFactor"].ColorFactor().data()), 1.0f);
+		}
+		if (mat.extensions.find("KHR_materials_emissive_strength") != mat.extensions.end())
+		{
+			auto ext = mat.extensions.find("KHR_materials_emissive_strength");
+			if (ext->second.Has("emissiveStrength")) {
+				auto value = ext->second.Get("emissiveStrength");
+				material.emissiveStrength = (float)value.Get<double>();
+			}
+		}
 		if (mat.values.find("baseColorFactor") != mat.values.end())
 		{
 			material.baseColorFactor = glm::make_vec4(mat.values["baseColorFactor"].ColorFactor().data());

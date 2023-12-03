@@ -29,6 +29,7 @@ struct Material
 		ALPHAMODE_BLEND
 	};
 	glm::vec4 baseColorFactor = glm::vec4(1.0f);
+	glm::vec4 emissiveFactor = glm::vec4(1.0f);
 	int32_t baseColorTexture = -1;
 	int32_t metallicRoughnessTexture = -1;
 	int32_t normalTexture = -1;
@@ -39,6 +40,7 @@ struct Material
 	float alphaCutoff = 1.0f;
 	float metallicFactor = 1.0f;
 	float roughnessFactor = 1.0f;
+	float emissiveStrength = 0.0f;
 	AlphaMode alphaMode = ALPHAMODE_OPAQUE;
 };
 
@@ -92,7 +94,6 @@ public:
 	std::vector<Vertex> _vertices{};
 	std::vector<Texture> _textures{};
 	std::vector<Material> _materials{};
-	std::vector<tinygltf::Image> _images{};
 	std::vector<vk::TransformMatrixKHR> _transforms{};
 	vkutils::AllocatedBuffer _vertexBuffer;
 	vkutils::AllocatedBuffer _indexBuffer;

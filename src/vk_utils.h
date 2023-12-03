@@ -92,8 +92,10 @@ namespace vkutils
         float metallicFactor;
         float roughnessFactor;
         float baseColorFactor[4];
+        float emissiveFactor[4];
+        float emissiveStrength;
         uint32_t alphaMode;
-        float pad[3];
+        float pad[2];
 	};
     VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
     bool checkValidationLayerSupport(std::vector<const char *> &instanceLayers);

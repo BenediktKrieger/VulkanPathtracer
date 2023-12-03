@@ -1147,7 +1147,11 @@ void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
 				geometryNode.baseColorFactor[1] = primitive->material.baseColorFactor.y;
 				geometryNode.baseColorFactor[2] = primitive->material.baseColorFactor.z;
 				geometryNode.baseColorFactor[3] = primitive->material.baseColorFactor.w;
-
+				geometryNode.emissiveFactor[0] = primitive->material.emissiveFactor.x;
+				geometryNode.emissiveFactor[1] = primitive->material.emissiveFactor.y;
+				geometryNode.emissiveFactor[2] = primitive->material.emissiveFactor.z;
+				geometryNode.emissiveFactor[3] = primitive->material.emissiveFactor.w;
+				geometryNode.emissiveStrength = primitive->material.emissiveStrength;
 				_materials.push_back(geometryNode);
 			}
 		}
