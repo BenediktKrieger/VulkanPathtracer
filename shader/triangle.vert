@@ -21,5 +21,5 @@ layout (location = 0) out vec3 outNormal;
 void main()
 {
 	gl_Position = PushConstants.proj * PushConstants.view * PushConstants.model * vec4(vPosition, 1.0f);
-	outNormal = vec3(vNormal);
+	outNormal = vec3((vNormal + 1.0) / 2.0);
 }

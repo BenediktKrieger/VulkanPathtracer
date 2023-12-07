@@ -64,7 +64,7 @@ void main()
 		Payload.dir = direction.xyz;
 
 		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
-		if(Payload.recursion < 7) {
+		if(Payload.recursion < 6) {
 			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
 		}
 
@@ -73,7 +73,7 @@ void main()
 
 	vec4 oldColor = imageLoad(accImage, ivec2(gl_LaunchIDEXT.xy));
 	
-	vec3 newColor = sqrt(sumofHitValues / spp);
+	vec3 newColor = sumofHitValues / spp;
 
 	if(accFrames > 1) {
 		newColor = oldColor.xyz * ((accFrames - 1.0) /  accFrames) + newColor * (1.0 / accFrames);

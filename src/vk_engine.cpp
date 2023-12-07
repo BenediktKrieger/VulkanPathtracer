@@ -735,7 +735,7 @@ void VulkanEngine::init_pipelines()
 		vk::DescriptorSetLayoutBinding textureLayoutBinding{};
         textureLayoutBinding.binding = 6;
         textureLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-        textureLayoutBinding.descriptorCount = _triangleModel._textures.size();
+        textureLayoutBinding.descriptorCount = static_cast<uint32_t>(_triangleModel._textures.size());
         textureLayoutBinding.pImmutableSamplers = nullptr;
         textureLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
 

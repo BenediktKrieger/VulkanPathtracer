@@ -5,6 +5,8 @@
 #extension GL_EXT_scalar_block_layout : require
 #extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
 
+#define PI 3.14159265358979323
+
 struct GeometryNode {
   int indexOffset;
   int vertexOffset;
@@ -56,27 +58,58 @@ layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
 hitAttributeEXT vec2 attribs;
 
-uvec3 pcg3d(uvec3 v) {
+uvec4 seed = uvec4(gl_LaunchIDEXT.y * gl_LaunchIDEXT.x + gl_LaunchIDEXT.x, floatBitsToUint(gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT));
+
+void pcg4d(inout uvec4 v)
+{
   v = v * 1664525u + 1013904223u;
-  v.x += v.y * v.z;
-  v.y += v.z * v.x;
-  v.z += v.x * v.y;
-  v ^= v >> 16u;
-  v.x += v.y * v.z;
-  v.y += v.z * v.x;
-  v.z += v.x * v.y;
-  return v;
-}
-vec3 random_unit_vector(vec3 seed) {
-  return normalize((uintBitsToFloat((pcg3d(floatBitsToUint(seed)) & 0x007FFFFFu) | 0x3F800000u) - 1.0) * 2 - vec3(1.0));
+  v.x += v.y * v.w; v.y += v.z * v.x; v.z += v.x * v.y; v.w += v.y * v.z;
+  v = v ^ (v >> 16u);
+  v.x += v.y * v.w; v.y += v.z * v.x; v.z += v.x * v.y; v.w += v.y * v.z;
 }
 
-vec3 random_on_hemisphere(vec3 seed, const vec3 normal) {
-    vec3 on_unit_sphere = random_unit_vector(seed);
-    if (dot(on_unit_sphere, normal) > 0.0)
-        return on_unit_sphere;
-    else
-        return -on_unit_sphere;
+float rand()
+{
+  pcg4d(seed); return float(seed.x) / float(0xffffffffu);
+}
+
+vec3 random_uniform_hemisphere(){
+  float r1 = rand();
+  float r2 = rand();
+  float theta = 2 * PI * r1;
+  float phi = acos(r2);
+  float x = sin(phi) * cos(theta);
+  float y = sin(phi) * sin(theta);
+  float z = cos(phi);
+  return vec3(x, y, z);
+}
+
+vec3 random_cosine_hemisphere(){
+  float r1 = rand();
+  float r2 = rand();
+  float phi = 2*PI*r1;
+  float x = cos(phi)*sqrt(r2);
+  float y = sin(phi)*sqrt(r2);
+  float z = sqrt(1-r2);
+  return vec3(x, y, z);
+}
+
+vec3 random_on_cosine_hemisphere(vec3 normal){
+  vec3 n = normal;
+  vec3 h = abs(n.x) > 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+  vec3 v = normalize(cross(n, h));
+  vec3 u = cross(n, v);
+  mat3 uvw = mat3(u,v,n);
+  return uvw * random_cosine_hemisphere();
+}
+
+vec3 random_on_uniform_hemisphere(vec3 normal){
+  vec3 n = normal;
+  vec3 h = abs(n.x) > 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+  vec3 v = normalize(cross(n, h));
+  vec3 u = cross(n, v);
+  mat3 uvw = mat3(u,v,n);
+  return uvw * random_uniform_hemisphere();
 }
 
 void main()
@@ -102,11 +135,14 @@ void main()
   // metallic
   // vec3 newDir = normalize(reflectedDir * 5 + random_unit_vector(pos));
   // lambertian
-  vec3 newDir = normalize(normal + random_unit_vector(pos));
+  vec3 newDir = random_on_cosine_hemisphere(normal);
 
-  vec3 baseColor = vec3(1.0);
+  vec4 baseColor = geometryNode.baseColorFactor;
   if(geometryNode.baseColorTexture >= 0){
-    baseColor = texture(texSampler[geometryNode.baseColorTexture], uv).xyz;
+    baseColor = texture(texSampler[geometryNode.baseColorTexture], uv);
+  }
+  if(geometryNode.normalTexture >= 0){
+    baseColor = texture(texSampler[geometryNode.normalTexture], uv);
   }
   if(geometryNode.emissiveStrength > 0.0001){
     Payload.color = (1-Payload.attenuation) * Payload.color + Payload.attenuation * vec3(geometryNode.emissiveStrength);
@@ -115,7 +151,7 @@ void main()
   }else{
     Payload.color *= (1-Payload.attenuation);
     Payload.recursion += 1;
-    Payload.attenuation *= baseColor;
+    Payload.attenuation *= tangent;
     Payload.origin = newOrigin;
     Payload.dir = newDir;
   }

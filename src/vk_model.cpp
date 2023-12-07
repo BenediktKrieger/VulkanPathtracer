@@ -233,22 +233,22 @@ void Model::loadMaterials(tinygltf::Model &input)
 			material.baseColorTexture = getTextureIndex(input.textures[mat.values["baseColorTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("metallicRoughnessTexture") != mat.values.end()) {
-			int32_t metallicRoughnessTextureIndex = getTextureIndex(input.textures[mat.values["metallicRoughnessTexture"].TextureIndex()].source);
+			material.metallicRoughnessTexture = getTextureIndex(input.textures[mat.values["metallicRoughnessTexture"].TextureIndex()].source);
 		}
-		if (mat.values.find("normalTexture") != mat.values.end()) {
-			int32_t normalTextureIndex = getTextureIndex(input.textures[mat.values["normalTexture"].TextureIndex()].source);
+		if(mat.additionalValues.find("normalTexture") != mat.additionalValues.end()) {
+			material.normalTexture = getTextureIndex(input.textures[mat.additionalValues["normalTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("emissiveTexture") != mat.values.end()) {
-			int32_t emissiveTextureIndex = getTextureIndex(input.textures[mat.values["emissiveTexture"].TextureIndex()].source);
+			material.emissiveTexture = getTextureIndex(input.textures[mat.values["emissiveTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("occlusionTexture") != mat.values.end()) {
-			int32_t occlusionTextureIndex = getTextureIndex(input.textures[mat.values["occlusionTexture"].TextureIndex()].source);
+			material.occlusionTexture = getTextureIndex(input.textures[mat.values["occlusionTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("specularGlossinessTexture") != mat.values.end()) {
-			int32_t specularGlossinessTextureIndex = getTextureIndex(input.textures[mat.values["specularGlossinessTexture"].TextureIndex()].source);
+			material.specularGlossinessTexture = getTextureIndex(input.textures[mat.values["specularGlossinessTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("diffuseTexture") != mat.values.end()) {
-			int32_t diffuseTextureIndex = getTextureIndex(input.textures[mat.values["diffuseTexture"].TextureIndex()].source);
+			material.diffuseTexture = getTextureIndex(input.textures[mat.values["diffuseTexture"].TextureIndex()].source);
 		}
 
 		_materials.push_back(material);
