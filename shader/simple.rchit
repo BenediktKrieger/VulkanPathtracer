@@ -141,17 +141,14 @@ void main()
   if(geometryNode.baseColorTexture >= 0){
     baseColor = texture(texSampler[geometryNode.baseColorTexture], uv);
   }
-  if(geometryNode.normalTexture >= 0){
-    baseColor = texture(texSampler[geometryNode.normalTexture], uv);
-  }
-  if(geometryNode.emissiveStrength > 0.0001){
-    Payload.color = (1-Payload.attenuation) * Payload.color + Payload.attenuation * vec3(geometryNode.emissiveStrength);
+  if(geometryNode.emissiveStrength > 1.0 || geometryNode.emissiveTexture >= 0){
+    Payload.color = (1-Payload.attenuation) * Payload.color + Payload.attenuation * vec3(geometryNode.emissiveStrength) * geometryNode.emissiveFactor.xyz;
     Payload.attenuation = vec3(0.0);
     Payload.recursion = 1000;
   }else{
     Payload.color *= (1-Payload.attenuation);
     Payload.recursion += 1;
-    Payload.attenuation *= tangent;
+    Payload.attenuation *= baseColor.xyz;
     Payload.origin = newOrigin;
     Payload.dir = newDir;
   }

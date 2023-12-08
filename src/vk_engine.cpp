@@ -629,7 +629,7 @@ void VulkanEngine::init_sync_structures()
 
 void VulkanEngine::init_accumulation_image()
 {
-	_accumulationImage = createStorageImage(vk::Format::eR32G32B32A32Sfloat, 3840, 3840);
+	_accumulationImage = createStorageImage(vk::Format::eR32G32B32A32Sfloat, 3840, 2160);
 	_mainDeletionQueue.push_function([=]() {
 		_core._allocator.destroyImage(_accumulationImage._image, _accumulationImage._allocation);
 		_core._device.destroyImageView(_accumulationImage._view); 
@@ -708,41 +708,41 @@ void VulkanEngine::init_pipelines()
 		resultImageLayoutBinding.descriptorCount = 1;
 		resultImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eRaygenKHR;
 
-		vk::DescriptorSetLayoutBinding sccumulationImageLayoutBinding;
-		sccumulationImageLayoutBinding.binding = 2;
-		sccumulationImageLayoutBinding.descriptorType = vk::DescriptorType::eStorageImage;
-		sccumulationImageLayoutBinding.descriptorCount = 1;
-		sccumulationImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eRaygenKHR;
+		vk::DescriptorSetLayoutBinding accumulationImageLayoutBinding;
+		accumulationImageLayoutBinding.binding = 2;
+		accumulationImageLayoutBinding.descriptorType = vk::DescriptorType::eStorageImage;
+		accumulationImageLayoutBinding.descriptorCount = 1;
+		accumulationImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eRaygenKHR;
 
 		vk::DescriptorSetLayoutBinding indexBufferBinding;
 		indexBufferBinding.binding = 3;
 		indexBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		indexBufferBinding.descriptorCount = 1;
-		indexBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
+		indexBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
 		vk::DescriptorSetLayoutBinding vertexBufferBinding;
 		vertexBufferBinding.binding = 4;
 		vertexBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		vertexBufferBinding.descriptorCount = 1;
-		vertexBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
+		vertexBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
 		vk::DescriptorSetLayoutBinding materialBufferBinding;
 		materialBufferBinding.binding = 5;
 		materialBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		materialBufferBinding.descriptorCount = 1;
-		materialBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
+		materialBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
 		vk::DescriptorSetLayoutBinding textureLayoutBinding{};
         textureLayoutBinding.binding = 6;
         textureLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
         textureLayoutBinding.descriptorCount = static_cast<uint32_t>(_triangleModel._textures.size());
         textureLayoutBinding.pImmutableSamplers = nullptr;
-        textureLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
+        textureLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
 		std::vector<vk::DescriptorSetLayoutBinding> bindings({
 			accelerationStructureLayoutBinding,
 			resultImageLayoutBinding,
-			sccumulationImageLayoutBinding,
+			accumulationImageLayoutBinding,
 			indexBufferBinding,
 			vertexBufferBinding,
 			materialBufferBinding,
@@ -762,7 +762,7 @@ void VulkanEngine::init_pipelines()
 		_raytracerPipelineLayout = _core._device.createPipelineLayout(pipeline_layout_info);
 
 		std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
-		vk::ShaderModule raygenShader, missShader, hitShader;
+		vk::ShaderModule raygenShader, missShader, hitShader, aHitShader;
 
 		// Ray generation group
 		{
@@ -790,15 +790,17 @@ void VulkanEngine::init_pipelines()
 			_shaderGroups.push_back(shaderGroup);
 		}
 
-		// Closest hit group
+		// Hit group - Triangles
 		{
 			hitShader = load_shader_module(vk::ShaderStageFlagBits::eClosestHitKHR, "/simple.rchit");
 			shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eClosestHitKHR, hitShader));
+			aHitShader = load_shader_module(vk::ShaderStageFlagBits::eAnyHitKHR, "/simple.rahit");
+			shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eAnyHitKHR, aHitShader));
 			vk::RayTracingShaderGroupCreateInfoKHR shaderGroup;
 			shaderGroup.type = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
 			shaderGroup.generalShader = vk::ShaderUnusedKhr;
-			shaderGroup.closestHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-			shaderGroup.anyHitShader = vk::ShaderUnusedKhr;
+			shaderGroup.closestHitShader = static_cast<uint32_t>(shaderStages.size()) - 2;
+			shaderGroup.anyHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
 			shaderGroup.intersectionShader = vk::ShaderUnusedKhr;
 			_shaderGroups.push_back(shaderGroup);
 		}
@@ -829,6 +831,7 @@ void VulkanEngine::init_pipelines()
 		_core._device.destroyShaderModule(raygenShader);
 		_core._device.destroyShaderModule(missShader);
 		_core._device.destroyShaderModule(hitShader);
+		_core._device.destroyShaderModule(aHitShader);
 
 		_mainDeletionQueue.push_function([=]() {
 			_core._device.destroyPipeline(_raytracerPipeline);
@@ -1022,7 +1025,7 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 void VulkanEngine::load_models()
 {
 	_triangleModel = Model(&_core);
-	_triangleModel.load_from_glb(ASSET_PATH"/san_miguel.glb");
+	_triangleModel.load_from_glb(ASSET_PATH"/bistro.glb");
 	_mainDeletionQueue.push_function([&]() {
 		_triangleModel.destroy();
 	});
@@ -1117,6 +1120,14 @@ void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
 				vk::AccelerationStructureGeometryKHR geometry;
 				geometry.geometryType = vk::GeometryTypeKHR::eTriangles;
 				geometry.geometry.triangles = triangles;
+				if(primitive->material.alphaMode != Material::ALPHAMODE_OPAQUE)
+				{
+					geometry.flags = vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation;
+				}
+				else
+				{
+					geometry.flags = vk::GeometryFlagBitsKHR::eOpaque;
+				}
 
 				geometries.push_back(geometry);
 				maxPrimitiveCounts.push_back(primitive->indexCount / 3);
@@ -1250,7 +1261,6 @@ void VulkanEngine::init_top_level_acceleration_structure()
 
 	vk::AccelerationStructureGeometryKHR accelerationStructureGeometry;
 	accelerationStructureGeometry.geometryType = vk::GeometryTypeKHR::eInstances;
-	accelerationStructureGeometry.flags = vk::GeometryFlagBitsKHR::eOpaque;
 	accelerationStructureGeometry.geometry.instances = instances;
 
 	vk::AccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo;
@@ -1363,11 +1373,11 @@ void VulkanEngine::createShaderBindingTable() {
 	auto shaderHandleStorage = _core._device.getRayTracingShaderGroupHandlesKHR<uint8_t>(_raytracerPipeline, (uint32_t) 0, groupCount, (size_t) sbtSize);
 
 	const vk::BufferUsageFlags bufferUsageFlags = vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress;
-	const vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAuto;
+	const vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAutoPreferDevice;
 	const vma::AllocationCreateFlags allocationFlags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite;
 	_raygenShaderBindingTable = vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
 	_missShaderBindingTable =  vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
-	_hitShaderBindingTable =  vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
+	_hitShaderBindingTable =  vkutils::createBuffer(_core, handleSize * 2, bufferUsageFlags, memoryUsage, allocationFlags);
 
 	// Copy handles
 	void* dataRaygen = _core._allocator.mapMemory(_raygenShaderBindingTable._allocation);

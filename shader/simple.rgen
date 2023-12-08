@@ -63,9 +63,9 @@ void main()
 		Payload.origin = origin.xyz;
 		Payload.dir = direction.xyz;
 
-		traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
-		if(Payload.recursion < 6) {
-			traceRayEXT(topLevelAS, gl_RayFlagsOpaqueEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
+		traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
+		while(Payload.recursion <= 5) {
+			traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
 		}
 
 		sumofHitValues += Payload.color;
