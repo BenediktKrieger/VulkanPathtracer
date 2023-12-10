@@ -8,6 +8,8 @@
 #include <Camera.h>
 #include <Core.h>
 #include <imgui.h>
+#include <backends/imgui_impl_vulkan.h>
+#include <backends/imgui_impl_sdl3.h>
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
