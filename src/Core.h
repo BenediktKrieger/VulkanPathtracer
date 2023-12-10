@@ -24,6 +24,9 @@ namespace vk {
             VK_KHR_SPIRV_1_4_EXTENSION_NAME,
             VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME
         };
+
+        const bool useValidationLayers = true;
+
         vk::DebugUtilsMessageSeverityFlagsEXT _messageSeverityFlags = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
         vk::DebugUtilsMessageTypeFlagsEXT _messageTypeFlags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
 

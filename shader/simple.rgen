@@ -15,10 +15,11 @@ layout( push_constant ) uniform constants
 
 struct RayPayload {
 	vec3 color;
-	uint recursion;
 	vec3 attenuation;
 	vec3 origin;
 	vec3 dir;
+	uint recursion;
+  	bool shadow;
 };
 
 layout(location = 0) rayPayloadEXT RayPayload Payload;
@@ -62,10 +63,9 @@ void main()
 		Payload.attenuation = vec3(1.0);
 		Payload.origin = origin.xyz;
 		Payload.dir = direction.xyz;
-
-		traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
+		
 		while(Payload.recursion <= 5) {
-			traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
+			traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
 		}
 
 		sumofHitValues += Payload.color;

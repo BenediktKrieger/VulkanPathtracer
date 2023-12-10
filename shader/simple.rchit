@@ -48,10 +48,11 @@ layout(binding = 6, set = 0) uniform sampler2D texSampler[];
 
 struct RayPayload {
 	vec3 color;
-	uint recursion;
   vec3 attenuation;
   vec3 origin;
   vec3 dir;
+	uint recursion;
+  bool shadow;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
@@ -152,4 +153,9 @@ void main()
     Payload.origin = newOrigin;
     Payload.dir = newDir;
   }
+  // Shadow testing
+  // Payload.shadow = true;
+  // traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 0, 0, 1, newOrigin, 0.0001, vec3(0.05, 0.05, 1), 10000, 0);
+  // if(Payload.shadow){
+  // }
 }

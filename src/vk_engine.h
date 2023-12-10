@@ -36,7 +36,7 @@ public:
 	vk::Pipeline _raytracerPipeline;
 	std::vector<vk::RayTracingShaderGroupCreateInfoKHR> _shaderGroups;
 	
-	Model _triangleModel;
+	Model _model;
 
 	vk::Format _depthFormat;
 	vkutils::AllocatedImage _depthImage;
@@ -81,6 +81,8 @@ private:
 	void init_commands();
 
 	void init_sync_structures();
+
+	void init_imgui();
 
 	void init_accumulation_image();
 

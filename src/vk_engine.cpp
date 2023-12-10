@@ -2,8 +2,6 @@
 #include <vk_initializers.h>
 #include <iostream>
 
-constexpr bool bUseValidationLayers = true;
-
 void VulkanEngine::init()
 {
 	SDL_Init(SDL_INIT_VIDEO);
@@ -116,12 +114,12 @@ void VulkanEngine::draw()
 			scissor.extent = _core._windowExtent;
 			cmd.setScissor(0, scissor);
 
-			cmd.bindVertexBuffers(0, 1, &_triangleModel._vertexBuffer._buffer, &offset);
-			cmd.bindIndexBuffer(_triangleModel._indexBuffer._buffer, offset, vk::IndexType::eUint32);
+			cmd.bindVertexBuffers(0, 1, &_model._vertexBuffer._buffer, &offset);
+			cmd.bindIndexBuffer(_model._indexBuffer._buffer, offset, vk::IndexType::eUint32);
 			cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _rasterizerPipeline);
 			cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _rasterizerPipelineLayout, 0, get_current_frame()._rasterizerDescriptor, {});
 
-			for (auto node : _triangleModel._linearNodes)
+			for (auto node : _model._linearNodes)
 			{
 				for(auto primitive : node->primitives)
 				{
@@ -255,7 +253,7 @@ void VulkanEngine::init_vulkan()
 {
 	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = _core._dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
-	if (bUseValidationLayers && !vkutils::checkValidationLayerSupport(_core._instanceLayers))
+	if (_core.useValidationLayers && !vkutils::checkValidationLayerSupport(_core._instanceLayers))
 	{
 		throw std::runtime_error("validation layers requested, but not available!");
 	}
@@ -268,7 +266,7 @@ void VulkanEngine::init_vulkan()
 
 	try
 	{
-		if (bUseValidationLayers)
+		if (_core.useValidationLayers)
 		{
 			_core._instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			vk::StructureChain<vk::InstanceCreateInfo, vk::DebugUtilsMessengerCreateInfoEXT> instanceCreateInfoChain{
@@ -289,7 +287,7 @@ void VulkanEngine::init_vulkan()
 	}
 	VULKAN_HPP_DEFAULT_DISPATCHER.init(_core._instance);
 
-	if (bUseValidationLayers)
+	if (_core.useValidationLayers)
 	{
 		vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo({}, _core._messageSeverityFlags, _core._messageTypeFlags, vkutils::debugCallback);
 		try
@@ -339,7 +337,7 @@ void VulkanEngine::init_vulkan()
 	}
 
 	vk::DeviceCreateInfo createInfo;
-	if (bUseValidationLayers)
+	if (_core.useValidationLayers)
 	{
 		createInfo = vk::DeviceCreateInfo({}, queueCreateInfos, _core._instanceLayers, _core._deviceExtensions, {});
 	}
@@ -627,6 +625,10 @@ void VulkanEngine::init_sync_structures()
 	}
 }
 
+void VulkanEngine::init_imgui()
+{
+}
+
 void VulkanEngine::init_accumulation_image()
 {
 	_accumulationImage = createStorageImage(vk::Format::eR32G32B32A32Sfloat, 3840, 2160);
@@ -735,7 +737,7 @@ void VulkanEngine::init_pipelines()
 		vk::DescriptorSetLayoutBinding textureLayoutBinding{};
         textureLayoutBinding.binding = 6;
         textureLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-        textureLayoutBinding.descriptorCount = static_cast<uint32_t>(_triangleModel._textures.size());
+        textureLayoutBinding.descriptorCount = static_cast<uint32_t>(_model._textures.size());
         textureLayoutBinding.pImmutableSamplers = nullptr;
         textureLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
@@ -762,7 +764,7 @@ void VulkanEngine::init_pipelines()
 		_raytracerPipelineLayout = _core._device.createPipelineLayout(pipeline_layout_info);
 
 		std::vector<vk::PipelineShaderStageCreateInfo> shaderStages;
-		vk::ShaderModule raygenShader, missShader, hitShader, aHitShader;
+		vk::ShaderModule raygenShader, missShader, missShadow, hitShader, aHitShader;
 
 		// Ray generation group
 		{
@@ -781,6 +783,19 @@ void VulkanEngine::init_pipelines()
 		{
 			missShader = load_shader_module(vk::ShaderStageFlagBits::eMissKHR, "/simple.rmiss");
 			shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eMissKHR, missShader));
+			vk::RayTracingShaderGroupCreateInfoKHR shaderGroup;
+			shaderGroup.type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
+			shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
+			shaderGroup.closestHitShader = vk::ShaderUnusedKhr;
+			shaderGroup.anyHitShader = vk::ShaderUnusedKhr;
+			shaderGroup.intersectionShader = vk::ShaderUnusedKhr;
+			_shaderGroups.push_back(shaderGroup);
+		}
+
+		// Miss group - Shadow
+		{
+			missShadow = load_shader_module(vk::ShaderStageFlagBits::eMissKHR, "/shadow.rmiss");
+			shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eMissKHR, missShadow));
 			vk::RayTracingShaderGroupCreateInfoKHR shaderGroup;
 			shaderGroup.type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
 			shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
@@ -830,6 +845,7 @@ void VulkanEngine::init_pipelines()
 
 		_core._device.destroyShaderModule(raygenShader);
 		_core._device.destroyShaderModule(missShader);
+		_core._device.destroyShaderModule(missShadow);
 		_core._device.destroyShaderModule(hitShader);
 		_core._device.destroyShaderModule(aHitShader);
 
@@ -888,7 +904,7 @@ void VulkanEngine::init_descriptors()
 			{ vk::DescriptorType::eStorageBuffer, 1 },
 			{ vk::DescriptorType::eStorageBuffer, 1 },
 			{ vk::DescriptorType::eStorageBuffer, 1 },
-			{ vk::DescriptorType::eCombinedImageSampler, static_cast<uint32_t>(_triangleModel._textures.size())}
+			{ vk::DescriptorType::eCombinedImageSampler, static_cast<uint32_t>(_model._textures.size())}
 		};
 		vk::DescriptorPoolCreateInfo pool_info;
 		pool_info.setMaxSets(2);
@@ -937,9 +953,9 @@ void VulkanEngine::init_descriptors()
 			accumulationImageWrite.descriptorCount = 1;
 
 			vk::DescriptorBufferInfo indexDescriptor;
-			indexDescriptor.buffer = _triangleModel._indexBuffer._buffer;
+			indexDescriptor.buffer = _model._indexBuffer._buffer;
 			indexDescriptor.offset = 0;
-			indexDescriptor.range = _triangleModel._indices.size() * sizeof(uint32_t);
+			indexDescriptor.range = _model._indices.size() * sizeof(uint32_t);
 			vk::WriteDescriptorSet indexBufferWrite;
 			indexBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			indexBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
@@ -948,9 +964,9 @@ void VulkanEngine::init_descriptors()
 			indexBufferWrite.descriptorCount = 1;
 
 			vk::DescriptorBufferInfo vertexDescriptor;
-			vertexDescriptor.buffer = _triangleModel._vertexBuffer._buffer;
+			vertexDescriptor.buffer = _model._vertexBuffer._buffer;
 			vertexDescriptor.offset = 0;
-			vertexDescriptor.range = _triangleModel._vertices.size() * sizeof(Vertex);
+			vertexDescriptor.range = _model._vertices.size() * sizeof(Vertex);
 			vk::WriteDescriptorSet vertexBufferWrite;
 			vertexBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			vertexBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
@@ -974,7 +990,7 @@ void VulkanEngine::init_descriptors()
             textureImageWrite.dstBinding = 6;
             textureImageWrite.dstArrayElement = 0;
             textureImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-			std::vector<vk::DescriptorImageInfo> imageInfos = _triangleModel.getTextureDescriptors();
+			std::vector<vk::DescriptorImageInfo> imageInfos = _model.getTextureDescriptors();
             textureImageWrite.setImageInfo(imageInfos);
 
 			std::vector<vk::WriteDescriptorSet> setWrites = {
@@ -1024,13 +1040,13 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 
 void VulkanEngine::load_models()
 {
-	_triangleModel = Model(&_core);
-	_triangleModel.load_from_glb(ASSET_PATH"/bistro.glb");
+	_model = Model(&_core);
+	_model.load_from_glb(ASSET_PATH"/cornell_box.glb");
 	_mainDeletionQueue.push_function([&]() {
-		_triangleModel.destroy();
+		_model.destroy();
 	});
-	upload_model(_triangleModel);
-	init_bottom_level_acceleration_structure(_triangleModel);
+	upload_model(_model);
+	init_bottom_level_acceleration_structure(_model);
 	init_top_level_acceleration_structure();
 }
 
@@ -1372,25 +1388,35 @@ void VulkanEngine::createShaderBindingTable() {
 
 	auto shaderHandleStorage = _core._device.getRayTracingShaderGroupHandlesKHR<uint8_t>(_raytracerPipeline, (uint32_t) 0, groupCount, (size_t) sbtSize);
 
-	const vk::BufferUsageFlags bufferUsageFlags = vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress;
+	const vk::BufferUsageFlags bufferUsageFlags = vk::BufferUsageFlagBits::eShaderBindingTableKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eTransferDst;
 	const vma::MemoryUsage memoryUsage = vma::MemoryUsage::eAutoPreferDevice;
-	const vma::AllocationCreateFlags allocationFlags = vma::AllocationCreateFlagBits::eHostAccessSequentialWrite;
-	_raygenShaderBindingTable = vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
-	_missShaderBindingTable =  vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage, allocationFlags);
-	_hitShaderBindingTable =  vkutils::createBuffer(_core, handleSize * 2, bufferUsageFlags, memoryUsage, allocationFlags);
+	_raygenShaderBindingTable = vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage);
+	_missShaderBindingTable =  vkutils::createBuffer(_core, handleSize * 2, bufferUsageFlags, memoryUsage);
+	_hitShaderBindingTable =  vkutils::createBuffer(_core, handleSize, bufferUsageFlags, memoryUsage);
+
+	vkutils::AllocatedBuffer raygenShaderBindingTableStaging = vkutils::createBuffer(_core, handleSize, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
+	vkutils::AllocatedBuffer missShaderBindingTableStaging = vkutils::createBuffer(_core, handleSize * 2, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
+	vkutils::AllocatedBuffer hitShaderBindingTableStaging = vkutils::createBuffer(_core, handleSize, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAuto, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 
 	// Copy handles
-	void* dataRaygen = _core._allocator.mapMemory(_raygenShaderBindingTable._allocation);
+	void* dataRaygen = _core._allocator.mapMemory(raygenShaderBindingTableStaging._allocation);
 		memcpy(dataRaygen, shaderHandleStorage.data(), handleSize);
-	_core._allocator.unmapMemory(_raygenShaderBindingTable._allocation);
+	_core._allocator.unmapMemory(raygenShaderBindingTableStaging._allocation);
 
-	void* dataMiss = _core._allocator.mapMemory(_missShaderBindingTable._allocation);
-		memcpy(dataMiss, shaderHandleStorage.data() + handleSizeAligned, handleSize);
-	_core._allocator.unmapMemory(_missShaderBindingTable._allocation);
+	void* dataMiss = _core._allocator.mapMemory(missShaderBindingTableStaging._allocation);
+		memcpy(dataMiss, shaderHandleStorage.data() + handleSizeAligned, handleSize  * 2);
+	_core._allocator.unmapMemory(missShaderBindingTableStaging._allocation);
 
-	void* dataHit = _core._allocator.mapMemory(_hitShaderBindingTable._allocation);
-		memcpy(dataHit, shaderHandleStorage.data() + handleSizeAligned * 2, handleSize);
-	_core._allocator.unmapMemory(_hitShaderBindingTable._allocation);
+	void* dataHit = _core._allocator.mapMemory(hitShaderBindingTableStaging._allocation);
+		memcpy(dataHit, shaderHandleStorage.data() + handleSizeAligned * 3, handleSize);
+	_core._allocator.unmapMemory(hitShaderBindingTableStaging._allocation);
+
+    vkutils::copyBuffer(_core, raygenShaderBindingTableStaging._buffer, _raygenShaderBindingTable._buffer, handleSize);
+	vkutils::copyBuffer(_core, missShaderBindingTableStaging._buffer, _missShaderBindingTable._buffer, handleSize * 2);
+	vkutils::copyBuffer(_core, hitShaderBindingTableStaging._buffer, _hitShaderBindingTable._buffer, handleSize);
+    _core._allocator.destroyBuffer(raygenShaderBindingTableStaging._buffer, raygenShaderBindingTableStaging._allocation);
+	_core._allocator.destroyBuffer(missShaderBindingTableStaging._buffer, missShaderBindingTableStaging._allocation);
+	_core._allocator.destroyBuffer(hitShaderBindingTableStaging._buffer, hitShaderBindingTableStaging._allocation);
 
 	_mainDeletionQueue.push_function([=]() {
 		_core._allocator.destroyBuffer(_raygenShaderBindingTable._buffer, _raygenShaderBindingTable._allocation);
