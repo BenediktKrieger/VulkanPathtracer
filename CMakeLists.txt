@@ -14,13 +14,13 @@ file(GLOB SOURCES
     src/*.cpp
 )
 
-add_executable(VkPathtracer ${SOURCES})
+add_executable(${CMAKE_PROJECT_NAME} ${SOURCES})
 
 #add vulkan
 find_package(Vulkan)
 IF (Vulkan_FOUND)
-    target_link_libraries(VkPathtracer ${Vulkan_LIBRARIES})
-    target_include_directories(VkPathtracer PUBLIC ${Vulkan_INCLUDE_DIR})
+    target_link_libraries(${CMAKE_PROJECT_NAME} ${Vulkan_LIBRARIES})
+    target_include_directories(${CMAKE_PROJECT_NAME} PUBLIC ${Vulkan_INCLUDE_DIR})
 ELSE()
     message(ERROR "Vulkan SDK has to be installed")
 ENDIF()
@@ -47,23 +47,19 @@ set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/tinygltf)
 
 #add imgui
-file(GLOB IMGUI_SOURCES
-    third_party/imgui/imgui.cpp
-    third_party/imgui/imgui_demo.cpp
-    third_party/imgui/imgui_draw.cpp
-    third_party/imgui/imgui_widgets.cpp
-    third_party/imgui/backends/imgui_impl_vulkan.cpp
-    third_party/imgui/backends/imgui_impl_sdl3.cpp
-)
-add_library(imgui STATIC ${IMGUI_SOURCES})
-target_link_libraries(imgui PUBLIC ${Vulkan_LIBRARIES} SDL3::SDL3)
-target_include_directories(imgui PUBLIC ${PROJECT_SOURCE_DIR}/third_party/imgui)
+#add imgui
+set(USE_BACKEND_VULKAN ON)
+set(USE_BACKEND_SDL3 ON)
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/imgui)
 
-target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator imgui)
+target_link_libraries(${CMAKE_PROJECT_NAME} glslang SPIRV glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator imgui)
 
 
 #add vma
-include_directories(${PROJECT_SOURCE_DIR}/third_party/vma-hpp)
-include_directories(${PROJECT_SOURCE_DIR}/third_party/tinygltf)
-include_directories(${PROJECT_SOURCE_DIR}/src)
+include_directories(${CMAKE_PROJECT_NAME} PRIVATE 
+    ${PROJECT_SOURCE_DIR}/third_party/vma-hpp
+    ${PROJECT_SOURCE_DIR}/third_party/tinygltf
+    ${PROJECT_SOURCE_DIR}/third_party/imgui
+    ${PROJECT_SOURCE_DIR}/src
+)
 
