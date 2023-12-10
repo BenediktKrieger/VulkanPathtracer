@@ -7,6 +7,7 @@
 #include <vk_shaderConverter.h>
 #include <Camera.h>
 #include <Core.h>
+#include <imgui.h>
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 

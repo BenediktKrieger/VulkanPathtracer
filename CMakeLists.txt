@@ -46,11 +46,23 @@ set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
 set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/tinygltf)
 
-target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator)
+#add imgui
+file(GLOB IMGUI_SOURCES
+    third_party/imgui/imgui.cpp
+    third_party/imgui/imgui_demo.cpp
+    third_party/imgui/imgui_draw.cpp
+    third_party/imgui/imgui_widgets.cpp
+    third_party/imgui/backends/imgui_impl_vulkan.cpp
+    third_party/imgui/backends/imgui_impl_sdl3.cpp
+)
+add_library(imgui STATIC ${IMGUI_SOURCES})
+target_link_libraries(imgui PUBLIC ${Vulkan_LIBRARIES} SDL3::SDL3)
+target_include_directories(imgui PUBLIC ${PROJECT_SOURCE_DIR}/third_party/imgui)
+
+target_link_libraries(VkPathtracer glslang SPIRV glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator imgui)
 
 
-#add imgui, vma
-include_directories(${PROJECT_SOURCE_DIR}/third_party/imgui)
+#add vma
 include_directories(${PROJECT_SOURCE_DIR}/third_party/vma-hpp)
 include_directories(${PROJECT_SOURCE_DIR}/third_party/tinygltf)
 include_directories(${PROJECT_SOURCE_DIR}/src)
