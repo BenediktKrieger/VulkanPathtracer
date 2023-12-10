@@ -22,6 +22,8 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
+	init_imgui();
+
 	init_accumulation_image();
 
 	load_models();
@@ -85,6 +87,8 @@ void VulkanEngine::draw()
 	vk::ImageSubresourceRange subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 	updateBuffers();
 
+	ImGui::Render(); 
+
 	cmd.begin(cmdBeginInfo);
 		if(_selectedShader == 0)
 		{
@@ -128,6 +132,7 @@ void VulkanEngine::draw()
 					cmd.drawIndexed(primitive->indexCount, 1, primitive->firstIndex, 0, 0);
 				}
 			}
+			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 			cmd.endRenderPass();
 		}
 		else
@@ -240,13 +245,13 @@ void VulkanEngine::run()
 		}
 		cam.update();
 		
-		//imgui commands
+		// imgui commands
 		ImGui_ImplVulkan_NewFrame();
 		ImGui_ImplSDL3_NewFrame();
 		ImGui::NewFrame();
         ImGui::ShowDemoWindow();
-
 		draw();
+		ImGui::EndFrame();
 	}
 }
 
@@ -654,7 +659,7 @@ void VulkanEngine::init_imgui()
 	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
 	pool_info.maxSets = 1000;
-	pool_info.poolSizeCount = std::size(pool_sizes);
+	pool_info.poolSizeCount = static_cast<uint32_t>(std::size(pool_sizes));
 	pool_info.pPoolSizes = pool_sizes;
 
 	VkDescriptorPool imguiPool;
