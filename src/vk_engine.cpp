@@ -1,14 +1,13 @@
 ﻿#include <vk_engine.h>
-#include <vk_initializers.h>
-#include <iostream>
+#include <stb_image.h>
 
 void VulkanEngine::init()
 {
 	SDL_Init(SDL_INIT_VIDEO);
 
-	_core._window = SDL_CreateWindow("Vulkan Engine", _core._windowExtent.width, _core._windowExtent.height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
+	_core._window = SDL_CreateWindow("Vulkan Pathtracer", _core._windowExtent.width, _core._windowExtent.height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
-	cam = Camera(Camera::Type::eTrackBall, _core._window, _core._windowExtent.width, _core._windowExtent.height, glm::vec3(0.5f), glm::vec3(0.f));
+	_cam = Camera(Camera::Type::eTrackBall, _core._window, _core._windowExtent.width, _core._windowExtent.height, glm::vec3(0.5f), glm::vec3(0.f));
 
 	init_vulkan();
 
@@ -22,9 +21,11 @@ void VulkanEngine::init()
 
 	init_sync_structures();
 
-	init_imgui();
+	init_gui();
 
 	init_accumulation_image();
+
+	init_hdr_map();
 
 	load_models();
 
@@ -87,8 +88,6 @@ void VulkanEngine::draw()
 	vk::ImageSubresourceRange subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 	updateBuffers();
 
-	ImGui::Render(); 
-
 	cmd.begin(cmdBeginInfo);
 		if(_selectedShader == 0)
 		{
@@ -132,7 +131,6 @@ void VulkanEngine::draw()
 					cmd.drawIndexed(primitive->indexCount, 1, primitive->firstIndex, 0, 0);
 				}
 			}
-			ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmd);
 			cmd.endRenderPass();
 		}
 		else
@@ -179,10 +177,11 @@ void VulkanEngine::draw()
 			
 			cmd.copyImage(get_current_frame()._storageImage._image, vk::ImageLayout::eTransferSrcOptimal, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
-			vkutils::setImageLayout(cmd, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::ePresentSrcKHR, subresourceRange);
+			vkutils::setImageLayout(cmd, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eColorAttachmentOptimal, subresourceRange);
 			vkutils::setImageLayout(cmd, get_current_frame()._storageImage._image, vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eGeneral, subresourceRange);
 			PushConstants.accumulatedFrames++;
 		}
+		_gui.render(cmd, swapchainImageIndex);
 	cmd.end();
 
 	vk::SubmitInfo submit = vkinit::submit_info(&cmd);
@@ -212,15 +211,13 @@ void VulkanEngine::draw()
 void VulkanEngine::run()
 {
 	SDL_Event e;
-	bool bQuit = false;
-
-	while (!bQuit)
+	while (true)
 	{
 		while (SDL_PollEvent(&e) != 0)
 		{
-			if (e.type == SDL_EVENT_QUIT)
+			if (e.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
 			{
-				bQuit = true;
+				return;
 			}
 			else if (e.type == SDL_EVENT_KEY_DOWN)
 			{
@@ -241,17 +238,16 @@ void VulkanEngine::run()
 					_framebufferResized = true;
 				}
 			}
-			cam.handleInputEvent(e);
+			
+			_gui.handleInput(&e);
+			auto& io = ImGui::GetIO();
+			if(!(e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT || e.type == SDL_EVENT_MOUSE_WHEEL) || !io.WantCaptureMouse){
+				_cam.handleInputEvent(&e);
+			}
 		}
-		cam.update();
-		
-		// imgui commands
-		ImGui_ImplVulkan_NewFrame();
-		ImGui_ImplSDL3_NewFrame();
-		ImGui::NewFrame();
-        ImGui::ShowDemoWindow();
+		_cam.update();
+		_gui.update();
 		draw();
-		ImGui::EndFrame();
 	}
 }
 
@@ -498,7 +494,7 @@ void VulkanEngine::init_default_renderpass()
 	color_attachment.setStencilLoadOp(vk::AttachmentLoadOp::eDontCare);
 	color_attachment.setStencilStoreOp(vk::AttachmentStoreOp::eDontCare);
 	color_attachment.setInitialLayout(vk::ImageLayout::eUndefined);
-	color_attachment.setFinalLayout(vk::ImageLayout::ePresentSrcKHR);
+	color_attachment.setFinalLayout(vk::ImageLayout::eColorAttachmentOptimal);
 
 	vk::AttachmentReference color_attachment_ref;
 	color_attachment_ref.setAttachment(0);
@@ -636,63 +632,11 @@ void VulkanEngine::init_sync_structures()
 	}
 }
 
-void VulkanEngine::init_imgui()
+void VulkanEngine::init_gui()
 {
-	//1: create descriptor pool for IMGUI
-	// the size of the pool is very oversize, but it's copied from imgui demo itself.
-	VkDescriptorPoolSize pool_sizes[] =
-	{
-		{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-		{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-		{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-		{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
-	};
-
-	VkDescriptorPoolCreateInfo pool_info = {};
-	pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-	pool_info.maxSets = 1000;
-	pool_info.poolSizeCount = static_cast<uint32_t>(std::size(pool_sizes));
-	pool_info.pPoolSizes = pool_sizes;
-
-	VkDescriptorPool imguiPool;
-	vkCreateDescriptorPool(_core._device, &pool_info, nullptr, &imguiPool);
-
-
-	// 2: initialize imgui library
-
-	//this initializes the core structures of imgui
-	ImGui::CreateContext();
-
-	//this initializes imgui for SDL
-	ImGui_ImplSDL3_InitForVulkan(_core._window);
-
-	//this initializes imgui for Vulkan
-	ImGui_ImplVulkan_InitInfo init_info = {};
-	init_info.Instance = _core._instance;
-	init_info.PhysicalDevice = _core._chosenGPU;
-	init_info.Device = _core._device;
-	init_info.Queue = _core._graphicsQueue;
-	init_info.DescriptorPool = imguiPool;
-	init_info.MinImageCount = 3;
-	init_info.ImageCount = 3;
-	init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
-
-	ImGui_ImplVulkan_Init(&init_info, _renderPass);
-
-	ImGui_ImplVulkan_CreateFontsTexture();
-
-	//add the destroy the imgui created structures
+	_gui = vk::GUI(&_core);
 	_mainDeletionQueue.push_function([=]() {
-		vkDestroyDescriptorPool(_core._device, imguiPool, nullptr);
-		ImGui_ImplVulkan_Shutdown();
+		_gui.destroy();
 	});
 }
 
@@ -703,6 +647,37 @@ void VulkanEngine::init_accumulation_image()
 		_core._allocator.destroyImage(_accumulationImage._image, _accumulationImage._allocation);
 		_core._device.destroyImageView(_accumulationImage._view); 
 	});
+}
+
+void VulkanEngine::init_hdr_map()
+{
+	vk::SamplerCreateInfo samplerInfo;
+	samplerInfo.magFilter = vk::Filter::eLinear;
+	samplerInfo.minFilter = vk::Filter::eLinear;
+	samplerInfo.mipmapMode = vk::SamplerMipmapMode::eNearest;
+	samplerInfo.addressModeU = vk::SamplerAddressMode::eMirroredRepeat;
+	samplerInfo.addressModeV = vk::SamplerAddressMode::eMirroredRepeat;
+	samplerInfo.addressModeW = vk::SamplerAddressMode::eMirroredRepeat;
+	samplerInfo.compareOp = vk::CompareOp::eNever;
+	samplerInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
+	samplerInfo.maxLod = 1;
+	samplerInfo.maxAnisotropy = 8.0f;
+	samplerInfo.anisotropyEnable = true;
+	_envMapSampler = _core._device.createSampler(samplerInfo);
+	_mainDeletionQueue.push_function([=]() {
+		_core._device.destroySampler(_envMapSampler);
+	});
+
+	int texWidth, texHeight, texChannels;
+    float * pixels = stbi_loadf(ASSET_PATH"/environment_maps/studio_country_hall_4k.hdr", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+    vk::DeviceSize imageSize = texWidth * texHeight * 4;
+	std::vector<float> image {pixels, pixels + imageSize};
+
+    if (!pixels) {
+        throw std::runtime_error("failed to load texture image!");
+    }
+	unsigned long long size = sizeof(float);
+	std::cout << "last line" << sizeof(float) <<  std::endl;
 }
 
 void VulkanEngine::init_pipelines()
@@ -1108,7 +1083,7 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 void VulkanEngine::load_models()
 {
 	_model = Model(&_core);
-	_model.load_from_glb(ASSET_PATH"/cornell_box.glb");
+	_model.load_from_glb(ASSET_PATH"/models/buddha.glb");
 	_mainDeletionQueue.push_function([&]() {
 		_model.destroy();
 	});
@@ -1118,7 +1093,7 @@ void VulkanEngine::load_models()
 }
 
 void VulkanEngine::updateBuffers() {
-	glm::mat4 view = cam.getView();
+	glm::mat4 view = _cam.getView();
 	glm::mat4 projection = glm::perspective(glm::radians(75.f), (float) _core._windowExtent.width / _core._windowExtent.height, 0.1f, 1000.0f);
 	projection[1][1] *= -1;
 
@@ -1134,9 +1109,9 @@ void VulkanEngine::updateBuffers() {
 		PushConstants.view = glm::inverse(view);
 		PushConstants.model = glm::mat4(1.f);
 	}
-	if(cam.camChanged) {
+	if(_cam.changed) {
 		PushConstants.accumulatedFrames = 0;
-		cam.camChanged = false;
+		_cam.changed = false;
 	}
 }
 
@@ -1498,13 +1473,15 @@ void VulkanEngine::recreateSwapchain() {
 	int w, h;
 	SDL_GetWindowSizeInPixels(_core._window, &w, &h);
 	_core._windowExtent = vk::Extent2D{static_cast<uint32_t>(w), static_cast<uint32_t>(h)};
-	cam.updateSize(_core._windowExtent.width, _core._windowExtent.height);
+	_cam.updateSize(_core._windowExtent.width, _core._windowExtent.height);
 
 	_resizeDeletionQueue.flush();
-	
+	_gui.destroyFramebuffer();
+
 	init_swapchain();
 	init_default_renderpass();
 	init_framebuffers();
+	_gui.initFrambuffers();
 	init_sync_structures();
 	for (int i = 0; i < FRAME_OVERLAP; i++)
 	{

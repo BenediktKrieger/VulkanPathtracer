@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vk_types.h>
+#include <vk_initializers.h>
 #include <vector>
 
 namespace vk {
@@ -8,8 +9,8 @@ namespace vk {
     {
     public:
         std::vector<const char *> _instanceLayers = {
-            "VK_LAYER_KHRONOS_validation",
-            "VK_LAYER_LUNARG_monitor"};
+            "VK_LAYER_KHRONOS_validation"
+        };
         std::vector<const char *> _instanceExtensions = {
             VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME
         };
@@ -31,7 +32,7 @@ namespace vk {
         vk::DebugUtilsMessageTypeFlagsEXT _messageTypeFlags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
 
         vk::Extent2D _windowExtent{1920, 1080};
-        struct SDL_Window* _window{nullptr};
+        SDL_Window* _window{nullptr};
         vk::DynamicLoader _dl;
         vma::Allocator _allocator;
         vk::DebugUtilsMessengerEXT _debug_messenger;

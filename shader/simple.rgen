@@ -64,7 +64,7 @@ void main()
 		Payload.origin = origin.xyz;
 		Payload.dir = direction.xyz;
 		
-		while(Payload.recursion <= 5) {
+		while(Payload.recursion <= 6) {
 			traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
 		}
 

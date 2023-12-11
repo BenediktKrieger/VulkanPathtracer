@@ -36,61 +36,61 @@ Camera::Camera(Type type, SDL_Window* window, uint32_t width, uint32_t height, g
     update();
 }
 
-void Camera::handleInputEvent(SDL_Event e)
+void Camera::handleInputEvent(const SDL_Event *event)
 {
-    switch(e.type) {
+    switch(event->type) {
         case SDL_EVENT_MOUSE_BUTTON_DOWN:
-            if (e.button.button == SDL_BUTTON_LEFT) {
+            if (event->button.button == SDL_BUTTON_LEFT) {
                 _buttonState_MOUSELEFT = true;
             }
             break;
         case SDL_EVENT_MOUSE_BUTTON_UP:
-            if (e.button.button == SDL_BUTTON_LEFT) {
+            if (event->button.button == SDL_BUTTON_LEFT) {
                 _buttonState_MOUSELEFT = false;
             }
             break;
         case SDL_EVENT_MOUSE_MOTION:
-            _xpos = e.motion.x;
-            _ypos = e.motion.y;
+            _xpos = event->motion.x;
+            _ypos = event->motion.y;
             break;
         case SDL_EVENT_MOUSE_WHEEL:
             if(_type == eTrackBall) {
-                _radius -= (float) (e.wheel.y * 0.1);
+                _radius -= (float) (event->wheel.y * 0.1);
                 _radius = glm::max((float)_radius, 0.000001f);
-                camChanged = true;
+                changed = true;
             }
             break;
         case SDL_EVENT_KEY_DOWN:
-            if (e.key.keysym.sym == SDLK_w) {
+            if (event->key.keysym.sym == SDLK_w) {
                 _buttonState_W = true;
-            } else if (e.key.keysym.sym == SDLK_a) {
+            } else if (event->key.keysym.sym == SDLK_a) {
                 _buttonState_A = true;
-            } else if (e.key.keysym.sym == SDLK_s) {
+            } else if (event->key.keysym.sym == SDLK_s) {
                 _buttonState_S = true;
-            } else if (e.key.keysym.sym == SDLK_d) {
+            } else if (event->key.keysym.sym == SDLK_d) {
                 _buttonState_D = true;
-            } else if (e.key.keysym.sym == SDLK_c) {
+            } else if (event->key.keysym.sym == SDLK_c) {
                 _buttonState_C = true;
-            } else if (e.key.keysym.sym == SDLK_LCTRL) {
+            } else if (event->key.keysym.sym == SDLK_LCTRL) {
                 _buttonState_LCTRL = true;
-            } else if (e.key.keysym.sym == SDLK_SPACE) {
+            } else if (event->key.keysym.sym == SDLK_SPACE) {
                 _buttonState_SPACE = true;
             }
             break;
         case SDL_EVENT_KEY_UP:
-            if (e.key.keysym.sym == SDLK_w) {
+            if (event->key.keysym.sym == SDLK_w) {
                 _buttonState_W = false;
-            } else if (e.key.keysym.sym == SDLK_a) {
+            } else if (event->key.keysym.sym == SDLK_a) {
                 _buttonState_A = false;
-            } else if (e.key.keysym.sym == SDLK_s) {
+            } else if (event->key.keysym.sym == SDLK_s) {
                 _buttonState_S = false;
-            } else if (e.key.keysym.sym == SDLK_d) {
+            } else if (event->key.keysym.sym == SDLK_d) {
                 _buttonState_D = false;
-            } else if (e.key.keysym.sym == SDLK_c) {
+            } else if (event->key.keysym.sym == SDLK_c) {
                 _buttonState_C = false;
-            } else if (e.key.keysym.sym == SDLK_LCTRL) {
+            } else if (event->key.keysym.sym == SDLK_LCTRL) {
                 _buttonState_LCTRL = false;
-            } else if (e.key.keysym.sym == SDLK_SPACE) {
+            } else if (event->key.keysym.sym == SDLK_SPACE) {
                 _buttonState_SPACE = false;
             }
             break;
@@ -108,7 +108,7 @@ void Camera::update(){
         float yAngle = (_newPos.y - _oldPos.y) / _height * 3.141592f;
         _angle -= glm::vec2(xAngle, yAngle);
         _angle.y = glm::max(glm::min(_angle.y, 3.141591f), 0.000001f);
-        camChanged = true;
+        changed = true;
     }
     _oldPos = glm::vec2(_xpos, _ypos);
 
@@ -119,14 +119,14 @@ void Camera::update(){
             _forward.y = 0.0f;
             _forward = glm::normalize(_forward);
             _angle.x += 3.141592f;
-            camChanged = true;
+            changed = true;
         }
         else{
             _type = eTrackBall;
             _radius = glm::length(_eye);
             glm::vec3 _eyeNorm = glm::normalize(_eye);
             _angle = glm::vec2(atan2(_eyeNorm.x, _eyeNorm.z), asin(-_eyeNorm.y) + 1.570796f);
-            camChanged = true;
+            changed = true;
         }
         _timeout = 0.3;
     }
@@ -148,27 +148,27 @@ void Camera::update(){
         glm::vec3 right = -1.f * left;
         if (_buttonState_W){
             _eye += forward * (float) delta_time * 3.f;
-            camChanged = true;
+            changed = true;
         }
         if (_buttonState_A){
             _eye += left * (float) delta_time * 3.f;
-            camChanged = true;
+            changed = true;
         }
         if (_buttonState_S){
             _eye += backwards * (float) delta_time * 3.f;
-            camChanged = true;
+            changed = true;
         }
 	    if (_buttonState_D){
             _eye += right * (float) delta_time * 3.f;
-            camChanged = true;
+            changed = true;
         }
         if (_buttonState_LCTRL){
             _eye += down * (float) delta_time * 3.f;
-            camChanged = true;
+            changed = true;
         }
         if (_buttonState_SPACE){
             _eye += up * (float) delta_time * 3.f;
-            camChanged = true;
+            changed = true;
         }
         _radius = glm::length(_eye);
 
@@ -184,7 +184,7 @@ void Camera::updateSize(uint32_t width, uint32_t height)
 {
     _width = width;
     _height = height;
-    camChanged = true;
+    changed = true;
 }
 
 glm::mat4 Camera::getView(){

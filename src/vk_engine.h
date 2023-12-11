@@ -1,15 +1,10 @@
 ﻿#pragma once
 
-#include <vk_types.h>
-#include <vector>
 #include <vk_utils.h>
 #include <vk_model.h>
 #include <vk_shaderConverter.h>
 #include <Camera.h>
-#include <Core.h>
-#include <imgui.h>
-#include <backends/imgui_impl_vulkan.h>
-#include <backends/imgui_impl_sdl3.h>
+#include <GUI.h>
 
 constexpr unsigned int FRAME_OVERLAP = 2;
 
@@ -17,13 +12,14 @@ class VulkanEngine
 {
 public:
 	vk::Core _core;
+	vk::GUI _gui;
 	bool _isInitialized{false};
 	bool _framebufferResized{false};
 	uint32_t _frameNumber{0};
 	int _selectedShader{0};
 
 	vkutils::PushConstants PushConstants;
-	Camera cam;
+	Camera _cam;
 
 	vkutils::FrameData _frames[FRAME_OVERLAP];
 	vk::RenderPass _renderPass;
@@ -41,8 +37,10 @@ public:
 	
 	Model _model;
 
-	vk::Format _depthFormat;
 	vkutils::AllocatedImage _depthImage;
+	vk::Format _depthFormat;
+
+	vk::Sampler _envMapSampler;
 
 	vk::DescriptorPool _rasterizerDescriptorPool;
 	vk::DescriptorPool _raytracerDescriptorPool;
@@ -85,9 +83,11 @@ private:
 
 	void init_sync_structures();
 
-	void init_imgui();
+	void init_gui();
 
 	void init_accumulation_image();
+
+	void init_hdr_map();
 
 	void init_descriptors();
 

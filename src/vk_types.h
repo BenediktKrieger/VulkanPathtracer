@@ -14,3 +14,6 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/string_cast.hpp>
 #include <iostream>
+#include <imgui.h>
+#include <backends/imgui_impl_vulkan.h>
+#include <backends/imgui_impl_sdl3.h>

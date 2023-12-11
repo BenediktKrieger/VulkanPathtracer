@@ -331,7 +331,17 @@ vkutils::AllocatedImage vkutils::createImage(vk::Core &core, vk::ImageCreateInfo
 
 vkutils::AllocatedImage vkutils::imageFromData(vk::Core &core, void* data, vk::ImageCreateInfo imageInfo, vk::ImageAspectFlags aspectFlags, vma::MemoryUsage memoryUsage, vma::AllocationCreateFlags memoryFlags)
 {
-    vkutils::AllocatedBuffer srcBuffer = hostBufferFromData(core, data, imageInfo.extent.width * imageInfo.extent.height * 4, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
+    vk::DeviceSize pixelSize = 4;
+    switch (imageInfo.format)
+    {
+        case vk::Format::eR32G32B32A32Sfloat:
+            pixelSize = 16;
+            break;
+        case vk::Format::eR32G32B32Sfloat:
+            pixelSize = 12;
+            break;
+    }
+    vkutils::AllocatedBuffer srcBuffer = hostBufferFromData(core, data, imageInfo.extent.width * imageInfo.extent.height * pixelSize, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAutoPreferHost, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
     
     imageInfo.usage |= vk::ImageUsageFlagBits::eTransferDst;
     vkutils::AllocatedImage dstImage = createImage(core, imageInfo, aspectFlags, memoryUsage, memoryFlags);
