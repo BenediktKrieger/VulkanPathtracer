@@ -13,12 +13,16 @@ layout( push_constant ) uniform constants
 	uint accumulatedFrames;
 } PushConstants;
 
-struct RayPayload {
+struct Hit {
 	vec3 color;
-	vec3 attenuation;
+};
+
+struct RayPayload {
+	Hit path[6];
 	vec3 origin;
 	vec3 dir;
 	uint recursion;
+	bool trace;
   	bool shadow;
 };
 
@@ -50,31 +54,37 @@ void main()
 
 	uint offset = (gl_LaunchIDEXT.y * gl_LaunchIDEXT.x + gl_LaunchIDEXT.x) * spp + accFrames;
 	for(uint i = 0; i < spp; i++){
-		uint haltonIndex = offset + i;
-		vec2 haltonValue = (vec2(halton(2, haltonIndex), halton(3, haltonIndex)) - .5);
+		const uint haltonIndex = offset + i;
+		const vec2 haltonValue = vec2(halton(2, haltonIndex), halton(3, haltonIndex));
 		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + haltonValue;
 		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
-		vec2 d = inUV * 2.0 - 1.0;
-		vec4 target = PushConstants.invProj * vec4(d.x, d.y, 1, 1);
-		vec4 direction = PushConstants.invView * vec4(normalize(target.xyz), 0);
+		const vec2 d = inUV * 2.0 - 1.0;
+		const vec4 target = PushConstants.invProj * vec4(d.x, d.y, 1, 1);
+		const vec4 direction = PushConstants.invView * vec4(normalize(target.xyz), 0);
 		
-		Payload.color = vec3(0.0);
+		for(uint j = 0; j <= 5; j++){
+			Payload.path[j].color = vec3(1.0);
+		}
 		Payload.recursion = 0;
-		Payload.attenuation = vec3(1.0);
+		Payload.trace = true;
 		Payload.origin = origin.xyz;
 		Payload.dir = direction.xyz;
 		
-		while(Payload.recursion <= 6) {
+		while(Payload.trace) {
 			traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
 		}
 
-		sumofHitValues += Payload.color;
+		vec3 color = vec3(1.0);
+		for(uint j = 0; j <= 5; j++){
+			color *= Payload.path[j].color;
+		}
+		sumofHitValues += color;
 	}
 
 	vec4 oldColor = imageLoad(accImage, ivec2(gl_LaunchIDEXT.xy));
 	
 	vec3 newColor = sumofHitValues / spp;
-
+	
 	if(accFrames > 1) {
 		newColor = oldColor.xyz * ((accFrames - 1.0) /  accFrames) + newColor * (1.0 / accFrames);
 	}

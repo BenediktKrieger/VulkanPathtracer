@@ -664,20 +664,41 @@ void VulkanEngine::init_hdr_map()
 	samplerInfo.maxAnisotropy = 8.0f;
 	samplerInfo.anisotropyEnable = true;
 	_envMapSampler = _core._device.createSampler(samplerInfo);
-	_mainDeletionQueue.push_function([=]() {
-		_core._device.destroySampler(_envMapSampler);
-	});
 
 	int texWidth, texHeight, texChannels;
-    float * pixels = stbi_loadf(ASSET_PATH"/environment_maps/studio_country_hall_4k.hdr", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	stbi_set_flip_vertically_on_load(true);
+    float* pixels = stbi_loadf(ASSET_PATH"/environment_maps/sea.hdr", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	stbi_set_flip_vertically_on_load(false);
     vk::DeviceSize imageSize = texWidth * texHeight * 4;
-	std::vector<float> image {pixels, pixels + imageSize};
 
     if (!pixels) {
         throw std::runtime_error("failed to load texture image!");
     }
-	unsigned long long size = sizeof(float);
-	std::cout << "last line" << sizeof(float) <<  std::endl;
+
+	vk::Format format = vk::Format::eR32G32B32A32Sfloat;
+	uint32_t width = texWidth;
+	uint32_t height = texHeight;
+
+	auto formatProperties = _core._chosenGPU.getFormatProperties(format);
+	if(!(formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc) || !(formatProperties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eBlitDst))
+	{
+		throw std::runtime_error("unsported Image Format!");
+	}
+	vk::ImageCreateInfo imageCreateInfo;
+	imageCreateInfo.imageType = vk::ImageType::e2D;
+	imageCreateInfo.format = format;
+	imageCreateInfo.mipLevels = 1;
+	imageCreateInfo.arrayLayers = 1;
+	imageCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
+	imageCreateInfo.extent = vk::Extent3D{ width, height, 1 };
+	imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
+	_hdrMap = vkutils::imageFromData(_core, pixels, imageCreateInfo, vk::ImageAspectFlagBits::eColor, vma::MemoryUsage::eAutoPreferDevice);
+
+	_mainDeletionQueue.push_function([=]() {
+		_core._allocator.destroyImage(_hdrMap._image, _hdrMap._allocation);
+		_core._device.destroyImageView(_hdrMap._view);
+		_core._device.destroySampler(_envMapSampler);
+	});
 }
 
 void VulkanEngine::init_pipelines()
@@ -776,8 +797,15 @@ void VulkanEngine::init_pipelines()
 		materialBufferBinding.descriptorCount = 1;
 		materialBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
+		vk::DescriptorSetLayoutBinding hdrMapLayoutBinding{};
+        hdrMapLayoutBinding.binding = 6;
+        hdrMapLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+        hdrMapLayoutBinding.descriptorCount = 1;
+        hdrMapLayoutBinding.pImmutableSamplers = nullptr;
+        hdrMapLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eMissKHR;
+
 		vk::DescriptorSetLayoutBinding textureLayoutBinding{};
-        textureLayoutBinding.binding = 6;
+        textureLayoutBinding.binding = 7;
         textureLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
         textureLayoutBinding.descriptorCount = static_cast<uint32_t>(_model._textures.size());
         textureLayoutBinding.pImmutableSamplers = nullptr;
@@ -790,6 +818,7 @@ void VulkanEngine::init_pipelines()
 			indexBufferBinding,
 			vertexBufferBinding,
 			materialBufferBinding,
+			hdrMapLayoutBinding,
 			textureLayoutBinding
 		});
 
@@ -1027,9 +1056,20 @@ void VulkanEngine::init_descriptors()
 			uniformBufferWrite.pBufferInfo = &uboDescriptor;
 			uniformBufferWrite.descriptorCount = 1;
 
+			vk::DescriptorImageInfo hdrImageDescriptor;
+			hdrImageDescriptor.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+			hdrImageDescriptor.imageView = _hdrMap._view;
+			hdrImageDescriptor.sampler = _envMapSampler;
+			vk::WriteDescriptorSet hdrImageWrite;
+			hdrImageWrite.dstSet = _frames[i]._raytracerDescriptor;
+			hdrImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
+			hdrImageWrite.dstBinding = 6;
+			hdrImageWrite.pImageInfo = &hdrImageDescriptor;
+			hdrImageWrite.descriptorCount = 1;
+
 			vk::WriteDescriptorSet textureImageWrite;
             textureImageWrite.dstSet = _frames[i]._raytracerDescriptor;
-            textureImageWrite.dstBinding = 6;
+            textureImageWrite.dstBinding = 7;
             textureImageWrite.dstArrayElement = 0;
             textureImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
 			std::vector<vk::DescriptorImageInfo> imageInfos = _model.getTextureDescriptors();
@@ -1042,6 +1082,7 @@ void VulkanEngine::init_descriptors()
 				indexBufferWrite,
 				vertexBufferWrite,
 				uniformBufferWrite,
+				hdrImageWrite,
 				textureImageWrite
 			};
 			_core._device.updateDescriptorSets(setWrites, {});
@@ -1083,7 +1124,7 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 void VulkanEngine::load_models()
 {
 	_model = Model(&_core);
-	_model.load_from_glb(ASSET_PATH"/models/buddha.glb");
+	_model.load_from_glb(ASSET_PATH"/models/sponza.glb");
 	_mainDeletionQueue.push_function([&]() {
 		_model.destroy();
 	});

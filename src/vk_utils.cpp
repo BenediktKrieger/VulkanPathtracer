@@ -337,8 +337,14 @@ vkutils::AllocatedImage vkutils::imageFromData(vk::Core &core, void* data, vk::I
         case vk::Format::eR32G32B32A32Sfloat:
             pixelSize = 16;
             break;
+        case vk::Format::eR16G16B16A16Sfloat:
+            pixelSize = 8;
+            break;
         case vk::Format::eR32G32B32Sfloat:
             pixelSize = 12;
+            break;
+        case vk::Format::eR16G16B16Sfloat:
+            pixelSize = 6;
             break;
     }
     vkutils::AllocatedBuffer srcBuffer = hostBufferFromData(core, data, imageInfo.extent.width * imageInfo.extent.height * pixelSize, vk::BufferUsageFlagBits::eTransferSrc, vma::MemoryUsage::eAutoPreferHost, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);

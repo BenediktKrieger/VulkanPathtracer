@@ -1,24 +1,36 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 
-struct RayPayload {
+struct Hit {
 	vec3 color;
-    vec3 attenuation;
-    vec3 origin;
-    vec3 dir;
-    uint recursion;
-    bool shadow;
+};
+
+struct RayPayload {
+	Hit path[6];
+	vec3 origin;
+	vec3 dir;
+	uint recursion;
+	bool trace;
+  	bool shadow;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
+layout(binding = 6, set = 0) uniform sampler2D hdrMapSampler;
+
+const vec2 invAtan = vec2(0.1591, 0.3183);
+vec2 SampleSphericalMap(vec3 direction)
+{
+    vec2 uv = vec2(atan(direction.z, direction.x), asin(direction.y));
+    uv *= invAtan;
+    uv += 0.5;
+    return uv;
+}
 
 void main()
 {
     vec3 unit_direction = gl_WorldRayDirectionEXT;
-    float a = 0.5 * (unit_direction.y + 1.0);
-    vec3 color = (1.0 - a)* vec3(1.0, 0.5, 0.0) + a * vec3(0.5, 0.7, 1.0);
-    
-    Payload.color = (1-Payload.attenuation) * Payload.color + Payload.attenuation * color;
-    Payload.attenuation = vec3(0.0);
-    Payload.recursion = 1000;
+    vec3 color = texture(hdrMapSampler, SampleSphericalMap(unit_direction)).xyz;
+    Payload.path[Payload.recursion].color = color;
+    Payload.recursion += 1;
+    Payload.trace = false;
 }

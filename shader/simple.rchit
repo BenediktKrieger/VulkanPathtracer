@@ -44,14 +44,18 @@ layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
 layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
 layout(binding = 5, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-layout(binding = 6, set = 0) uniform sampler2D texSampler[];
+layout(binding = 7, set = 0) uniform sampler2D texSampler[];
+
+struct Hit {
+	vec3 color;
+};
 
 struct RayPayload {
-	vec3 color;
-  vec3 attenuation;
-  vec3 origin;
-  vec3 dir;
+	Hit path[6];
+	vec3 origin;
+	vec3 dir;
 	uint recursion;
+	bool trace;
   bool shadow;
 };
 
@@ -126,32 +130,43 @@ void main()
 	}
 	vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 
-	vec2 uv =       TriVertices[0].uv *               barycentricCoords.x + TriVertices[1].uv *           barycentricCoords.y + TriVertices[2].uv *           barycentricCoords.z;
-  vec3 tangent =  TriVertices[0].tangent.xyz * barycentricCoords.x + TriVertices[1].tangent.xyz *  barycentricCoords.y + TriVertices[2].tangent.xyz *  barycentricCoords.z;
-	vec3 normal =   TriVertices[0].normal *       barycentricCoords.x + TriVertices[1].normal *       barycentricCoords.y + TriVertices[2].normal *       barycentricCoords.z;
-  vec3 pos =      TriVertices[0].pos *             barycentricCoords.x + TriVertices[1].pos *          barycentricCoords.y + TriVertices[2].pos *          barycentricCoords.z;
+	vec2 uv = TriVertices[0].uv * barycentricCoords.x + TriVertices[1].uv * barycentricCoords.y + TriVertices[2].uv *  barycentricCoords.z;
+	vec3 normal = normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z);
+  vec3 pos = TriVertices[0].pos * barycentricCoords.x + TriVertices[1].pos * barycentricCoords.y + TriVertices[2].pos * barycentricCoords.z;
+  
+  //texture
+  vec4 color = geometryNode.baseColorFactor;
+  if(geometryNode.baseColorTexture >= 0){
+    color = texture(texSampler[geometryNode.baseColorTexture], uv);
+  }
+  if(geometryNode.normalTexture >= 0){
+    vec3 tangent = normalize(TriVertices[0].tangent.xyz * barycentricCoords.x + TriVertices[1].tangent.xyz *  barycentricCoords.y + TriVertices[2].tangent.xyz *  barycentricCoords.z);
+    vec3 binormal = cross(normal, tangent);
+    normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[geometryNode.normalTexture], uv).xyz * 2.0 - 1.0));
+  }
   
   vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT + normal * 0.0001;
-  // vec3 reflectedDir = reflect(gl_WorldRayDirectionEXT, normal);
+  vec3 reflectedDir = reflect(gl_WorldRayDirectionEXT, normal);
   // metallic
-  // vec3 newDir = normalize(reflectedDir * 5 + random_unit_vector(pos));
+  //vec3 newDir = normalize(reflectedDir * 5 + random_uniform_hemisphere());
   // lambertian
   vec3 newDir = random_on_cosine_hemisphere(normal);
 
-  vec4 baseColor = geometryNode.baseColorFactor;
-  if(geometryNode.baseColorTexture >= 0){
-    baseColor = texture(texSampler[geometryNode.baseColorTexture], uv);
-  }
+  
   if(geometryNode.emissiveStrength > 1.0 || geometryNode.emissiveTexture >= 0){
-    Payload.color = (1-Payload.attenuation) * Payload.color + Payload.attenuation * vec3(geometryNode.emissiveStrength) * geometryNode.emissiveFactor.xyz;
-    Payload.attenuation = vec3(0.0);
-    Payload.recursion = 1000;
-  }else{
-    Payload.color *= (1-Payload.attenuation);
+    vec3 emission = vec3(geometryNode.emissiveStrength) * geometryNode.emissiveFactor.xyz;
+    Payload.path[Payload.recursion].color = emission;
     Payload.recursion += 1;
-    Payload.attenuation *= baseColor.xyz;
+    Payload.trace = false;
+  }else{
+    Payload.path[Payload.recursion].color = color.xyz;
+    Payload.recursion += 1;
     Payload.origin = newOrigin;
     Payload.dir = newDir;
+    if(Payload.recursion >= 5){
+      Payload.path[Payload.recursion].color = vec3(0.0);
+      Payload.trace = false;
+    }
   }
   // Shadow testing
   // Payload.shadow = true;

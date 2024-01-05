@@ -1,12 +1,16 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
 
-struct RayPayload {
+struct Hit {
 	vec3 color;
-  vec3 attenuation;
-  vec3 origin;
-  vec3 dir;
+};
+
+struct RayPayload {
+	Hit path[6];
+	vec3 origin;
+	vec3 dir;
 	uint recursion;
+	bool trace;
   bool shadow;
 };
 

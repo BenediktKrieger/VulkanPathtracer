@@ -40,7 +40,7 @@ hitAttributeEXT vec3 attribs;
 layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
 layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
 layout(binding = 5, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-layout(binding = 6, set = 0) uniform sampler2D texSampler[];
+layout(binding = 7, set = 0) uniform sampler2D texSampler[];
 
 
 void main()

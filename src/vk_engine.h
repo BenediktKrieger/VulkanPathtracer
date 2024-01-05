@@ -40,6 +40,8 @@ public:
 	vkutils::AllocatedImage _depthImage;
 	vk::Format _depthFormat;
 
+	vkutils::AllocatedImage _hdrMap;
+
 	vk::Sampler _envMapSampler;
 
 	vk::DescriptorPool _rasterizerDescriptorPool;
