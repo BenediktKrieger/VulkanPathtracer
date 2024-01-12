@@ -23,8 +23,9 @@ struct GeometryNode {
   vec4 baseColorFactor;
   vec4 emissiveFactor;
   float emissiveStrength;
+  float transmissionFactor;
+  float ior;
   uint alphaMode;
-  float pad[2]; 
 };
 
 struct Vertex {
@@ -51,11 +52,12 @@ struct Hit {
 };
 
 struct RayPayload {
-	Hit path[6];
+	vec3 color;
 	vec3 origin;
 	vec3 dir;
-	uint recursion;
-	bool trace;
+	uint translucentRecursion;
+	uint diffuseRecursion;
+	bool continueTrace;
   bool shadow;
 };
 
@@ -75,7 +77,8 @@ void pcg4d(inout uvec4 v)
 
 float rand()
 {
-  pcg4d(seed); return float(seed.x) / float(0xffffffffu);
+  pcg4d(seed);
+  return float(seed.x) / float(0xffffffffu);
 }
 
 vec3 random_uniform_hemisphere(){
@@ -117,57 +120,126 @@ vec3 random_on_uniform_hemisphere(vec3 normal){
   return uvw * random_uniform_hemisphere();
 }
 
+vec3 refractRay(const vec3 I, const vec3 N, const float ior) { 
+  float cosi = clamp(-1, 1, dot(N, I));
+  float eta = 1 / ior;
+  vec3 n = N; 
+  if (cosi < 0) {
+    cosi = -cosi;
+  } else {
+    eta = ior;
+    n = -N;
+  }
+  float k = 1 - eta * eta * (1 - cosi * cosi); 
+  if(k < 0)
+    return vec3(0);
+  else
+    return eta * I - (eta * cosi + sqrt(k)) * n;
+}
+
+void fresnel(const vec3 I, const vec3 N, const float ior, inout float kr, inout float kt){ 
+  float cosi = clamp(-1, 1, dot(I, N)); 
+  float etai = 1; 
+  float etat = ior; 
+  if (cosi > 0) { 
+    float oldetai = etai;
+    etai = etat;
+    etat = oldetai;
+  }
+  float sint = etai / etat * sqrt(max(0.f, 1 - cosi * cosi));
+  if (sint >= 1) { 
+    kr = 1; 
+  } 
+  else { 
+    float cost = sqrt(max(0.f, 1 - sint * sint)); 
+    cosi = abs(cosi); 
+    float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost)); 
+    float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost)); 
+    kr = (Rs * Rs + Rp * Rp) / 2; 
+  }
+  kt = 1.0 - kr;
+} 
+
 void main()
 {
   GeometryNode geometryNode = geometryNodes.nodes[gl_GeometryIndexEXT];
-
   const uint triIndex = geometryNode.indexOffset + gl_PrimitiveID * 3;
-
   Vertex TriVertices[3];
   for (uint i = 0; i < 3; i++) {
     uint index = indices.i[triIndex + i];
     TriVertices[i] = vertices.v[index];
 	}
 	vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-
 	vec2 uv = TriVertices[0].uv * barycentricCoords.x + TriVertices[1].uv * barycentricCoords.y + TriVertices[2].uv *  barycentricCoords.z;
-	vec3 normal = normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z);
   vec3 pos = TriVertices[0].pos * barycentricCoords.x + TriVertices[1].pos * barycentricCoords.y + TriVertices[2].pos * barycentricCoords.z;
-  
-  //texture
-  vec4 color = geometryNode.baseColorFactor;
+  // color
+  vec3 color = geometryNode.baseColorFactor.xyz;
   if(geometryNode.baseColorTexture >= 0){
-    color = texture(texSampler[geometryNode.baseColorTexture], uv);
+    color = texture(texSampler[geometryNode.baseColorTexture], uv).xyz;
   }
+  // normal
+  vec3 normal = normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z);
   if(geometryNode.normalTexture >= 0){
     vec3 tangent = normalize(TriVertices[0].tangent.xyz * barycentricCoords.x + TriVertices[1].tangent.xyz *  barycentricCoords.y + TriVertices[2].tangent.xyz *  barycentricCoords.z);
     vec3 binormal = cross(normal, tangent);
     normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[geometryNode.normalTexture], uv).xyz * 2.0 - 1.0));
   }
+  // roughness
+  float roughness = geometryNode.roughnessFactor;
+  // metallness
+  float metallness = geometryNode.metallicFactor;
   
-  vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT + normal * 0.0001;
-  vec3 reflectedDir = reflect(gl_WorldRayDirectionEXT, normal);
-  // metallic
-  //vec3 newDir = normalize(reflectedDir * 5 + random_uniform_hemisphere());
-  // lambertian
-  vec3 newDir = random_on_cosine_hemisphere(normal);
-
-  
+  vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+  vec3 newDir;
   if(geometryNode.emissiveStrength > 1.0 || geometryNode.emissiveTexture >= 0){
-    vec3 emission = vec3(geometryNode.emissiveStrength) * geometryNode.emissiveFactor.xyz;
-    Payload.path[Payload.recursion].color = emission;
-    Payload.recursion += 1;
-    Payload.trace = false;
-  }else{
-    Payload.path[Payload.recursion].color = color.xyz;
-    Payload.recursion += 1;
-    Payload.origin = newOrigin;
-    Payload.dir = newDir;
-    if(Payload.recursion >= 5){
-      Payload.path[Payload.recursion].color = vec3(0.0);
-      Payload.trace = false;
+    vec3 emission = vec3(geometryNode.emissiveStrength) * geometryNode.emissiveFactor.xyz * color;
+    color = emission;
+    Payload.continueTrace = false;
+  } else if(geometryNode.transmissionFactor > 0.01){
+    // diallectic
+    float reflectance = 0.0;
+    float transmission = 0.0;
+    fresnel(gl_WorldRayDirectionEXT, normal, geometryNode.ior, reflectance, transmission);
+    if(reflectance > 0.999){
+      newDir = reflect(gl_WorldRayDirectionEXT, normal);
     }
+    else if(transmission > 0.999){
+      newDir = refractRay(gl_WorldRayDirectionEXT, normal, geometryNode.ior);
+    }
+    else {
+      float russian_roulette = rand();
+      if(russian_roulette < reflectance){
+        newDir = reflect(gl_WorldRayDirectionEXT, normal);
+      } else {
+        newDir = refractRay(gl_WorldRayDirectionEXT, normal, geometryNode.ior);
+      }
+    }
+    Payload.translucentRecursion += 1;
+  } else if(roughness < 0.01) {
+    // mirror
+    newDir = reflect(gl_WorldRayDirectionEXT, normal);
+    Payload.diffuseRecursion += 1;
+  } else if(roughness < 0.9 && metallness > 0.01) {
+    // metall
+    newDir = normalize(reflect(gl_WorldRayDirectionEXT, normal) * max(1.0, (1-roughness) * 10) + random_uniform_hemisphere());
+    Payload.diffuseRecursion += 1;
+  } else {
+    // lambertian
+    newDir = random_on_cosine_hemisphere(normal);
+    Payload.diffuseRecursion += 1;
   }
+
+  if(Payload.diffuseRecursion >= 5){
+    color = vec3(0.0);
+    Payload.continueTrace = false;
+  }
+  if(Payload.translucentRecursion >= 7){
+    color = vec3(0.0);
+    Payload.continueTrace = false;
+  }
+  Payload.color *= color.xyz;
+  Payload.origin = newOrigin;
+  Payload.dir = newDir;
   // Shadow testing
   // Payload.shadow = true;
   // traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 0, 0, 1, newOrigin, 0.0001, vec3(0.05, 0.05, 1), 10000, 0);

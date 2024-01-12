@@ -209,6 +209,22 @@ void Model::loadMaterials(tinygltf::Model &input)
 				material.emissiveStrength = (float)value.Get<double>();
 			}
 		}
+		if (mat.extensions.find("KHR_materials_transmission") != mat.extensions.end())
+		{
+			auto ext = mat.extensions.find("KHR_materials_transmission");
+			if (ext->second.Has("transmissionFactor")) {
+				auto value = ext->second.Get("transmissionFactor");
+				material.transmissionFactor = (float)value.Get<double>();
+			}
+		}
+		if (mat.extensions.find("KHR_materials_ior") != mat.extensions.end())
+		{
+			auto ext = mat.extensions.find("KHR_materials_ior");
+			if (ext->second.Has("ior")) {
+				auto value = ext->second.Get("ior");
+				material.ior = (float)value.Get<double>();
+			}
+		}
 		if (mat.values.find("baseColorFactor") != mat.values.end())
 		{
 			material.baseColorFactor = glm::make_vec4(mat.values["baseColorFactor"].ColorFactor().data());

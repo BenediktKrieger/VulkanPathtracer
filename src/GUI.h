@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core.h>
+#include <vk_utils.h>
 
 namespace vk {
     class GUI
@@ -12,6 +13,7 @@ namespace vk {
         vk::DescriptorPool _pool;
         std::vector<vk::Framebuffer> _framebuffers;
     public:
+        vkutils::Settings settings;
         GUI();
         GUI(vk::Core* core);
         void initRenderPass();

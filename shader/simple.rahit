@@ -18,8 +18,9 @@ struct GeometryNode {
   vec4 baseColorFactor;
   vec4 emissiveFactor;
   float emissiveStrength;
+  float transmissionFactor;
+  float ior;
   uint alphaMode;
-  float pad[2]; 
 };
 
 struct Vertex {

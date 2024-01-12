@@ -1,6 +1,15 @@
 #include <GUI.h>
 
-vk::GUI::GUI():_core(){}
+vk::GUI::GUI():_core(){
+    settings.cam_pos = glm::vec3(0.0);
+    settings.cam_dir = glm::vec3(0.0);
+    settings.fov = 0;
+    settings.cam_mode = 0;
+    settings.accumulate = true;
+    settings.samples = 1;
+    settings.reflection_recursion = 6;
+    settings.refraction_recursion = 8;
+}
 
 vk::GUI::GUI(vk::Core *core)
 {
@@ -39,6 +48,9 @@ vk::GUI::GUI(vk::Core *core)
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
     io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
 
+    io.FontDefault = io.Fonts->AddFontFromFileTTF(ASSET_PATH"/fonts/Roboto-Regular.ttf", 16.f);
+  
+    ImGui::StyleColorsDark();
 
 	ImGui_ImplSDL3_InitForVulkan(_core->_window);
 

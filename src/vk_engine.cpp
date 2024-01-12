@@ -1124,7 +1124,7 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 void VulkanEngine::load_models()
 {
 	_model = Model(&_core);
-	_model.load_from_glb(ASSET_PATH"/models/sponza.glb");
+	_model.load_from_glb(ASSET_PATH"/models/cornell_box.glb");
 	_mainDeletionQueue.push_function([&]() {
 		_model.destroy();
 	});
@@ -1154,6 +1154,14 @@ void VulkanEngine::updateBuffers() {
 		PushConstants.accumulatedFrames = 0;
 		_cam.changed = false;
 	}
+	_gui.settings.cam_pos = glm::vec3(0.0);
+    _gui.settings.cam_dir = glm::vec3(0.0);
+    _gui.settings.fov = 0;
+    _gui.settings.cam_mode = Camera::eTrackBall;
+    _gui.settings.accumulate = true;
+    _gui.settings.samples = 1;
+    _gui.settings.reflection_recursion = 6;
+    _gui.settings.refraction_recursion = 8;
 }
 
 void VulkanEngine::upload_model(Model &model)
@@ -1262,6 +1270,8 @@ void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
 				geometryNode.emissiveFactor[2] = primitive->material.emissiveFactor.z;
 				geometryNode.emissiveFactor[3] = primitive->material.emissiveFactor.w;
 				geometryNode.emissiveStrength = primitive->material.emissiveStrength;
+				geometryNode.transmissionFactor = primitive->material.transmissionFactor;
+				geometryNode.ior = primitive->material.ior;
 				_materials.push_back(geometryNode);
 			}
 		}

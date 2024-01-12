@@ -6,11 +6,12 @@ struct Hit {
 };
 
 struct RayPayload {
-	Hit path[6];
+	vec3 color;
 	vec3 origin;
 	vec3 dir;
-	uint recursion;
-	bool trace;
+    uint translucentRecursion;
+	uint diffuseRecursion;
+	bool continueTrace;
   	bool shadow;
 };
 
@@ -30,7 +31,6 @@ void main()
 {
     vec3 unit_direction = gl_WorldRayDirectionEXT;
     vec3 color = texture(hdrMapSampler, SampleSphericalMap(unit_direction)).xyz;
-    Payload.path[Payload.recursion].color = color;
-    Payload.recursion += 1;
-    Payload.trace = false;
+    Payload.color *= color;
+    Payload.continueTrace = false;
 }

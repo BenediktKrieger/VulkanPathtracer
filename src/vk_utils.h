@@ -7,6 +7,21 @@
 
 namespace vkutils
 {
+    class Settings {
+    public:
+        // Camera Settings
+        glm::vec3 cam_pos;
+        float fov;
+        glm::vec3 cam_dir;
+        uint32_t cam_mode;
+        // Pathtracer Settings
+        bool accumulate;
+        uint32_t samples;
+        uint32_t reflection_recursion;
+        uint32_t refraction_recursion;
+        // Scene
+        
+    };
     class AllocatedBuffer {
     public:
         vk::Buffer _buffer;
@@ -94,8 +109,9 @@ namespace vkutils
         float baseColorFactor[4];
         float emissiveFactor[4];
         float emissiveStrength;
+        float transmissionFactor;
+	    float ior;
         uint32_t alphaMode;
-        float pad[2];
 	};
     VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
     bool checkValidationLayerSupport(std::vector<const char *> &instanceLayers);

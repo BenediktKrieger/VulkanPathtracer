@@ -41,6 +41,8 @@ struct Material
 	float metallicFactor = 1.0f;
 	float roughnessFactor = 1.0f;
 	float emissiveStrength = 0.0f;
+	float transmissionFactor = 0.0f;
+	float ior = 0.0f;
 	AlphaMode alphaMode = ALPHAMODE_OPAQUE;
 };
 
