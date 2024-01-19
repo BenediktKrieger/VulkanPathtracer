@@ -180,6 +180,20 @@ void Camera::update(){
     }
 }
 
+glm::vec3 Camera::getPosition()
+{
+    return _eye;
+}
+
+glm::vec3 Camera::getDirection()
+{
+    if(_type == eTrackBall){
+        return _eye * glm::vec3(-1);
+    }else{
+        return _forward;
+    }
+}
+
 void Camera::updateSize(uint32_t width, uint32_t height)
 {
     _width = width;

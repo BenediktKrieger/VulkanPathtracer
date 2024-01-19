@@ -7,9 +7,9 @@
 
 #define PI 3.14159265358979323
 
-struct GeometryNode {
-  int indexOffset;
-  int vertexOffset;
+struct Material {
+  uint indexOffset;
+  uint vertexOffset;
   int baseColorTexture;
   int metallicRoughnessTexture;
   int normalTexture;
@@ -41,12 +41,6 @@ struct Vertex {
 	vec4 tangent;
 };
 
-layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
-layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
-layout(binding = 5, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-layout(binding = 7, set = 0) uniform sampler2D texSampler[];
-
 struct Hit {
 	vec3 color;
 };
@@ -60,6 +54,20 @@ struct RayPayload {
 	bool continueTrace;
   bool shadow;
 };
+
+
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
+layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
+layout(binding = 5, set = 0) buffer Materials { Material m[]; } materials;
+layout(binding = 7, set = 0) uniform Settings {
+  bool accumulate;
+	uint samples;
+	uint reflection_recursion;
+	uint refraction_recursion;
+  float ambient_multiplier;
+} settings;
+layout(binding = 8, set = 0) uniform sampler2D texSampler[];
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
@@ -162,56 +170,56 @@ void fresnel(const vec3 I, const vec3 N, const float ior, inout float kr, inout 
 
 void main()
 {
-  GeometryNode geometryNode = geometryNodes.nodes[gl_GeometryIndexEXT];
-  const uint triIndex = geometryNode.indexOffset + gl_PrimitiveID * 3;
+  Material material = materials.m[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
+  const uint triIndex = material.indexOffset + gl_PrimitiveID * 3;
   Vertex TriVertices[3];
   for (uint i = 0; i < 3; i++) {
-    uint index = indices.i[triIndex + i];
+    uint index = material.vertexOffset + indices.i[triIndex + i];
     TriVertices[i] = vertices.v[index];
 	}
 	vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 	vec2 uv = TriVertices[0].uv * barycentricCoords.x + TriVertices[1].uv * barycentricCoords.y + TriVertices[2].uv *  barycentricCoords.z;
   vec3 pos = TriVertices[0].pos * barycentricCoords.x + TriVertices[1].pos * barycentricCoords.y + TriVertices[2].pos * barycentricCoords.z;
   // color
-  vec3 color = geometryNode.baseColorFactor.xyz;
-  if(geometryNode.baseColorTexture >= 0){
-    color = texture(texSampler[geometryNode.baseColorTexture], uv).xyz;
+  vec3 color = material.baseColorFactor.xyz;
+  if(material.baseColorTexture >= 0){
+    color = texture(texSampler[material.baseColorTexture], uv).xyz;
   }
   // normal
   vec3 normal = normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z);
-  if(geometryNode.normalTexture >= 0){
+  if(material.normalTexture >= 0){
     vec3 tangent = normalize(TriVertices[0].tangent.xyz * barycentricCoords.x + TriVertices[1].tangent.xyz *  barycentricCoords.y + TriVertices[2].tangent.xyz *  barycentricCoords.z);
     vec3 binormal = cross(normal, tangent);
-    normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[geometryNode.normalTexture], uv).xyz * 2.0 - 1.0));
+    normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[material.normalTexture], uv).xyz * 2.0 - 1.0));
   }
   // roughness
-  float roughness = geometryNode.roughnessFactor;
+  float roughness = material.roughnessFactor;
   // metallness
-  float metallness = geometryNode.metallicFactor;
+  float metallness = material.metallicFactor;
   
   vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
   vec3 newDir;
-  if(geometryNode.emissiveStrength > 1.0 || geometryNode.emissiveTexture >= 0){
-    vec3 emission = vec3(geometryNode.emissiveStrength) * geometryNode.emissiveFactor.xyz * color;
+  if(material.emissiveStrength > 1.0 || material.emissiveTexture >= 0){
+    vec3 emission = vec3(material.emissiveStrength) * material.emissiveFactor.xyz * color;
     color = emission;
     Payload.continueTrace = false;
-  } else if(geometryNode.transmissionFactor > 0.01){
+  } else if(material.transmissionFactor > 0.01){
     // diallectic
     float reflectance = 0.0;
     float transmission = 0.0;
-    fresnel(gl_WorldRayDirectionEXT, normal, geometryNode.ior, reflectance, transmission);
+    fresnel(gl_WorldRayDirectionEXT, normal, material.ior, reflectance, transmission);
     if(reflectance > 0.999){
       newDir = reflect(gl_WorldRayDirectionEXT, normal);
     }
     else if(transmission > 0.999){
-      newDir = refractRay(gl_WorldRayDirectionEXT, normal, geometryNode.ior);
+      newDir = refractRay(gl_WorldRayDirectionEXT, normal, material.ior);
     }
     else {
       float russian_roulette = rand();
       if(russian_roulette < reflectance){
         newDir = reflect(gl_WorldRayDirectionEXT, normal);
       } else {
-        newDir = refractRay(gl_WorldRayDirectionEXT, normal, geometryNode.ior);
+        newDir = refractRay(gl_WorldRayDirectionEXT, normal, material.ior);
       }
     }
     Payload.translucentRecursion += 1;
@@ -229,11 +237,11 @@ void main()
     Payload.diffuseRecursion += 1;
   }
 
-  if(Payload.diffuseRecursion >= 5){
+  if(Payload.diffuseRecursion >= settings.reflection_recursion){
     color = vec3(0.0);
     Payload.continueTrace = false;
   }
-  if(Payload.translucentRecursion >= 7){
+  if(Payload.translucentRecursion >= settings.refraction_recursion){
     color = vec3(0.0);
     Payload.continueTrace = false;
   }

@@ -17,8 +17,16 @@ struct RayPayload {
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
 layout(binding = 6, set = 0) uniform sampler2D hdrMapSampler;
+layout(binding = 7, set = 0) uniform Settings {
+    bool accumulate;
+    uint samples;
+    uint reflection_recursion;
+    uint refraction_recursion;
+    float ambient_multiplier;
+} settings;
 
 const vec2 invAtan = vec2(0.1591, 0.3183);
+
 vec2 SampleSphericalMap(vec3 direction)
 {
     vec2 uv = vec2(atan(direction.z, direction.x), asin(direction.y));
@@ -30,7 +38,7 @@ vec2 SampleSphericalMap(vec3 direction)
 void main()
 {
     vec3 unit_direction = gl_WorldRayDirectionEXT;
-    vec3 color = texture(hdrMapSampler, SampleSphericalMap(unit_direction)).xyz;
+    vec3 color = texture(hdrMapSampler, SampleSphericalMap(unit_direction)).xyz * settings.ambient_multiplier;
     Payload.color *= color;
     Payload.continueTrace = false;
 }

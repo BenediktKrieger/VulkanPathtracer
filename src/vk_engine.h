@@ -1,7 +1,7 @@
 ﻿#pragma once
 
 #include <vk_utils.h>
-#include <vk_model.h>
+#include <vk_scene.h>
 #include <vk_shaderConverter.h>
 #include <Camera.h>
 #include <GUI.h>
@@ -20,6 +20,7 @@ public:
 
 	vkutils::PushConstants PushConstants;
 	Camera _cam;
+	float _fov;
 
 	vkutils::FrameData _frames[FRAME_OVERLAP];
 	vk::RenderPass _renderPass;
@@ -36,6 +37,10 @@ public:
 	std::vector<vk::RayTracingShaderGroupCreateInfoKHR> _shaderGroups;
 	
 	Model _model;
+	Scene _scene;
+
+	vkutils::Shadersettings _settingsUBO;
+	vkutils::AllocatedBuffer _settingsBuffer;
 
 	vkutils::AllocatedImage _depthImage;
 	vk::Format _depthFormat;
@@ -49,18 +54,7 @@ public:
 	vk::DescriptorSetLayout _rasterizerSetLayout;
 	vk::DescriptorSetLayout _raytracerSetLayout;
 
-	vkutils::AllocatedBuffer _bottomLevelASBuffer;
-	vk::DeviceAddress _bottomLevelDeviceAddress;
-	vk::AccelerationStructureKHR _bottomLevelAS;
-	
-	vkutils::AllocatedBuffer _topLevelASBuffer;
-	vk::DeviceAddress _topLevelDeviceAddress;
-	vk::AccelerationStructureKHR _topLevelAS;
-
 	vkutils::AllocatedImage _accumulationImage;
-	
-	std::vector<vkutils::GeometryNode> _materials;
-	vkutils::AllocatedBuffer _materialBuffer;
 
 	vkutils::DeletionQueue _resizeDeletionQueue;
 	vkutils::DeletionQueue _mainDeletionQueue;
@@ -90,6 +84,8 @@ private:
 	void init_accumulation_image();
 
 	void init_hdr_map();
+
+	void init_ubo();
 
 	void init_descriptors();
 

@@ -102,7 +102,7 @@ public:
 	vk::Sampler _sampler;
 	vk::Core* core;
 	Model();
-	Model(vk::Core* core);
+	Model(vk::Core &core);
 	void destroy();
 	bool load_from_glb(const char *filename);
 	std::vector<vk::DescriptorImageInfo> getTextureDescriptors();

@@ -1,19 +1,39 @@
 #include <GUI.h>
 
 vk::GUI::GUI():_core(){
-    settings.cam_pos = glm::vec3(0.0);
-    settings.cam_dir = glm::vec3(0.0);
+    settings.renderer = 0;
+    settings.cam_pos[0] = 0.f;
+    settings.cam_pos[1] = 0.f;
+    settings.cam_pos[2] = 0.f;
+    settings.cam_dir[0] = 0.f;
+    settings.cam_dir[1] = 0.f;
+    settings.cam_dir[2] = 0.f;
     settings.fov = 0;
     settings.cam_mode = 0;
     settings.accumulate = true;
     settings.samples = 1;
     settings.reflection_recursion = 6;
     settings.refraction_recursion = 8;
+    settings.ambient_multiplier = 1.f;
 }
 
 vk::GUI::GUI(vk::Core *core)
 {
     _core = core;
+    settings.renderer = 0;
+    settings.cam_pos[0] = 0.f;
+    settings.cam_pos[1] = 0.f;
+    settings.cam_pos[2] = 0.f;
+    settings.cam_dir[0] = 0.f;
+    settings.cam_dir[1] = 0.f;
+    settings.cam_dir[2] = 0.f;
+    settings.fov = 75.f;
+    settings.cam_mode = 0;
+    settings.accumulate = true;
+    settings.samples = 1;
+    settings.reflection_recursion = 6;
+    settings.refraction_recursion = 8;
+    settings.ambient_multiplier = 1.f;
     std::vector<vk::DescriptorPoolSize> poolSizes =
     {
         { vk::DescriptorType::eSampler, 1000 },
@@ -146,7 +166,6 @@ void vk::GUI::update()
     ImGui_ImplSDL3_NewFrame();
     ImGui::NewFrame();
     static bool p_dockSpaceOpen = true;
-    static bool p_showMetrics = true;
     static ImGuiDockNodeFlags dockspace_flags = ImGuiDockNodeFlags_PassthruCentralNode;
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNavFocus | ImGuiWindowFlags_NoBackground;
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
@@ -166,7 +185,7 @@ void vk::GUI::update()
             ImGui::DockSpace(dockspace_id, ImVec2(0.0f, 0.0f), dockspace_flags);
         }
 
-        ImGui::Begin("Metrics", &p_showMetrics, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse); 
+        ImGui::Begin("Metrics", NULL, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoCollapse); 
             static float values[120] = {};
             static int values_offset = 0;
             static double refresh_time = ImGui::GetTime();
@@ -190,7 +209,23 @@ void vk::GUI::update()
             ImGui::PlotLines(plotlabel, values, IM_ARRAYSIZE(values), values_offset, overlay, 0.0f, 16.666f, ImVec2(0, 100.0f));
         ImGui::End();
 
-        //ImGui::ShowDemoWindow();
+        ImGui::Begin("Settings", NULL);
+            ImGui::SeparatorText("Renderer");
+            ImGui::RadioButton("Rasterizer", &settings.renderer, 0); ImGui::SameLine();
+            ImGui::RadioButton("Pathtracer", &settings.renderer, 1);
+            ImGui::SeparatorText("Camera Setup");
+            ImGui::InputFloat3("Position", settings.cam_pos);
+            ImGui::InputFloat3("Direction", settings.cam_dir);
+            ImGui::SliderFloat("Field Of View", &settings.fov, 10.f, 150.f, "%.1f");
+            ImGui::SeparatorText("Pathtracer Setup");
+            ImGui::Checkbox("Accumulate Image", &settings.accumulate);
+            ImGui::SliderInt("Samples Per Pixel", reinterpret_cast<int *>(&settings.samples), 1, 100);
+            ImGui::SliderInt("Bounce Limit (Reflection)", reinterpret_cast<int *>(&settings.reflection_recursion), 1, 32);
+            ImGui::SliderInt("Bounce Limit (Refraction)", reinterpret_cast<int *>(&settings.refraction_recursion), 1, 32);
+            ImGui::SliderFloat("Skylight Multiplier", &settings.ambient_multiplier, 0.f, 20.f, "%.1f");
+        ImGui::End();
+
+        // ImGui::ShowDemoWindow();
     ImGui::End();
     
     ImGui::Render(); 

@@ -1,10 +1,6 @@
 #version 460
 #extension GL_EXT_ray_tracing : enable
 
-layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 1, set = 0, rgba8) uniform image2D image;
-layout(binding = 2, set = 0, rgba32f) uniform image2D accImage;
-
 layout( push_constant ) uniform constants
 {
 	mat4 invProj;
@@ -26,6 +22,17 @@ struct RayPayload {
 	bool continueTrace;
   	bool shadow;
 };
+
+layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
+layout(binding = 1, set = 0, rgba8) uniform image2D image;
+layout(binding = 2, set = 0, rgba32f) uniform image2D accImage;
+layout(binding = 7, set = 0) uniform Settings {
+  	bool accumulate;
+	uint samples;
+	uint reflection_recursion;
+	uint refraction_recursion;
+	float ambient_multiplier;
+} settings;
 
 layout(location = 0) rayPayloadEXT RayPayload Payload;
 
@@ -49,11 +56,11 @@ void main()
 
 	float tmin = 0.0001;
 	float tmax = 10000.0;
-	uint spp = 1;
+	uint spp = settings.samples;
 
 	vec3 sumofHitValues = vec3(0.0);
 
-	uint offset = (gl_LaunchIDEXT.y * gl_LaunchIDEXT.x + gl_LaunchIDEXT.x) * spp + accFrames;
+	uint offset = (gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x) * accFrames * spp;
 	for(uint i = 0; i < spp; i++){
 		const uint haltonIndex = offset + i;
 		const vec2 haltonValue = vec2(halton(2, haltonIndex), halton(3, haltonIndex));
@@ -77,14 +84,15 @@ void main()
 		sumofHitValues += Payload.color;
 	}
 
-	vec4 oldColor = imageLoad(accImage, ivec2(gl_LaunchIDEXT.xy));
-	
 	vec3 newColor = sumofHitValues / spp;
-	
-	if(accFrames > 1) {
-		newColor = oldColor.xyz * ((accFrames - 1.0) /  accFrames) + newColor * (1.0 / accFrames);
-	}
 
+	if(accFrames > 1 && settings.accumulate){
+		vec4 oldColor = imageLoad(accImage, ivec2(gl_LaunchIDEXT.xy));
+		if(accFrames > 1) {
+			newColor = oldColor.xyz * ((accFrames - 1.0) /  accFrames) + newColor * (1.0 / accFrames);
+		}
+	}
+	
 	imageStore(accImage, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
 	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
 }

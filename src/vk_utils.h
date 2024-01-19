@@ -9,18 +9,29 @@ namespace vkutils
 {
     class Settings {
     public:
+        // Renderer Settings
+        int renderer;
         // Camera Settings
-        glm::vec3 cam_pos;
+        float cam_pos[3];
         float fov;
-        glm::vec3 cam_dir;
+        float cam_dir[3];
         uint32_t cam_mode;
         // Pathtracer Settings
         bool accumulate;
         uint32_t samples;
         uint32_t reflection_recursion;
         uint32_t refraction_recursion;
+        float ambient_multiplier;
         // Scene
         
+    };
+    class Shadersettings {
+    public:
+        uint32_t accumulate;
+        uint32_t samples;
+        uint32_t reflection_recursion;
+        uint32_t refraction_recursion;
+        float ambient_multiplier;
     };
     class AllocatedBuffer {
     public:
@@ -92,10 +103,10 @@ namespace vkutils
         std::vector<vk::SurfaceFormatKHR> formats;
         std::vector<vk::PresentModeKHR> presentModes;
     };
-    class GeometryNode {
+    class Material {
     public:
-		int32_t indexOffset;
-		int32_t vertexOffset;
+		uint32_t indexOffset;
+		uint32_t vertexOffset;
         int32_t baseColorTexture;
         int32_t metallicRoughnessTexture;
         int32_t normalTexture;

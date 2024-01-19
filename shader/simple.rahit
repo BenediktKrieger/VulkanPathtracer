@@ -2,9 +2,9 @@
 #extension GL_EXT_ray_tracing : enable
 #extension GL_EXT_nonuniform_qualifier : enable
 
-struct GeometryNode {
-  int indexOffset;
-  int vertexOffset;
+struct Material {
+  uint indexOffset;
+  uint vertexOffset;
   int baseColorTexture;
   int metallicRoughnessTexture;
   int normalTexture;
@@ -40,23 +40,23 @@ hitAttributeEXT vec3 attribs;
 
 layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
 layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
-layout(binding = 5, set = 0) buffer GeometryNodes { GeometryNode nodes[]; } geometryNodes;
-layout(binding = 7, set = 0) uniform sampler2D texSampler[];
+layout(binding = 5, set = 0) buffer Materials { Material m[]; } materials;
+layout(binding = 8, set = 0) uniform sampler2D texSampler[];
 
 
 void main()
 {
-  GeometryNode geometryNode = geometryNodes.nodes[gl_GeometryIndexEXT];
-  const uint triIndex = geometryNode.indexOffset + gl_PrimitiveID * 3;
+  Material material = materials.m[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
+  const uint triIndex = material.indexOffset + gl_PrimitiveID * 3;
   Vertex TriVertices[3];
   for (uint i = 0; i < 3; i++) {
-    uint index = indices.i[triIndex + i];
+    uint index = material.vertexOffset + indices.i[triIndex + i];
     TriVertices[i] = vertices.v[index];
 	}
 	vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 	vec2 uv = TriVertices[0].uv * barycentricCoords.x + TriVertices[1].uv * barycentricCoords.y + TriVertices[2].uv * barycentricCoords.z;
-  if(geometryNode.baseColorTexture >= 0){
-    if(texture(texSampler[geometryNode.baseColorTexture], uv).a < 0.999){
+  if(material.baseColorTexture >= 0){
+    if(texture(texSampler[material.baseColorTexture], uv).a < 0.999){
       ignoreIntersectionEXT;
     }
   }

@@ -12,6 +12,8 @@ public:
     Camera();
 	Camera(Type type, SDL_Window* window, uint32_t width, uint32_t height, glm::vec3 eye, glm::vec3 center);
     void update();
+    glm::vec3 getPosition();
+    glm::vec3 getDirection();
     void updateSize(uint32_t width, uint32_t height);
     glm::mat4 getView();
     void handleInputEvent(const SDL_Event *event);

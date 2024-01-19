@@ -73,7 +73,7 @@ VertexInputDescription Vertex::get_vertex_description()
 
 Model::Model(): core(){}
 
-Model::Model(vk::Core* core): core(core){}
+Model::Model(vk::Core& core): core(&core){}
 
 void Model::destroy()
 {
@@ -159,27 +159,6 @@ void Model::loadImages(tinygltf::Model &input)
             delete[] buffer;
         }
 	}
-
-	Texture emptyTexture;
-	unsigned char* buffer = new unsigned char[4];
-	memset(buffer, 0, 4);
-
-	vk::ImageCreateInfo imageCreateInfo;
-	imageCreateInfo.imageType = vk::ImageType::e2D;
-	imageCreateInfo.format = vk::Format::eR8G8B8A8Unorm;
-	imageCreateInfo.mipLevels = 1;
-	imageCreateInfo.arrayLayers = 1;
-	imageCreateInfo.initialLayout = vk::ImageLayout::eUndefined;
-	imageCreateInfo.extent = vk::Extent3D{ 1, 1, 1 };
-	imageCreateInfo.usage = vk::ImageUsageFlagBits::eSampled;
-	emptyTexture.image = vkutils::imageFromData(*core, buffer, imageCreateInfo, vk::ImageAspectFlagBits::eColor, vma::MemoryUsage::eAutoPreferDevice);
-	emptyTexture.index = static_cast<uint32_t>(_textures.size());
-	vk::DescriptorImageInfo imageInfo;
-	imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-	imageInfo.imageView = emptyTexture.image._view;
-	imageInfo.sampler = _sampler;
-	emptyTexture.descriptor = imageInfo;
-	_textures.push_back(emptyTexture);
 }
 
 void Model::loadMaterials(tinygltf::Model &input)
