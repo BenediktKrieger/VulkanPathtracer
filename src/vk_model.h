@@ -2,9 +2,6 @@
 
 #include <Core.h>
 #include <vk_utils.h>
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
 
 struct VertexInputDescription
 {
@@ -97,15 +94,12 @@ public:
 	std::vector<Texture> _textures{};
 	std::vector<Material> _materials{};
 	std::vector<vk::TransformMatrixKHR> _transforms{};
-	vkutils::AllocatedBuffer _vertexBuffer;
-	vkutils::AllocatedBuffer _indexBuffer;
 	vk::Sampler _sampler;
 	vk::Core* core;
 	Model();
 	Model(vk::Core &core);
 	void destroy();
 	bool load_from_glb(const char *filename);
-	std::vector<vk::DescriptorImageInfo> getTextureDescriptors();
 private:
 	void loadImages(tinygltf::Model &input);
 	void loadMaterials(tinygltf::Model &input);

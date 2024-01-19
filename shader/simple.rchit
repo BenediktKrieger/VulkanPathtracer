@@ -170,6 +170,7 @@ void fresnel(const vec3 I, const vec3 N, const float ior, inout float kr, inout 
 
 void main()
 {
+  mat4 normalToWorld = transpose(inverse(mat4(gl_ObjectToWorldEXT)));
   Material material = materials.m[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
   const uint triIndex = material.indexOffset + gl_PrimitiveID * 3;
   Vertex TriVertices[3];
@@ -179,7 +180,6 @@ void main()
 	}
 	vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 	vec2 uv = TriVertices[0].uv * barycentricCoords.x + TriVertices[1].uv * barycentricCoords.y + TriVertices[2].uv *  barycentricCoords.z;
-  vec3 pos = TriVertices[0].pos * barycentricCoords.x + TriVertices[1].pos * barycentricCoords.y + TriVertices[2].pos * barycentricCoords.z;
   // color
   vec3 color = material.baseColorFactor.xyz;
   if(material.baseColorTexture >= 0){
@@ -192,6 +192,7 @@ void main()
     vec3 binormal = cross(normal, tangent);
     normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[material.normalTexture], uv).xyz * 2.0 - 1.0));
   }
+  normal = normalize((normalToWorld * vec4(normal, 1.0)).xyz);
   // roughness
   float roughness = material.roughnessFactor;
   // metallness
@@ -212,14 +213,14 @@ void main()
       newDir = reflect(gl_WorldRayDirectionEXT, normal);
     }
     else if(transmission > 0.999){
-      newDir = refractRay(gl_WorldRayDirectionEXT, normal, material.ior);
+      newDir = normalize(refractRay(gl_WorldRayDirectionEXT, normal, material.ior));
     }
     else {
       float russian_roulette = rand();
       if(russian_roulette < reflectance){
         newDir = reflect(gl_WorldRayDirectionEXT, normal);
       } else {
-        newDir = refractRay(gl_WorldRayDirectionEXT, normal, material.ior);
+        newDir = normalize(refractRay(gl_WorldRayDirectionEXT, normal, material.ior));
       }
     }
     Payload.translucentRecursion += 1;

@@ -81,8 +81,6 @@ void Model::destroy()
 		core->_device.destroyImageView(texture.image._view);
 		core->_allocator.destroyImage(texture.image._image, texture.image._allocation);
 	}
-	core->_allocator.destroyBuffer(_vertexBuffer._buffer, _vertexBuffer._allocation);
-	core->_allocator.destroyBuffer(_indexBuffer._buffer, _indexBuffer._allocation);
 	core->_device.destroySampler(_sampler);
 }
 
@@ -163,7 +161,6 @@ void Model::loadImages(tinygltf::Model &input)
 
 void Model::loadMaterials(tinygltf::Model &input)
 {
-	uint32_t texture_count = static_cast<uint32_t>(_textures.size() - 1);
 	for (tinygltf::Material &mat : input.materials)
 	{
 		Material material;
@@ -257,16 +254,6 @@ uint32_t Model::getTextureIndex(uint32_t index)
 		return index;
 	}
 	return static_cast<uint32_t>(_textures.size() - 1);
-}
-
-std::vector<vk::DescriptorImageInfo> Model::getTextureDescriptors()
-{
-	std::vector<vk::DescriptorImageInfo> descriptorImageInfos(_textures.size());
-    for (size_t i = 0; i < _textures.size(); i++)
-    {
-        descriptorImageInfos[i] = _textures[i].descriptor;
-    }
-    return descriptorImageInfos;
 }
 
 void Model::loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &input, Node *parent, std::vector<uint32_t> &indexBuffer, std::vector<Vertex> &vertexBuffer)
@@ -433,9 +420,6 @@ bool Model::load_from_glb(const char *filename)
 	tinygltf::TinyGLTF gltfContext;
 	std::string error, warning;
 
-	std::vector<uint32_t> indexBuffer;
-	std::vector<Vertex> vertexBuffer;
-
 	bool fileLoaded = gltfContext.LoadBinaryFromFile(&glTFInput, &error, &warning, filename);
 
 	if (fileLoaded)
@@ -457,10 +441,7 @@ bool Model::load_from_glb(const char *filename)
 				{
 					if (primitive->indexCount > 0)
 					{
-						vk::TransformMatrixKHR transformMatrix{};
-						auto m = glm::mat3x4(glm::transpose(node->getMatrix()));
-						memcpy(&transformMatrix, (void *)&m, sizeof(glm::mat3x4));
-						_transforms.push_back(transformMatrix);
+						_transforms.push_back(vkutils::getTransformMatrixKHR(node->getMatrix()));
 					}
 				}
 			}

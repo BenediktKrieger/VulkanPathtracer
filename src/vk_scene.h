@@ -5,12 +5,6 @@
 
 class Scene {
 public:
-    Scene();
-    Scene(vk::Core &core);
-    void add(std::string path);
-    void buildAccelerationStructure();
-    std::vector<vk::DescriptorImageInfo> getTextureDescriptors();
-    void destroy();
     vk::AccelerationStructureKHR tlas;
     vkutils::AllocatedBuffer vertexBuffer;
     vkutils::AllocatedBuffer indexBuffer;
@@ -20,13 +14,23 @@ public:
     std::vector<vkutils::Material> materials{};
     std::vector<Texture> textures{};
     std::vector<Model *> models{};
+    std::vector<glm::mat4> modelMatrices{};
+    
+    Scene();
+    Scene(vk::Core &core);
+    void add(std::string path, glm::mat4 transform = glm::mat4(1.0));
+    void buildAccelerationStructure();
+    void destroy();
 private:
     vk::Core* core;
     vk::Sampler sampler;
+    
     std::vector<vkutils::AllocatedBuffer> blasBuffer{};
     std::vector<vk::DeviceAddress> blasAddress{};
     std::vector<vk::AccelerationStructureKHR> blas{};
-
     vkutils::AllocatedBuffer tlasBuffer;
     vk::DeviceAddress tlasAddress;
+    
+    std::vector<vk::TransformMatrixKHR> tlasTransforms{};
+    void createEmptyTexture();
 };

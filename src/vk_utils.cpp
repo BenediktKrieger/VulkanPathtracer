@@ -506,6 +506,14 @@ void vkutils::setImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::ImageLa
     cmd.pipelineBarrier(srcMask, dstMask, {}, {}, {}, barrier);
 }
 
+vk::TransformMatrixKHR vkutils::getTransformMatrixKHR(glm::mat4 mat)
+{
+    vk::TransformMatrixKHR transformMatrix{};
+    auto m = glm::mat3x4(glm::transpose(mat));
+    memcpy(&transformMatrix, (void *)&m, sizeof(glm::mat3x4));
+    return transformMatrix;
+}
+
 uint32_t vkutils::alignedSize(uint32_t value, uint32_t alignment)
 {
     return (value + alignment - 1) & ~(alignment - 1);

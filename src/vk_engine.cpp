@@ -125,18 +125,21 @@ void VulkanEngine::draw()
 			cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _rasterizerPipelineLayout, 0, get_current_frame()._rasterizerDescriptor, {});
 			uint32_t vertexOffset = 0;
 			uint32_t indexOffset = 0;
+			uint32_t modelMatrixIndex = 0;
 			for (auto model : _scene.models){
+				glm::mat4 modelMatrix = _scene.modelMatrices[modelMatrixIndex];
 				for (auto node : model->_linearNodes)
 				{
 					for(auto primitive : node->primitives)
 					{
-						PushConstants.model = node->getMatrix();
+						PushConstants.model = modelMatrix * node->getMatrix();
 						cmd.pushConstants(_rasterizerPipelineLayout, vk::ShaderStageFlagBits::eVertex, 0, sizeof(vkutils::PushConstants), &PushConstants);
 						cmd.drawIndexed(primitive->indexCount, 1, indexOffset + primitive->firstIndex, vertexOffset, 0);
 					}
 				}
-				vertexOffset += model->_vertices.size();
-				indexOffset += model->_indices.size();
+				vertexOffset += (uint32_t) model->_vertices.size();
+				indexOffset += (uint32_t) model->_indices.size();
+				modelMatrixIndex += 1;
 			}
 			cmd.endRenderPass();
 		}
@@ -1108,7 +1111,11 @@ void VulkanEngine::init_descriptors()
             textureImageWrite.dstBinding = 8;
             textureImageWrite.dstArrayElement = 0;
             textureImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-			std::vector<vk::DescriptorImageInfo> imageInfos = _scene.getTextureDescriptors();
+			std::vector<vk::DescriptorImageInfo> imageInfos{};
+			for (auto& texture : _scene.textures)
+			{
+				imageInfos.push_back(texture.descriptor);
+			}
             textureImageWrite.setImageInfo(imageInfos);
 
 			std::vector<vk::WriteDescriptorSet> setWrites = {
@@ -1161,8 +1168,14 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 void VulkanEngine::load_models()
 {
 	_scene = Scene(_core);
-	_scene.add(ASSET_PATH"/models/san_miguel.glb");
-	//_scene.add(ASSET_PATH"/models/bathroom.glb");
+
+	//glm::mat4 transformSphere = glm::rotate(glm::translate(glm::scale(glm::mat4(1.0f), glm::vec3(0.3f)), glm::vec3(-1.5f, -3.3f, 2.0f)), glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
+	glm::mat4 transformSphere = glm::translate(glm::mat4(1.0f), glm::vec3(-0.7f, -1.f, -1.5f));
+	_scene.add(ASSET_PATH"/models/sphere.glb", transformSphere);
+	_scene.add(ASSET_PATH"/models/bistro.glb");
+	// glm::mat4 transformBuddah = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, 3.0f)), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	// _scene.add(ASSET_PATH"/models/buddha.glb", transformBuddah);
+	// _scene.add(ASSET_PATH"/models/bathroom.glb");
 	_scene.buildAccelerationStructure();
 	_mainDeletionQueue.push_function([&]() {
 		_scene.destroy();
@@ -1190,7 +1203,7 @@ void VulkanEngine::updateBuffers() {
 		PushConstants.accumulatedFrames = 0;
 		_cam.changed = false;
 	}
-	if(_settingsUBO.accumulate != _gui.settings.accumulate > 0 || _settingsUBO.samples != _gui.settings.samples || _settingsUBO.reflection_recursion != _gui.settings.reflection_recursion || _settingsUBO.refraction_recursion != _gui.settings.refraction_recursion || _gui.settings.fov != _fov || _settingsUBO.ambient_multiplier != _gui.settings.ambient_multiplier){
+	if((_settingsUBO.accumulate > 0) != _gui.settings.accumulate || _settingsUBO.samples != _gui.settings.samples || _settingsUBO.reflection_recursion != _gui.settings.reflection_recursion || _settingsUBO.refraction_recursion != _gui.settings.refraction_recursion || _gui.settings.fov != _fov || _settingsUBO.ambient_multiplier != _gui.settings.ambient_multiplier){
 		_cam.changed = true;
 	}
 	// shwo cam pos
@@ -1213,282 +1226,6 @@ void VulkanEngine::updateBuffers() {
 	    memcpy(mapped, &_settingsUBO, sizeof(vkutils::Shadersettings));
 	_core._allocator.unmapMemory(_settingsBuffer._allocation);
 }
-
-// void VulkanEngine::upload_model(Model &model)
-// {
-// 	vk::DeviceSize vertexBufferSize = model._vertices.size() * sizeof(Vertex);
-// 	vk::DeviceSize indexBufferSize = model._indices.size() * sizeof(uint32_t);
-
-// 	std::cout << "Vertex Count: " << model._vertices.size() << std::endl;
-// 	model._vertexBuffer = vkutils::deviceBufferFromData(_core, (void*) model._vertices.data(), vertexBufferSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
-// 	model._indexBuffer = vkutils::deviceBufferFromData(_core, (void*) model._indices.data(), indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
-// }
-
-// void VulkanEngine::init_bottom_level_acceleration_structure(Model &model)
-// {
-// 	std::vector<vk::TransformMatrixKHR> transformMatrices;
-// 	for (auto node : model._linearNodes) {
-// 		for (auto primitive : node->primitives) {
-// 			if (primitive->indexCount > 0) {
-// 				vk::TransformMatrixKHR transformMatrix{};
-// 				auto m = glm::mat3x4(glm::transpose(node->getMatrix()));
-// 				memcpy(&transformMatrix, (void*)&m, sizeof(glm::mat3x4));
-// 				transformMatrices.push_back(transformMatrix);
-// 			}
-// 		}
-// 	}
-
-// 	vk::DeviceSize transformBufferSize = transformMatrices.size() * sizeof(vk::TransformMatrixKHR);
-// 	vkutils::AllocatedBuffer transformBuffer = vkutils::deviceBufferFromData(_core, transformMatrices.data(), transformBufferSize, vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
-
-// 	// Build BLAS
-// 	uint32_t maxPrimCount{ 0 };
-// 	std::vector<uint32_t> maxPrimitiveCounts{};
-// 	std::vector<vk::AccelerationStructureGeometryKHR> geometries{};
-// 	std::vector<vk::AccelerationStructureBuildRangeInfoKHR> buildRangeInfos{};
-// 	std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> pBuildRangeInfos{};
-// 	vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress;
-// 	vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress;
-// 	vk::DeviceOrHostAddressConstKHR transformBufferDeviceAddress;
-// 	vk::BufferDeviceAddressInfo vertexBufferAdressInfo(model._vertexBuffer._buffer);
-// 	vk::BufferDeviceAddressInfo indexBufferAdressInfo(model._indexBuffer._buffer);
-// 	vk::BufferDeviceAddressInfo transformBufferAdressInfo(transformBuffer._buffer);
-// 	for (auto node : model._linearNodes) {
-// 		for (auto primitive : node->primitives) {
-// 			if (primitive->indexCount > 0) {
-// 				//Device Addresses
-// 				vk::DeviceOrHostAddressConstKHR vertexBufferDeviceAddress;
-// 				vk::DeviceOrHostAddressConstKHR indexBufferDeviceAddress;
-// 				vk::DeviceOrHostAddressConstKHR transformBufferDeviceAddress;
-// 				vertexBufferDeviceAddress.deviceAddress = _core._device.getBufferAddress(vertexBufferAdressInfo);
-// 				indexBufferDeviceAddress.deviceAddress = _core._device.getBufferAddress(indexBufferAdressInfo) + primitive->firstIndex * sizeof(uint32_t);
-// 				transformBufferDeviceAddress.deviceAddress = _core._device.getBufferAddress(transformBufferAdressInfo) + static_cast<uint32_t>(geometries.size()) * sizeof(vk::TransformMatrixKHR);
-
-// 				//Create Geometry for every gltf primitive (node)
-// 				vk::AccelerationStructureGeometryTrianglesDataKHR triangles;
-// 				triangles.vertexFormat = vk::Format::eR32G32B32Sfloat;
-// 				triangles.maxVertex = static_cast<uint32_t>(model._vertices.size());
-// 				triangles.vertexStride = sizeof(Vertex);
-// 				triangles.indexType = vk::IndexType::eUint32;
-// 				triangles.vertexData = vertexBufferDeviceAddress;
-// 				triangles.indexData = indexBufferDeviceAddress;
-// 				triangles.transformData = transformBufferDeviceAddress;
-
-// 				vk::AccelerationStructureGeometryKHR geometry;
-// 				geometry.geometryType = vk::GeometryTypeKHR::eTriangles;
-// 				geometry.geometry.triangles = triangles;
-// 				if(primitive->material.alphaMode != Material::ALPHAMODE_OPAQUE)
-// 				{
-// 					geometry.flags = vk::GeometryFlagBitsKHR::eNoDuplicateAnyHitInvocation;
-// 				}
-// 				else
-// 				{
-// 					geometry.flags = vk::GeometryFlagBitsKHR::eOpaque;
-// 				}
-
-// 				geometries.push_back(geometry);
-// 				maxPrimitiveCounts.push_back(primitive->indexCount / 3);
-// 				maxPrimCount += primitive->indexCount / 3;
-
-// 				vk::AccelerationStructureBuildRangeInfoKHR buildRangeInfo;
-// 				buildRangeInfo.firstVertex = 0;
-// 				buildRangeInfo.primitiveOffset = 0;
-// 				buildRangeInfo.primitiveCount = primitive->indexCount / 3;
-// 				buildRangeInfo.transformOffset = 0;
-// 				buildRangeInfos.push_back(buildRangeInfo);
-				
-// 				//push Material in same order to Reference it
-// 				vkutils::Material material{};
-// 				material.indexOffset = primitive->firstIndex;
-// 				material.vertexOffset = 0;
-// 				material.baseColorTexture = primitive->material.baseColorTexture;
-// 				material.diffuseTexture = primitive->material.diffuseTexture;
-// 				material.emissiveTexture = primitive->material.emissiveTexture;
-// 				material.metallicRoughnessTexture = primitive->material.metallicRoughnessTexture;
-// 				material.normalTexture = primitive->material.normalTexture;
-// 				material.occlusionTexture = primitive->material.occlusionTexture;
-// 				material.metallicFactor = primitive->material.metallicFactor;
-// 				material.roughnessFactor = primitive->material.roughnessFactor;
-// 				material.alphaMode = primitive->material.alphaMode;
-// 				material.alphaCutoff = primitive->material.alphaCutoff;
-// 				material.baseColorFactor[0] = primitive->material.baseColorFactor.x;
-// 				material.baseColorFactor[1] = primitive->material.baseColorFactor.y;
-// 				material.baseColorFactor[2] = primitive->material.baseColorFactor.z;
-// 				material.baseColorFactor[3] = primitive->material.baseColorFactor.w;
-// 				material.emissiveFactor[0] = primitive->material.emissiveFactor.x;
-// 				material.emissiveFactor[1] = primitive->material.emissiveFactor.y;
-// 				material.emissiveFactor[2] = primitive->material.emissiveFactor.z;
-// 				material.emissiveFactor[3] = primitive->material.emissiveFactor.w;
-// 				material.emissiveStrength = primitive->material.emissiveStrength;
-// 				material.transmissionFactor = primitive->material.transmissionFactor;
-// 				material.ior = primitive->material.ior;
-// 				_materials.push_back(material);
-// 			}
-// 		}
-// 	}
-// 	for (auto& rangeInfo : buildRangeInfos) {
-// 		pBuildRangeInfos.push_back(&rangeInfo);
-// 	}
-
-// 	// Get size info
-// 	vk::AccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo;
-// 	accelerationStructureBuildGeometryInfo.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
-// 	accelerationStructureBuildGeometryInfo.flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace;
-// 	accelerationStructureBuildGeometryInfo.geometryCount = static_cast<uint32_t>(geometries.size());
-// 	accelerationStructureBuildGeometryInfo.pGeometries = geometries.data();
-
-// 	auto accelerationStructureBuildSizesInfo = _core._device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, maxPrimitiveCounts);
-
-// 	//Build BLAS Buffer
-// 	_bottomLevelASBuffer = vkutils::createBuffer(_core, accelerationStructureBuildSizesInfo.accelerationStructureSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR, vma::MemoryUsage::eAutoPreferDevice);
-
-// 	vk::DeviceSize geometryNodesBufferSize = static_cast<uint32_t>(_materials.size()) * sizeof(vkutils::Material);
-// 	_materialBuffer =  vkutils::deviceBufferFromData(_core, _materials.data(), geometryNodesBufferSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice);
-
-// 	//Get BLAS Handle
-// 	vk::AccelerationStructureCreateInfoKHR accelerationStructureCreateInfo;
-// 	accelerationStructureCreateInfo.type = vk::AccelerationStructureTypeKHR::eBottomLevel;
-// 	accelerationStructureCreateInfo.buffer = _bottomLevelASBuffer._buffer;
-// 	accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-// 	_bottomLevelAS = _core._device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
-
-// 	_mainDeletionQueue.push_function([=]() {
-// 		_core._allocator.destroyBuffer(_materialBuffer._buffer, _materialBuffer._allocation);
-// 		_core._allocator.destroyBuffer(_bottomLevelASBuffer._buffer, _bottomLevelASBuffer._allocation);
-// 		_core._device.destroyAccelerationStructureKHR(_bottomLevelAS);
-// 	});
-
-// 	// Create ScratchBuffer
-// 	vkutils::AllocatedBuffer scratchBuffer = vkutils::createBuffer(_core, accelerationStructureBuildSizesInfo.buildScratchSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eDedicatedMemory);
-// 	vk::BufferDeviceAddressInfo scratchBufferAdressInfo(scratchBuffer._buffer);
-// 	vk::DeviceOrHostAddressConstKHR scratchBufferAddress;
-// 	scratchBufferAddress.deviceAddress = _core._device.getBufferAddress(scratchBufferAdressInfo);
-
-// 	accelerationStructureBuildGeometryInfo.mode = vk::BuildAccelerationStructureModeKHR::eBuild;
-// 	accelerationStructureBuildGeometryInfo.dstAccelerationStructure = _bottomLevelAS;
-// 	accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = scratchBufferAddress.deviceAddress;
-
-// 	// Create Single-Use CommandBuffer and Build Acceleration Structure on GPU
-// 	vk::CommandBufferAllocateInfo allocInfo{};
-//     allocInfo.level = vk::CommandBufferLevel::ePrimary;
-//     allocInfo.commandPool = _core._cmdPool;
-//     allocInfo.commandBufferCount = 1;
-
-//     vk::CommandBuffer commandBuffer = _core._device.allocateCommandBuffers(allocInfo).front();
-
-//     vk::CommandBufferBeginInfo beginInfo{};
-//     beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-
-//     commandBuffer.begin(beginInfo);
-// 		commandBuffer.buildAccelerationStructuresKHR(1, &accelerationStructureBuildGeometryInfo, pBuildRangeInfos.data());
-//     commandBuffer.end();
-
-//     vk::SubmitInfo submitInfo{};
-//     submitInfo.setCommandBuffers(commandBuffer);
-//     _core._graphicsQueue.submit(submitInfo);
-//     _core._graphicsQueue.waitIdle();
-//     _core._device.freeCommandBuffers(_core._cmdPool, commandBuffer);
-
-// 	vk::AccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo;
-// 	accelerationDeviceAddressInfo.accelerationStructure = _bottomLevelAS;
-// 	_bottomLevelDeviceAddress = _core._device.getAccelerationStructureAddressKHR(accelerationDeviceAddressInfo);
-
-// 	//delete Scratch Buffer
-// 	_core._allocator.destroyBuffer(scratchBuffer._buffer, scratchBuffer._allocation);
-// 	_core._allocator.destroyBuffer(transformBuffer._buffer, transformBuffer._allocation);
-// }
-
-// void VulkanEngine::init_top_level_acceleration_structure()
-// {
-// 	vk::TransformMatrixKHR transformMatrix = std::array<std::array<float, 4>, 3>{
-// 		1.0f, 0.0f, 0.0f, 0.0f,
-// 		0.0f, 1.0f, 0.0f, 0.0f,
-// 		0.0f, 0.0f, 1.0f, 0.0f 
-// 	};
-
-
-// 	vk::AccelerationStructureInstanceKHR instance(transformMatrix, 0, 0xFF, 0, vk::GeometryInstanceFlagBitsKHR::eTriangleFacingCullDisable, _bottomLevelDeviceAddress);
-
-// 	vkutils::AllocatedBuffer instancesBuffer = vkutils::deviceBufferFromData(_core, &instance, sizeof(vk::AccelerationStructureInstanceKHR), vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eShaderDeviceAddress, vma::MemoryUsage::eAutoPreferDevice);
-
-// 	vk::DeviceOrHostAddressConstKHR instanceDataDeviceAddress;
-// 	vk::BufferDeviceAddressInfo instanceBufferAdressInfo(instancesBuffer._buffer);
-// 	instanceDataDeviceAddress.deviceAddress = _core._device.getBufferAddress(instanceBufferAdressInfo);
-
-// 	vk::AccelerationStructureGeometryInstancesDataKHR instances(VK_FALSE, instanceDataDeviceAddress);
-
-// 	vk::AccelerationStructureGeometryKHR accelerationStructureGeometry;
-// 	accelerationStructureGeometry.geometryType = vk::GeometryTypeKHR::eInstances;
-// 	accelerationStructureGeometry.geometry.instances = instances;
-
-// 	vk::AccelerationStructureBuildGeometryInfoKHR accelerationStructureBuildGeometryInfo;
-// 	accelerationStructureBuildGeometryInfo.type = vk::AccelerationStructureTypeKHR::eTopLevel;
-// 	accelerationStructureBuildGeometryInfo.flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace;
-// 	accelerationStructureBuildGeometryInfo.setGeometries(accelerationStructureGeometry);
-
-// 	uint32_t primitive_count = 1;
-
-// 	auto accelerationStructureBuildSizesInfo = _core._device.getAccelerationStructureBuildSizesKHR(vk::AccelerationStructureBuildTypeKHR::eDevice, accelerationStructureBuildGeometryInfo, primitive_count);
-
-// 	_topLevelASBuffer = vkutils::createBuffer(_core, accelerationStructureBuildSizesInfo.accelerationStructureSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eDedicatedMemory);
-
-// 	vk::AccelerationStructureCreateInfoKHR accelerationStructureCreateInfo;
-// 	accelerationStructureCreateInfo.buffer = _topLevelASBuffer._buffer;
-// 	accelerationStructureCreateInfo.size = accelerationStructureBuildSizesInfo.accelerationStructureSize;
-// 	accelerationStructureCreateInfo.type = vk::AccelerationStructureTypeKHR::eTopLevel;
-
-// 	_topLevelAS = _core._device.createAccelerationStructureKHR(accelerationStructureCreateInfo);
-
-// 	_mainDeletionQueue.push_function([=]() {
-// 		_core._allocator.destroyBuffer(_topLevelASBuffer._buffer, _topLevelASBuffer._allocation);
-// 		_core._device.destroyAccelerationStructureKHR(_topLevelAS);
-// 	});
-
-// 	vkutils::AllocatedBuffer scratchBuffer = vkutils::createBuffer(_core, accelerationStructureBuildSizesInfo.buildScratchSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eDedicatedMemory);
-// 	vk::BufferDeviceAddressInfo scratchBufferAdressInfo(scratchBuffer._buffer);
-// 	vk::DeviceOrHostAddressConstKHR scratchBufferAddress;
-// 	scratchBufferAddress.deviceAddress = _core._device.getBufferAddress(scratchBufferAdressInfo);
-
-// 	accelerationStructureBuildGeometryInfo.mode = vk::BuildAccelerationStructureModeKHR::eBuild;
-// 	accelerationStructureBuildGeometryInfo.dstAccelerationStructure = _topLevelAS;
-// 	accelerationStructureBuildGeometryInfo.scratchData.deviceAddress = scratchBufferAddress.deviceAddress;
-
-// 	vk::AccelerationStructureBuildRangeInfoKHR accelerationStructureBuildRangeInfo;
-// 	accelerationStructureBuildRangeInfo.primitiveCount = 1;
-// 	accelerationStructureBuildRangeInfo.primitiveOffset = 0;
-// 	accelerationStructureBuildRangeInfo.firstVertex = 0;
-// 	accelerationStructureBuildRangeInfo.transformOffset = 0;
-
-// 	std::vector<vk::AccelerationStructureBuildRangeInfoKHR*> accelerationBuildStructureRangeInfos = { &accelerationStructureBuildRangeInfo };
-
-// 	vk::CommandBufferAllocateInfo allocInfo{};
-//     allocInfo.level = vk::CommandBufferLevel::ePrimary;
-//     allocInfo.commandPool = _core._cmdPool;
-//     allocInfo.commandBufferCount = 1;
-
-//     vk::CommandBuffer cmd = _core._device.allocateCommandBuffers(allocInfo).front();
-
-//     vk::CommandBufferBeginInfo beginInfo{};
-//     beginInfo.flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit;
-
-//     cmd.begin(beginInfo);
-// 		cmd.buildAccelerationStructuresKHR(1, &accelerationStructureBuildGeometryInfo, accelerationBuildStructureRangeInfos.data());
-//     cmd.end();
-
-//     vk::SubmitInfo submitInfo{};
-//     submitInfo.setCommandBuffers(cmd);
-//     _core._graphicsQueue.submit(submitInfo);
-//     _core._graphicsQueue.waitIdle();
-//     _core._device.freeCommandBuffers(_core._cmdPool, cmd);
-
-// 	vk::AccelerationStructureDeviceAddressInfoKHR accelerationDeviceAddressInfo;
-// 	accelerationDeviceAddressInfo.accelerationStructure = _topLevelAS;
-
-// 	_topLevelDeviceAddress = _core._device.getAccelerationStructureAddressKHR(accelerationDeviceAddressInfo);
-
-// 	_core._allocator.destroyBuffer(scratchBuffer._buffer, scratchBuffer._allocation);
-// 	_core._allocator.destroyBuffer(instancesBuffer._buffer, instancesBuffer._allocation);
-// }
 
 vkutils::AllocatedImage VulkanEngine::createStorageImage(vk::Format format, uint32_t width, uint32_t height)
 {

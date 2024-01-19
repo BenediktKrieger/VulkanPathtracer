@@ -143,5 +143,6 @@ namespace vkutils
     void copyBuffer(vk::Core &core, vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
     void copyImageBuffer(vk::Core &core, vk::Buffer srcBuffer, vk::Image dstImage, uint32_t width, uint32_t height);
     void setImageLayout(vk::CommandBuffer cmd, vk::Image image, vk::ImageLayout oldLayout, vk::ImageLayout newLayout, vk::ImageSubresourceRange subresourceRange, vk::PipelineStageFlags srcMask = vk::PipelineStageFlagBits::eAllCommands, vk::PipelineStageFlags dstMask = vk::PipelineStageFlagBits::eAllCommands);
+    vk::TransformMatrixKHR getTransformMatrixKHR(glm::mat4 mat);
     uint32_t alignedSize(uint32_t value, uint32_t alignment);
 }
