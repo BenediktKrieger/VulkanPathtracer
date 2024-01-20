@@ -1,5 +1,6 @@
 ﻿#include <vk_engine.h>
 #include <stb_image.h>
+#include <thread>
 
 void VulkanEngine::init()
 {
@@ -119,15 +120,15 @@ void VulkanEngine::draw()
 			scissor.extent = _core._windowExtent;
 			cmd.setScissor(0, scissor);
 
-			cmd.bindVertexBuffers(0, 1, &_scene.vertexBuffer._buffer, &offset);
-			cmd.bindIndexBuffer(_scene.indexBuffer._buffer, offset, vk::IndexType::eUint32);
+			cmd.bindVertexBuffers(0, 1, &_currentScene->vertexBuffer._buffer, &offset);
+			cmd.bindIndexBuffer(_currentScene->indexBuffer._buffer, offset, vk::IndexType::eUint32);
 			cmd.bindPipeline(vk::PipelineBindPoint::eGraphics, _rasterizerPipeline);
 			cmd.bindDescriptorSets(vk::PipelineBindPoint::eGraphics, _rasterizerPipelineLayout, 0, get_current_frame()._rasterizerDescriptor, {});
 			uint32_t vertexOffset = 0;
 			uint32_t indexOffset = 0;
 			uint32_t modelMatrixIndex = 0;
-			for (auto model : _scene.models){
-				glm::mat4 modelMatrix = _scene.modelMatrices[modelMatrixIndex];
+			for (auto model : _currentScene->models){
+				glm::mat4 modelMatrix = _currentScene->modelMatrices[modelMatrixIndex];
 				for (auto node : model->_linearNodes)
 				{
 					for(auto primitive : node->primitives)
@@ -836,7 +837,7 @@ void VulkanEngine::init_pipelines()
 		vk::DescriptorSetLayoutBinding textureLayoutBinding{};
         textureLayoutBinding.binding = 8;
         textureLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-        textureLayoutBinding.descriptorCount = static_cast<uint32_t>(_scene.textures.size());
+        textureLayoutBinding.descriptorCount = static_cast<uint32_t>(_currentScene->textures.size());
         textureLayoutBinding.pImmutableSamplers = nullptr;
         textureLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
@@ -980,9 +981,9 @@ void VulkanEngine::init_descriptors()
 			_frames[i]._rasterizerDescriptor = _core._device.allocateDescriptorSets(allocInfo).front();
 
 			vk::DescriptorBufferInfo binfo;
-			binfo.buffer = _scene.materialBuffer._buffer;
+			binfo.buffer = _currentScene->materialBuffer._buffer;
 			binfo.offset = 0;
-			binfo.range = _scene.materials.size() * sizeof(vkutils::Material);
+			binfo.range = _currentScene->materials.size() * sizeof(vkutils::Material);
 
 			vk::WriteDescriptorSet setWrite;
 			setWrite.dstBinding = 0;
@@ -1003,7 +1004,7 @@ void VulkanEngine::init_descriptors()
 			{ vk::DescriptorType::eStorageBuffer, 1 },
 			{ vk::DescriptorType::eStorageBuffer, 1 },
 			{ vk::DescriptorType::eStorageBuffer, 1 },
-			{ vk::DescriptorType::eCombinedImageSampler, static_cast<uint32_t>(_scene.textures.size())}
+			{ vk::DescriptorType::eCombinedImageSampler, static_cast<uint32_t>(_currentScene->textures.size())}
 		};
 		vk::DescriptorPoolCreateInfo pool_info;
 		pool_info.setMaxSets(2);
@@ -1023,7 +1024,7 @@ void VulkanEngine::init_descriptors()
 
 			vk::WriteDescriptorSetAccelerationStructureKHR descriptorAccelerationStructureInfo;
 			descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
-			descriptorAccelerationStructureInfo.pAccelerationStructures = &_scene.tlas;
+			descriptorAccelerationStructureInfo.pAccelerationStructures = &_currentScene->tlas;
 			vk::WriteDescriptorSet accelerationStructureWrite;
 			accelerationStructureWrite.pNext = &descriptorAccelerationStructureInfo;
 			accelerationStructureWrite.dstSet = _frames[i]._raytracerDescriptor;
@@ -1052,9 +1053,9 @@ void VulkanEngine::init_descriptors()
 			accumulationImageWrite.descriptorCount = 1;
 
 			vk::DescriptorBufferInfo indexDescriptor;
-			indexDescriptor.buffer = _scene.indexBuffer._buffer;
+			indexDescriptor.buffer = _currentScene->indexBuffer._buffer;
 			indexDescriptor.offset = 0;
-			indexDescriptor.range = _scene.indices.size() * sizeof(uint32_t);
+			indexDescriptor.range = _currentScene->indices.size() * sizeof(uint32_t);
 			vk::WriteDescriptorSet indexBufferWrite;
 			indexBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			indexBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
@@ -1063,9 +1064,9 @@ void VulkanEngine::init_descriptors()
 			indexBufferWrite.descriptorCount = 1;
 
 			vk::DescriptorBufferInfo vertexDescriptor;
-			vertexDescriptor.buffer = _scene.vertexBuffer._buffer;
+			vertexDescriptor.buffer = _currentScene->vertexBuffer._buffer;
 			vertexDescriptor.offset = 0;
-			vertexDescriptor.range = _scene.vertices.size() * sizeof(Vertex);
+			vertexDescriptor.range = _currentScene->vertices.size() * sizeof(Vertex);
 			vk::WriteDescriptorSet vertexBufferWrite;
 			vertexBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			vertexBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
@@ -1074,9 +1075,9 @@ void VulkanEngine::init_descriptors()
 			vertexBufferWrite.descriptorCount = 1;
 
 			vk::DescriptorBufferInfo uboDescriptor;
-			uboDescriptor.buffer = _scene.materialBuffer._buffer;
+			uboDescriptor.buffer = _currentScene->materialBuffer._buffer;
 			uboDescriptor.offset = 0;
-			uboDescriptor.range = _scene.materials.size() * sizeof(vkutils::Material);
+			uboDescriptor.range = _currentScene->materials.size() * sizeof(vkutils::Material);
 			vk::WriteDescriptorSet uniformBufferWrite;
 			uniformBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			uniformBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
@@ -1112,7 +1113,7 @@ void VulkanEngine::init_descriptors()
             textureImageWrite.dstArrayElement = 0;
             textureImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
 			std::vector<vk::DescriptorImageInfo> imageInfos{};
-			for (auto& texture : _scene.textures)
+			for (auto& texture : _currentScene->textures)
 			{
 				imageInfos.push_back(texture.descriptor);
 			}
@@ -1167,18 +1168,31 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 
 void VulkanEngine::load_models()
 {
-	_scene = Scene(_core);
-
+	Scene* scene1 = new Scene(_core);
 	//glm::mat4 transformSphere = glm::rotate(glm::translate(glm::scale(glm::mat4(1.0f), glm::vec3(0.3f)), glm::vec3(-1.5f, -3.3f, 2.0f)), glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
 	glm::mat4 transformSphere = glm::translate(glm::mat4(1.0f), glm::vec3(-0.7f, -1.f, -1.5f));
-	_scene.add(ASSET_PATH"/models/sphere.glb", transformSphere);
-	_scene.add(ASSET_PATH"/models/bistro.glb");
+	std::thread worker1([&]() {scene1->add(ASSET_PATH"/models/sponza.glb", transformSphere);});
+	std::thread worker2([&]() {scene1->add(ASSET_PATH"/models/bistro.glb");});
+	worker1.join();
+	worker2.join();
 	// glm::mat4 transformBuddah = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, 3.0f)), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	// _scene.add(ASSET_PATH"/models/buddha.glb", transformBuddah);
 	// _scene.add(ASSET_PATH"/models/bathroom.glb");
-	_scene.buildAccelerationStructure();
+	scene1->build();
+	scene1->buildAccelerationStructure();
+	_currentScene = scene1;
+	_scenes.push_back(scene1);
+
+	Scene* scene2 = new Scene(_core);
+	scene2->add(ASSET_PATH"/models/san_miguel.glb");
+	scene2->add(ASSET_PATH"/models/sponza.glb");
+	_scenes.push_back(scene2);
+
 	_mainDeletionQueue.push_function([&]() {
-		_scene.destroy();
+		for(auto& scene : _scenes){
+			scene->destroy();
+			delete scene;
+		}
 	});
 }
 

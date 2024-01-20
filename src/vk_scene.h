@@ -19,11 +19,13 @@ public:
     Scene();
     Scene(vk::Core &core);
     void add(std::string path, glm::mat4 transform = glm::mat4(1.0));
+    void build();
     void buildAccelerationStructure();
     void destroy();
 private:
     vk::Core* core;
     vk::Sampler sampler;
+    bool _isBuilded;
     
     std::vector<vkutils::AllocatedBuffer> blasBuffer{};
     std::vector<vk::DeviceAddress> blasAddress{};

@@ -71,20 +71,31 @@ VertexInputDescription Vertex::get_vertex_description()
 	return description;
 }
 
-Model::Model(): core(){}
+Model::Model(): core(){
+	isBuilded = false;
+}
 
-Model::Model(vk::Core& core): core(&core){}
+Model::Model(vk::Core& core): core(&core){
+	isBuilded = false;
+}
 
 void Model::destroy()
 {
-	for(Texture &texture : _textures){
-		core->_device.destroyImageView(texture.image._view);
-		core->_allocator.destroyImage(texture.image._image, texture.image._allocation);
+	if(isBuilded){
+		for(auto& node : _linearNodes) {
+			delete node;
+		}
+		
+		for(auto& texture : _textures) {
+			core->_device.destroyImageView(texture.image._view);
+			core->_allocator.destroyImage(texture.image._image, texture.image._allocation);
+		}
+		core->_device.destroySampler(_sampler);
+		_textures.clear();
 	}
-	core->_device.destroySampler(_sampler);
 }
 
-void Model::loadImages(tinygltf::Model &input)
+void Model::loadImages()
 {
 	vk::SamplerCreateInfo samplerInfo;
 	samplerInfo.magFilter = vk::Filter::eLinear;
@@ -100,7 +111,7 @@ void Model::loadImages(tinygltf::Model &input)
 	samplerInfo.anisotropyEnable = true;
 	_sampler = core->_device.createSampler(samplerInfo);
 
-	for (tinygltf::Image &image : input.images) {
+	for (tinygltf::Image &image : _input.images) {
 		Texture texture;
 		unsigned char* buffer = nullptr;
 		vk::DeviceSize bufferSize = 0;
@@ -159,9 +170,9 @@ void Model::loadImages(tinygltf::Model &input)
 	}
 }
 
-void Model::loadMaterials(tinygltf::Model &input)
+void Model::loadMaterials()
 {
-	for (tinygltf::Material &mat : input.materials)
+	for (tinygltf::Material &mat : _input.materials)
 	{
 		Material material;
 
@@ -222,25 +233,25 @@ void Model::loadMaterials(tinygltf::Model &input)
 			material.alphaCutoff = static_cast<float>(mat.additionalValues["alphaCutoff"].Factor());
 		}
 		if (mat.values.find("baseColorTexture") != mat.values.end()) {
-			material.baseColorTexture = getTextureIndex(input.textures[mat.values["baseColorTexture"].TextureIndex()].source);
+			material.baseColorTexture = getTextureIndex(_input.textures[mat.values["baseColorTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("metallicRoughnessTexture") != mat.values.end()) {
-			material.metallicRoughnessTexture = getTextureIndex(input.textures[mat.values["metallicRoughnessTexture"].TextureIndex()].source);
+			material.metallicRoughnessTexture = getTextureIndex(_input.textures[mat.values["metallicRoughnessTexture"].TextureIndex()].source);
 		}
 		if(mat.additionalValues.find("normalTexture") != mat.additionalValues.end()) {
-			material.normalTexture = getTextureIndex(input.textures[mat.additionalValues["normalTexture"].TextureIndex()].source);
+			material.normalTexture = getTextureIndex(_input.textures[mat.additionalValues["normalTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("emissiveTexture") != mat.values.end()) {
-			material.emissiveTexture = getTextureIndex(input.textures[mat.values["emissiveTexture"].TextureIndex()].source);
+			material.emissiveTexture = getTextureIndex(_input.textures[mat.values["emissiveTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("occlusionTexture") != mat.values.end()) {
-			material.occlusionTexture = getTextureIndex(input.textures[mat.values["occlusionTexture"].TextureIndex()].source);
+			material.occlusionTexture = getTextureIndex(_input.textures[mat.values["occlusionTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("specularGlossinessTexture") != mat.values.end()) {
-			material.specularGlossinessTexture = getTextureIndex(input.textures[mat.values["specularGlossinessTexture"].TextureIndex()].source);
+			material.specularGlossinessTexture = getTextureIndex(_input.textures[mat.values["specularGlossinessTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("diffuseTexture") != mat.values.end()) {
-			material.diffuseTexture = getTextureIndex(input.textures[mat.values["diffuseTexture"].TextureIndex()].source);
+			material.diffuseTexture = getTextureIndex(_input.textures[mat.values["diffuseTexture"].TextureIndex()].source);
 		}
 
 		_materials.push_back(material);
@@ -256,7 +267,7 @@ uint32_t Model::getTextureIndex(uint32_t index)
 	return static_cast<uint32_t>(_textures.size() - 1);
 }
 
-void Model::loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &input, Node *parent, std::vector<uint32_t> &indexBuffer, std::vector<Vertex> &vertexBuffer)
+void Model::loadNode(const tinygltf::Node &inputNode, Node *parent, std::vector<uint32_t> &indexBuffer, std::vector<Vertex> &vertexBuffer)
 {
 	Node *node = new Node{};
 	node->name = inputNode.name;
@@ -288,7 +299,7 @@ void Model::loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &inp
 	{
 		for (size_t i = 0; i < inputNode.children.size(); i++)
 		{
-			loadNode(input.nodes[inputNode.children[i]], input, node, indexBuffer, vertexBuffer);
+			loadNode(_input.nodes[inputNode.children[i]], node, indexBuffer, vertexBuffer);
 		}
 	}
 
@@ -296,7 +307,7 @@ void Model::loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &inp
 	// In glTF this is done via accessors and buffer views
 	if (inputNode.mesh > -1)
 	{
-		const tinygltf::Mesh mesh = input.meshes[inputNode.mesh];
+		const tinygltf::Mesh mesh = _input.meshes[inputNode.mesh];
 		// Iterate through all primitives of this node's mesh
 		for (size_t i = 0; i < mesh.primitives.size(); i++)
 		{
@@ -315,32 +326,32 @@ void Model::loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &inp
 				// Get buffer data for vertex normals
 				if (glTFPrimitive.attributes.find("POSITION") != glTFPrimitive.attributes.end())
 				{
-					const tinygltf::Accessor &accessor = input.accessors[glTFPrimitive.attributes.find("POSITION")->second];
-					const tinygltf::BufferView &view = input.bufferViews[accessor.bufferView];
-					positionBuffer = reinterpret_cast<const float *>(&(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+					const tinygltf::Accessor &accessor = _input.accessors[glTFPrimitive.attributes.find("POSITION")->second];
+					const tinygltf::BufferView &view = _input.bufferViews[accessor.bufferView];
+					positionBuffer = reinterpret_cast<const float *>(&(_input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
 					vertexCount = static_cast<uint32_t>(accessor.count);
 				}
 				// Get buffer data for vertex normals
 				if (glTFPrimitive.attributes.find("NORMAL") != glTFPrimitive.attributes.end())
 				{
-					const tinygltf::Accessor &accessor = input.accessors[glTFPrimitive.attributes.find("NORMAL")->second];
-					const tinygltf::BufferView &view = input.bufferViews[accessor.bufferView];
-					normalsBuffer = reinterpret_cast<const float *>(&(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+					const tinygltf::Accessor &accessor = _input.accessors[glTFPrimitive.attributes.find("NORMAL")->second];
+					const tinygltf::BufferView &view = _input.bufferViews[accessor.bufferView];
+					normalsBuffer = reinterpret_cast<const float *>(&(_input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
 				}
 				// Get buffer data for vertex texture coordinates
 				// glTF supports multiple sets, we only load the first one
 				if (glTFPrimitive.attributes.find("TEXCOORD_0") != glTFPrimitive.attributes.end())
 				{
-					const tinygltf::Accessor &accessor = input.accessors[glTFPrimitive.attributes.find("TEXCOORD_0")->second];
-					const tinygltf::BufferView &view = input.bufferViews[accessor.bufferView];
-					texCoordsBuffer = reinterpret_cast<const float *>(&(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+					const tinygltf::Accessor &accessor = _input.accessors[glTFPrimitive.attributes.find("TEXCOORD_0")->second];
+					const tinygltf::BufferView &view = _input.bufferViews[accessor.bufferView];
+					texCoordsBuffer = reinterpret_cast<const float *>(&(_input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
 				}
 				// POI: This sample uses normal mapping, so we also need to load the tangents from the glTF file
 				if (glTFPrimitive.attributes.find("TANGENT") != glTFPrimitive.attributes.end())
 				{
-					const tinygltf::Accessor &accessor = input.accessors[glTFPrimitive.attributes.find("TANGENT")->second];
-					const tinygltf::BufferView &view = input.bufferViews[accessor.bufferView];
-					tangentsBuffer = reinterpret_cast<const float *>(&(input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
+					const tinygltf::Accessor &accessor = _input.accessors[glTFPrimitive.attributes.find("TANGENT")->second];
+					const tinygltf::BufferView &view = _input.bufferViews[accessor.bufferView];
+					tangentsBuffer = reinterpret_cast<const float *>(&(_input.buffers[view.buffer].data[accessor.byteOffset + view.byteOffset]));
 				}
 
 				// Append data to model's vertex buffer
@@ -357,9 +368,9 @@ void Model::loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &inp
 			}
 			// Indices
 			{
-				const tinygltf::Accessor &accessor = input.accessors[glTFPrimitive.indices];
-				const tinygltf::BufferView &bufferView = input.bufferViews[accessor.bufferView];
-				const tinygltf::Buffer &buffer = input.buffers[bufferView.buffer];
+				const tinygltf::Accessor &accessor = _input.accessors[glTFPrimitive.indices];
+				const tinygltf::BufferView &bufferView = _input.bufferViews[accessor.bufferView];
+				const tinygltf::Buffer &buffer = _input.buffers[bufferView.buffer];
 
 				indexCount += static_cast<uint32_t>(accessor.count);
 
@@ -416,42 +427,39 @@ void Model::loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &inp
 
 bool Model::load_from_glb(const char *filename)
 {
-	tinygltf::Model glTFInput;
 	tinygltf::TinyGLTF gltfContext;
 	std::string error, warning;
 
-	bool fileLoaded = gltfContext.LoadBinaryFromFile(&glTFInput, &error, &warning, filename);
+	bool fileLoaded = gltfContext.LoadBinaryFromFile(&_input, &error, &warning, filename);
 
-	if (fileLoaded)
+	return fileLoaded;
+}
+
+void Model::build()
+{
+	loadImages();
+	loadMaterials();
+	const tinygltf::Scene &scene = _input.scenes[0];
+	for (size_t i = 0; i < scene.nodes.size(); i++)
 	{
-		loadImages(glTFInput);
-		loadMaterials(glTFInput);
-		const tinygltf::Scene &scene = glTFInput.scenes[0];
-		for (size_t i = 0; i < scene.nodes.size(); i++)
-		{
-			const tinygltf::Node node = glTFInput.nodes[scene.nodes[i]];
-			loadNode(node, glTFInput, nullptr, _indices, _vertices);
-		}
+		const tinygltf::Node node = _input.nodes[scene.nodes[i]];
+		loadNode(node, nullptr, _indices, _vertices);
+	}
 
-		for (auto node : _linearNodes)
+	for (auto node : _linearNodes)
+	{
+		if (node->primitives.size() > 0)
 		{
-			if (node->primitives.size() > 0)
+			for (auto primitive : node->primitives)
 			{
-				for (auto primitive : node->primitives)
+				if (primitive->indexCount > 0)
 				{
-					if (primitive->indexCount > 0)
-					{
-						_transforms.push_back(vkutils::getTransformMatrixKHR(node->getMatrix()));
-					}
+					_transforms.push_back(vkutils::getTransformMatrixKHR(node->getMatrix()));
 				}
 			}
 		}
 	}
-	else
-	{
-		return false;
-	}
-	return true;
+	isBuilded = true;
 }
 
 glm::mat4 Node::localMatrix()

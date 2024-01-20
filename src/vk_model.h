@@ -66,7 +66,14 @@ struct Node
 	glm::quat rotation{};
 	glm::mat4 localMatrix();
 	glm::mat4 getMatrix();
-	~Node();
+	~Node() {
+		for (auto& child : children) {
+			delete child;
+		}
+		for (auto& primitive : primitives) {
+			delete primitive;
+		}
+	}
 };
 
 struct Vertex
@@ -100,10 +107,12 @@ public:
 	Model(vk::Core &core);
 	void destroy();
 	bool load_from_glb(const char *filename);
+	void build();
 private:
-	void loadImages(tinygltf::Model &input);
-	void loadMaterials(tinygltf::Model &input);
-	void loadNode(const tinygltf::Node &inputNode, const tinygltf::Model &input, Node *parent, std::vector<uint32_t> &indexBuffer, std::vector<Vertex> &vertexBuffer);
-	void loadMaterials(const tinygltf::Model &input);
+	bool isBuilded;
+	tinygltf::Model _input;
+	void loadImages();
+	void loadMaterials();
+	void loadNode(const tinygltf::Node &inputNode, Node *parent, std::vector<uint32_t> &indexBuffer, std::vector<Vertex> &vertexBuffer);
 	uint32_t getTextureIndex(uint32_t index);
 };

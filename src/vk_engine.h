@@ -36,8 +36,8 @@ public:
 	vk::Pipeline _raytracerPipeline;
 	std::vector<vk::RayTracingShaderGroupCreateInfoKHR> _shaderGroups;
 	
-	Model _model;
-	Scene _scene;
+	Scene* _currentScene;
+	std::vector<Scene*> _scenes;
 
 	vkutils::Shadersettings _settingsUBO;
 	vkutils::AllocatedBuffer _settingsBuffer;

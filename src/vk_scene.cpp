@@ -1,20 +1,20 @@
 #include <vk_scene.h>
 
-Scene::Scene(): core(){}
+Scene::Scene(): core(){
+    _isBuilded = false;
+}
 
-Scene::Scene(vk::Core& core): core(&core){}
+Scene::Scene(vk::Core& core): core(&core){
+    _isBuilded = false;
+}
 
 void Scene::add(std::string path, glm::mat4 transform)
 {
     Model *model = new Model(*core);
 	model->load_from_glb(path.c_str());
-    
     models.push_back(model);
     tlasTransforms.push_back(vkutils::getTransformMatrixKHR(transform));
     modelMatrices.push_back(transform);
-    vertices.insert(std::end(vertices), std::begin(model->_vertices), std::end(model->_vertices));
-    indices.insert(std::end(indices), std::begin(model->_indices), std::end(model->_indices));
-    textures.insert(std::end(textures), std::begin(model->_textures), std::end(model->_textures));
 }
 
 void Scene::buildAccelerationStructure()
@@ -284,25 +284,44 @@ void Scene::buildAccelerationStructure()
     }
 }
 
+void Scene::build()
+{
+    for(auto& model : models){
+        model->build();
+        vertices.insert(std::end(vertices), std::begin(model->_vertices), std::end(model->_vertices));
+        indices.insert(std::end(indices), std::begin(model->_indices), std::end(model->_indices));
+        textures.insert(std::end(textures), std::begin(model->_textures), std::end(model->_textures));
+    }
+    _isBuilded = true;
+}
+
 void Scene::destroy()
 {
-    for(auto model : models){
-        model->destroy();
+    if(_isBuilded){
+        for(auto& model : models){
+            model->destroy();
+            delete model;
+        }
+        core->_allocator.destroyBuffer(indexBuffer._buffer, indexBuffer._allocation);
+        core->_allocator.destroyBuffer(vertexBuffer._buffer, vertexBuffer._allocation);
+        core->_allocator.destroyBuffer(materialBuffer._buffer, materialBuffer._allocation);
+        core->_device.destroyImageView(textures.back().image._view);
+        core->_allocator.destroyImage(textures.back().image._image, textures.back().image._allocation);
+        core->_device.destroySampler(sampler);
+        for(auto buffer : blasBuffer){
+            core->_allocator.destroyBuffer(buffer._buffer, buffer._allocation);
+        }
+        core->_allocator.destroyBuffer(tlasBuffer._buffer, tlasBuffer._allocation);
+        for(auto as : blas){
+            core->_device.destroyAccelerationStructureKHR(as);
+        }
+        core->_device.destroyAccelerationStructureKHR(tlas);
+    } else {
+        for(auto& model : models){
+            delete model;
+        }
+       
     }
-    core->_allocator.destroyBuffer(indexBuffer._buffer, indexBuffer._allocation);
-    core->_allocator.destroyBuffer(vertexBuffer._buffer, vertexBuffer._allocation);
-    core->_allocator.destroyBuffer(materialBuffer._buffer, materialBuffer._allocation);
-    core->_device.destroyImageView(textures.back().image._view);
-    core->_allocator.destroyImage(textures.back().image._image, textures.back().image._allocation);
-	core->_device.destroySampler(sampler);
-    for(auto buffer : blasBuffer){
-        core->_allocator.destroyBuffer(buffer._buffer, buffer._allocation);
-    }
-    core->_allocator.destroyBuffer(tlasBuffer._buffer, tlasBuffer._allocation);
-    for(auto as : blas){
-        core->_device.destroyAccelerationStructureKHR(as);
-    }
-    core->_device.destroyAccelerationStructureKHR(tlas);
 }
 
 void Scene::createEmptyTexture()
