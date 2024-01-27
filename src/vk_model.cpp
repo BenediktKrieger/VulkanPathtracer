@@ -241,8 +241,8 @@ void Model::loadMaterials()
 		if(mat.additionalValues.find("normalTexture") != mat.additionalValues.end()) {
 			material.normalTexture = getTextureIndex(_input.textures[mat.additionalValues["normalTexture"].TextureIndex()].source);
 		}
-		if (mat.values.find("emissiveTexture") != mat.values.end()) {
-			material.emissiveTexture = getTextureIndex(_input.textures[mat.values["emissiveTexture"].TextureIndex()].source);
+		if (mat.additionalValues.find("emissiveTexture") != mat.additionalValues.end()) {
+			material.emissiveTexture = getTextureIndex(_input.textures[mat.additionalValues["emissiveTexture"].TextureIndex()].source);
 		}
 		if (mat.values.find("occlusionTexture") != mat.values.end()) {
 			material.occlusionTexture = getTextureIndex(_input.textures[mat.values["occlusionTexture"].TextureIndex()].source);

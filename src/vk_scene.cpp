@@ -17,6 +17,14 @@ void Scene::add(std::string path, glm::mat4 transform)
     modelMatrices.push_back(transform);
 }
 
+void Scene::add(Model* model, glm::mat4 transform)
+{
+    models.push_back(model);
+    tlasTransforms.push_back(vkutils::getTransformMatrixKHR(transform));
+    modelMatrices.push_back(transform);
+    
+}
+
 void Scene::buildAccelerationStructure()
 {
     createEmptyTexture();
@@ -293,6 +301,7 @@ void Scene::build()
         textures.insert(std::end(textures), std::begin(model->_textures), std::end(model->_textures));
     }
     _isBuilded = true;
+    std::cout << "Scene loaded with " << indices.size() / 3 << " Triangles and " << vertices.size() << " Vertices" << std::endl;
 }
 
 void Scene::destroy()

@@ -19,6 +19,7 @@ public:
     Scene();
     Scene(vk::Core &core);
     void add(std::string path, glm::mat4 transform = glm::mat4(1.0));
+    void add(Model* model, glm::mat4 transform = glm::mat4(1.0));
     void build();
     void buildAccelerationStructure();
     void destroy();

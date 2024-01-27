@@ -909,7 +909,7 @@ void VulkanEngine::init_pipelines()
 
 		// Hit group - Triangles
 		{
-			hitShader = load_shader_module(vk::ShaderStageFlagBits::eClosestHitKHR, "/simple.rchit");
+			hitShader = load_shader_module(vk::ShaderStageFlagBits::eClosestHitKHR, "/multipleImportanceSampling.rchit");
 			shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eClosestHitKHR, hitShader));
 			aHitShader = load_shader_module(vk::ShaderStageFlagBits::eAnyHitKHR, "/simple.rahit");
 			shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eAnyHitKHR, aHitShader));
@@ -1168,25 +1168,37 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 
 void VulkanEngine::load_models()
 {
+	auto start_all = std::chrono::high_resolution_clock::now();
+
+	//load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	//glm::mat4 transformSphere = glm::rotate(glm::translate(glm::scale(glm::mat4(1.0f), glm::vec3(0.3f)), glm::vec3(-1.5f, -3.3f, 2.0f)), glm::radians(90.f), glm::vec3(0.f, 1.f, 0.f));
-	glm::mat4 transformSphere = glm::translate(glm::mat4(1.0f), glm::vec3(-0.7f, -1.f, -1.5f));
-	std::thread worker1([&]() {scene1->add(ASSET_PATH"/models/sponza.glb", transformSphere);});
-	std::thread worker2([&]() {scene1->add(ASSET_PATH"/models/bistro.glb");});
-	worker1.join();
-	worker2.join();
-	// glm::mat4 transformBuddah = glm::rotate(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 1.0f, 3.0f)), glm::radians(180.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-	// _scene.add(ASSET_PATH"/models/buddha.glb", transformBuddah);
-	// _scene.add(ASSET_PATH"/models/bathroom.glb");
+	Model* model1 = new Model(_core);
+	model1->load_from_glb(ASSET_PATH"/models/cornell_box.glb");
+	scene1->add(model1);
 	scene1->build();
 	scene1->buildAccelerationStructure();
 	_currentScene = scene1;
 	_scenes.push_back(scene1);
 
-	Scene* scene2 = new Scene(_core);
-	scene2->add(ASSET_PATH"/models/san_miguel.glb");
-	scene2->add(ASSET_PATH"/models/sponza.glb");
-	_scenes.push_back(scene2);
+	// Scene* scene2 = new Scene(_core);
+	// glm::mat4 t1 = glm::translate(glm::mat4(1.0), glm::vec3(100.0, 0.f, 0.f));
+	// scene2->add(ASSET_PATH"/models/sponza.glb", t1);
+	// glm::mat4 t2 = glm::translate(glm::mat4(1.0), glm::vec3(-100.0, 0.f, 0.f));
+	// scene2->add(ASSET_PATH"/models/sponza.glb", t2);
+	// glm::mat4 t3 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.f, 100.f));
+	// scene2->add(ASSET_PATH"/models/sponza.glb", t3);
+	// glm::mat4 t4 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.f, -100.f));
+	// scene2->add(ASSET_PATH"/models/sponza.glb", t4);
+	// scene2->build();
+	// scene2->buildAccelerationStructure();
+	// _currentScene = scene2;
+	// _scenes.push_back(scene2);
+	
+	auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
+
+	long long microseconds_all = std::chrono::duration_cast<std::chrono::microseconds>(elapsed_all).count();
+
+	std::cout << "scene loading time: " << microseconds_all / 1e6 << "s" << std::endl;
 
 	_mainDeletionQueue.push_function([&]() {
 		for(auto& scene : _scenes){

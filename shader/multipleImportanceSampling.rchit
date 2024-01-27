@@ -51,7 +51,6 @@ struct RayPayload {
   bool shadow;
 };
 
-
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
 layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
@@ -85,17 +84,6 @@ float rand()
   return float(seed.x) / float(0xffffffffu);
 }
 
-vec3 random_uniform_hemisphere(){
-  float r1 = rand();
-  float r2 = rand();
-  float theta = 2 * PI * r1;
-  float phi = acos(r2);
-  float x = sin(phi) * cos(theta);
-  float y = sin(phi) * sin(theta);
-  float z = cos(phi);
-  return vec3(x, y, z);
-}
-
 vec3 random_cosine_hemisphere(){
   float r1 = rand();
   float r2 = rand();
@@ -114,55 +102,6 @@ vec3 random_on_cosine_hemisphere(vec3 normal){
   mat3 uvw = mat3(u,v,n);
   return uvw * random_cosine_hemisphere();
 }
-
-vec3 random_on_uniform_hemisphere(vec3 normal){
-  vec3 n = normal;
-  vec3 h = abs(n.x) > 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0);
-  vec3 v = normalize(cross(n, h));
-  vec3 u = cross(n, v);
-  mat3 uvw = mat3(u,v,n);
-  return uvw * random_uniform_hemisphere();
-}
-
-vec3 refractRay(const vec3 I, const vec3 N, const float ior) { 
-  float cosi = clamp(-1, 1, dot(N, I));
-  float eta = 1 / ior;
-  vec3 n = N; 
-  if (cosi < 0) {
-    cosi = -cosi;
-  } else {
-    eta = ior;
-    n = -N;
-  }
-  float k = 1 - eta * eta * (1 - cosi * cosi); 
-  if(k < 0)
-    return vec3(0);
-  else
-    return eta * I - (eta * cosi + sqrt(k)) * n;
-}
-
-void fresnel(const vec3 I, const vec3 N, const float ior, inout float kr, inout float kt){ 
-  float cosi = clamp(-1, 1, dot(I, N)); 
-  float etai = 1; 
-  float etat = ior; 
-  if (cosi > 0) { 
-    float oldetai = etai;
-    etai = etat;
-    etat = oldetai;
-  }
-  float sint = etai / etat * sqrt(max(0.f, 1 - cosi * cosi));
-  if (sint >= 1) { 
-    kr = 1; 
-  } 
-  else { 
-    float cost = sqrt(max(0.f, 1 - sint * sint)); 
-    cosi = abs(cosi); 
-    float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost)); 
-    float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost)); 
-    kr = (Rs * Rs + Rp * Rp) / 2; 
-  }
-  kt = 1.0 - kr;
-} 
 
 void main()
 {
@@ -189,52 +128,15 @@ void main()
     normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[material.normalTexture], uv).xyz * 2.0 - 1.0));
   }
   normal = normalize((normalToWorld * vec4(normal, 1.0)).xyz);
-  // roughness
-  float roughness = material.roughnessFactor;
-  // metallness
-  float metallness = material.metallicFactor;
   
   vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
   vec3 newDir;
-  if(material.transmissionFactor > 0.01){
-    // diallectic
-    float reflectance = 0.0;
-    float transmission = 0.0;
-    fresnel(gl_WorldRayDirectionEXT, normal, material.ior, reflectance, transmission);
-    if(reflectance > 0.999){
-      newDir = reflect(gl_WorldRayDirectionEXT, normal);
-    }
-    else if(transmission > 0.999){
-      newDir = normalize(refractRay(gl_WorldRayDirectionEXT, normal, material.ior));
-    }
-    else {
-      float russian_roulette = rand();
-      if(russian_roulette < reflectance){
-        newDir = reflect(gl_WorldRayDirectionEXT, normal);
-      } else {
-        newDir = normalize(refractRay(gl_WorldRayDirectionEXT, normal, material.ior));
-      }
-    }
-    Payload.translucentRecursion += 1;
-  } else if(roughness < 0.01) {
-    // mirror
-    newDir = reflect(gl_WorldRayDirectionEXT, normal);
-    Payload.diffuseRecursion += 1;
-  } else if(roughness < 0.9 && metallness > 0.01) {
-    // metall
-    newDir = normalize(reflect(gl_WorldRayDirectionEXT, normal) * max(1.0, (1-roughness) * 10) + random_uniform_hemisphere());
-    Payload.diffuseRecursion += 1;
-  } else {
-    // lambertian
-    newDir = random_on_cosine_hemisphere(normal);
-    Payload.diffuseRecursion += 1;
-  }
 
+  newDir = random_on_cosine_hemisphere(normal);
+  Payload.diffuseRecursion += 1;
+
+    //terminate if recursion limit is reached
   if(Payload.diffuseRecursion >= settings.reflection_recursion){
-    color = vec3(0.0);
-    Payload.continueTrace = false;
-  }
-  if(Payload.translucentRecursion >= settings.refraction_recursion){
     color = vec3(0.0);
     Payload.continueTrace = false;
   }
@@ -259,9 +161,4 @@ void main()
   Payload.color *= color.xyz;
   Payload.origin = newOrigin;
   Payload.dir = newDir;
-  // Shadow testing
-  // Payload.shadow = true;
-  // traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 0, 0, 1, newOrigin, 0.0001, vec3(0.05, 0.05, 1), 10000, 0);
-  // if(Payload.shadow){
-  // }
 }

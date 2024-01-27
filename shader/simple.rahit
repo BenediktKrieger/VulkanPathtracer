@@ -47,17 +47,19 @@ layout(binding = 8, set = 0) uniform sampler2D texSampler[];
 void main()
 {
   Material material = materials.m[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
-  const uint triIndex = material.indexOffset + gl_PrimitiveID * 3;
-  Vertex TriVertices[3];
-  for (uint i = 0; i < 3; i++) {
-    uint index = material.vertexOffset + indices.i[triIndex + i];
-    TriVertices[i] = vertices.v[index];
-	}
-	vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
-	vec2 uv = TriVertices[0].uv * barycentricCoords.x + TriVertices[1].uv * barycentricCoords.y + TriVertices[2].uv * barycentricCoords.z;
-  if(material.baseColorTexture >= 0){
-    if(texture(texSampler[material.baseColorTexture], uv).a < 0.999){
-      ignoreIntersectionEXT;
+  if(material.alphaMode == 1){
+    const uint triIndex = material.indexOffset + gl_PrimitiveID * 3;
+    Vertex TriVertices[3];
+    for (uint i = 0; i < 3; i++) {
+      uint index = material.vertexOffset + indices.i[triIndex + i];
+      TriVertices[i] = vertices.v[index];
+    }
+    vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
+    vec2 uv = TriVertices[0].uv * barycentricCoords.x + TriVertices[1].uv * barycentricCoords.y + TriVertices[2].uv * barycentricCoords.z;
+    if(material.baseColorTexture >= 0){
+      if(texture(texSampler[material.baseColorTexture], uv).a < 0.5){
+        ignoreIntersectionEXT;
+      }
     }
   }
 }
