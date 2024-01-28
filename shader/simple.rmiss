@@ -9,7 +9,7 @@ struct RayPayload {
 	vec3 color;
 	vec3 origin;
 	vec3 dir;
-    uint translucentRecursion;
+	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
   	bool shadow;

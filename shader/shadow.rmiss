@@ -6,12 +6,14 @@ struct Hit {
 };
 
 struct RayPayload {
-	Hit path[6];
+	vec3 color;
 	vec3 origin;
 	vec3 dir;
-	uint recursion;
-	bool trace;
-  bool shadow;
+	uint translucentRecursion;
+	uint diffuseRecursion;
+    float pdf;
+	bool continueTrace;
+  	bool shadow;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;

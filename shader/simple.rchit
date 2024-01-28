@@ -74,9 +74,15 @@ uvec4 seed = uvec4(gl_LaunchIDEXT.y * gl_LaunchIDEXT.x + gl_LaunchIDEXT.x, float
 void pcg4d(inout uvec4 v)
 {
   v = v * 1664525u + 1013904223u;
-  v.x += v.y * v.w; v.y += v.z * v.x; v.z += v.x * v.y; v.w += v.y * v.z;
+  v.x += v.y * v.w; 
+  v.y += v.z * v.x; 
+  v.z += v.x * v.y; 
+  v.w += v.y * v.z;
   v = v ^ (v >> 16u);
-  v.x += v.y * v.w; v.y += v.z * v.x; v.z += v.x * v.y; v.w += v.y * v.z;
+  v.x += v.y * v.w; 
+  v.y += v.z * v.x; 
+  v.z += v.x * v.y; 
+  v.w += v.y * v.z;
 }
 
 float rand()
