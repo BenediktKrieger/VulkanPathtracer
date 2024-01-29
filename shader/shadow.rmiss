@@ -11,9 +11,8 @@ struct RayPayload {
 	vec3 dir;
 	uint translucentRecursion;
 	uint diffuseRecursion;
-    float pdf;
 	bool continueTrace;
-  	bool shadow;
+    bool shadow;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;

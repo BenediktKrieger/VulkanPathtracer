@@ -48,7 +48,7 @@ struct RayPayload {
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
-  bool shadow;
+    bool shadow;
 };
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
@@ -133,7 +133,7 @@ float getLightPdf(vec3 origin, vec3 direction, bool wasSendToLight, float distan
         vec3 hit_normal = vec3(0, -1.0, 0);
         float distanceSquared = pow(hit_distance, 2.0);
         float lightArea = (b.x-a.x)*(b.z-a.z);
-        float lightCosine = abs(dot(direction, hit_normal));
+        float lightCosine = max(0.0000001, abs(dot(direction, hit_normal)));
         return distanceSquared / (lightCosine * lightArea);
     } else {
         return 0;
@@ -141,7 +141,7 @@ float getLightPdf(vec3 origin, vec3 direction, bool wasSendToLight, float distan
 }
 
 float getCosinePdf(vec3 normal, vec3 direction) {
-    return dot(normal, direction) / PI;
+    return max(0.0000001, dot(normal, direction) / PI);
 }
 
 void main()
@@ -162,23 +162,17 @@ void main()
 
     // check for emission of hit
     if(material.emissiveStrength > 1.0 || material.emissiveTexture >= 0){
-        if(dot(normal_geometric, -gl_WorldRayDirectionEXT) > 0.0){
-            if(material.emissiveTexture >= 0){
-                vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).xyz;
-                emission = vec3(material.emissiveStrength) * emissiveFactor;
-                if(emissiveFactor.x > 0.1 || emissiveFactor.y > 0.1 || emissiveFactor.z > 0.1){
-                    Payload.color *= emission;
-                    Payload.continueTrace = false;
-                    return;
-                }
-            } else {
-                emission = vec3(material.emissiveStrength) * material.emissiveFactor.xyz;
+        if(material.emissiveTexture >= 0){
+            vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).xyz;
+            emission = vec3(material.emissiveStrength) * emissiveFactor;
+            if(emissiveFactor.x > 0.1 || emissiveFactor.y > 0.1 || emissiveFactor.z > 0.1){
                 Payload.color *= emission;
                 Payload.continueTrace = false;
                 return;
             }
         } else {
-            Payload.color = vec3(0.0);
+            emission = vec3(material.emissiveStrength) * material.emissiveFactor.xyz;
+            Payload.color *= emission;
             Payload.continueTrace = false;
             return;
         }
@@ -215,6 +209,25 @@ void main()
             vec3 toLight = pointOnLight - newOrigin;
             distanceToLight = length(toLight);
             newDir = normalize(toLight);
+            // Shadow testing
+            Payload.shadow = true;
+
+            traceRayEXT(topLevelAS, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xFF, 0, 0, 1, newOrigin, 0.0001, newDir, distanceToLight - 0.001, 0);
+            
+            if(Payload.shadow){
+                Payload.color = vec3(0.0);
+                Payload.continueTrace = false;
+                return;
+            }else{
+                vec3 lightColor = vec3(17.0);
+                float mat_pdf = getCosinePdf(normal, newDir);
+                float sampling_pdf1 = getLightPdf(newOrigin, newDir, wasSendToLight, distanceToLight);
+                float sampling_pdf2 = getCosinePdf(normal, newDir);
+                float sampling_pdf = 0.5 * sampling_pdf1 + 0.5 * sampling_pdf2;
+                Payload.color = (color * mat_pdf) / sampling_pdf * lightColor;
+                Payload.continueTrace = false;
+                return;
+            }
         } else {
             newDir = random_on_cosine_hemisphere(normal);
         }

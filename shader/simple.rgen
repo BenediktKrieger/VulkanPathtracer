@@ -59,9 +59,8 @@ void main()
 
 	vec3 sumofHitValues = vec3(0.0);
 
-	uint offset = (gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x) * accFrames * spp;
 	for(uint i = 0; i < spp; i++){
-		const uint haltonIndex = offset + i;
+		const uint haltonIndex = (accFrames - 1) * spp + i;
 		const vec2 haltonValue = vec2(halton(2, haltonIndex), halton(3, haltonIndex));
 		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + haltonValue;
 		const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeEXT.xy);
@@ -74,6 +73,7 @@ void main()
 		Payload.translucentRecursion = 0;
 		Payload.continueTrace = true;
 		Payload.origin = origin.xyz;
+		Payload.shadow = true;
 		Payload.dir = direction.xyz;
 		
 		while(Payload.continueTrace) {

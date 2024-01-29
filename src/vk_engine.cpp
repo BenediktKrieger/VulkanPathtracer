@@ -909,7 +909,7 @@ void VulkanEngine::init_pipelines()
 
 		// Hit group - Triangles
 		{
-			hitShader = load_shader_module(vk::ShaderStageFlagBits::eClosestHitKHR, "/multipleImportanceSampling.rchit");
+			hitShader = load_shader_module(vk::ShaderStageFlagBits::eClosestHitKHR, "/MIPS.rchit");
 			shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eClosestHitKHR, hitShader));
 			aHitShader = load_shader_module(vk::ShaderStageFlagBits::eAnyHitKHR, "/simple.rahit");
 			shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eAnyHitKHR, aHitShader));
