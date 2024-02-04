@@ -33,9 +33,9 @@ void VulkanEngine::init()
 	load_models();
 
 	init_pipelines();
-	
+
 	createShaderBindingTable();
-	
+
 	init_descriptors();
 
 	_isInitialized = true;
@@ -185,7 +185,7 @@ void VulkanEngine::draw()
 			copyRegion.dstSubresource = { vk::ImageAspectFlagBits::eColor, 0, 0, 1 };
 			copyRegion.dstOffset = vk::Offset3D(0, 0, 0 );
 			copyRegion.extent = vk::Extent3D(_core._windowExtent.width, _core._windowExtent.height, 1);
-			
+
 			cmd.copyImage(get_current_frame()._storageImage._image, vk::ImageLayout::eTransferSrcOptimal, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal, copyRegion);
 
 			vkutils::setImageLayout(cmd, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eColorAttachmentOptimal, subresourceRange);
@@ -249,7 +249,7 @@ void VulkanEngine::run()
 					_framebufferResized = true;
 				}
 			}
-			
+
 			_gui.handleInput(&e);
 			auto& io = ImGui::GetIO();
 			if(!(e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT || e.type == SDL_EVENT_MOUSE_WHEEL) || !io.WantCaptureMouse){
@@ -561,8 +561,8 @@ void VulkanEngine::init_default_renderpass()
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
-	_resizeDeletionQueue.push_function([=](){ 
-		_core._device.destroyRenderPass(_renderPass, nullptr); 
+	_resizeDeletionQueue.push_function([=](){
+		_core._device.destroyRenderPass(_renderPass, nullptr);
 	});
 }
 
@@ -614,7 +614,7 @@ void VulkanEngine::init_sync_structures()
 	vk::FenceCreateInfo fenceCreateInfo = vkinit::fence_create_info(vk::FenceCreateFlagBits::eSignaled);
 	vk::SemaphoreCreateInfo semaphoreCreateInfo = vkinit::semaphore_create_info();
 
-	for (int i = 0; i < FRAME_OVERLAP; i++) {     
+	for (int i = 0; i < FRAME_OVERLAP; i++) {
 		try
 		{
 			_frames[i]._renderFence = _core._device.createFence(fenceCreateInfo);
@@ -624,7 +624,7 @@ void VulkanEngine::init_sync_structures()
 			std::cerr << "Exception Thrown: " << e.what();
 		}
 		_resizeDeletionQueue.push_function([=](){
-			_core._device.destroyFence(_frames[i]._renderFence, nullptr); 
+			_core._device.destroyFence(_frames[i]._renderFence, nullptr);
 		});
 		try
 		{
@@ -638,7 +638,7 @@ void VulkanEngine::init_sync_structures()
 		_resizeDeletionQueue.push_function([=]()
 		{
 			_core._device.destroySemaphore(_frames[i]._presentSemaphore, nullptr);
-			_core._device.destroySemaphore(_frames[i]._renderSemaphore, nullptr); 
+			_core._device.destroySemaphore(_frames[i]._renderSemaphore, nullptr);
 		});
 	}
 }
@@ -656,7 +656,7 @@ void VulkanEngine::init_accumulation_image()
 	_accumulationImage = createStorageImage(vk::Format::eR32G32B32A32Sfloat, 3840, 2160);
 	_mainDeletionQueue.push_function([=]() {
 		_core._allocator.destroyImage(_accumulationImage._image, _accumulationImage._allocation);
-		_core._device.destroyImageView(_accumulationImage._view); 
+		_core._device.destroyImageView(_accumulationImage._view);
 	});
 }
 
@@ -821,21 +821,27 @@ void VulkanEngine::init_pipelines()
 		materialBufferBinding.descriptorCount = 1;
 		materialBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
+		vk::DescriptorSetLayoutBinding lightBufferBinding;
+		lightBufferBinding.binding = 6;
+		lightBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
+		lightBufferBinding.descriptorCount = 1;
+		lightBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
+
 		vk::DescriptorSetLayoutBinding hdrMapLayoutBinding{};
-        hdrMapLayoutBinding.binding = 6;
+        hdrMapLayoutBinding.binding = 7;
         hdrMapLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
         hdrMapLayoutBinding.descriptorCount = 1;
         hdrMapLayoutBinding.pImmutableSamplers = nullptr;
         hdrMapLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eMissKHR;
 
 		vk::DescriptorSetLayoutBinding settingsBufferBinding;
-		settingsBufferBinding.binding = 7;
+		settingsBufferBinding.binding = 8;
 		settingsBufferBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
 		settingsBufferBinding.descriptorCount = 1;
 		settingsBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eRaygenKHR | vk::ShaderStageFlagBits::eMissKHR;
 
 		vk::DescriptorSetLayoutBinding textureLayoutBinding{};
-        textureLayoutBinding.binding = 8;
+        textureLayoutBinding.binding = 9;
         textureLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
         textureLayoutBinding.descriptorCount = static_cast<uint32_t>(_currentScene->textures.size());
         textureLayoutBinding.pImmutableSamplers = nullptr;
@@ -848,6 +854,7 @@ void VulkanEngine::init_pipelines()
 			indexBufferBinding,
 			vertexBufferBinding,
 			materialBufferBinding,
+			lightBufferBinding,
 			hdrMapLayoutBinding,
 			settingsBufferBinding,
 			textureLayoutBinding
@@ -928,7 +935,7 @@ void VulkanEngine::init_pipelines()
 		rayTracingPipelineInfo.setGroups(_shaderGroups);
 		rayTracingPipelineInfo.maxPipelineRayRecursionDepth = 31;
 		rayTracingPipelineInfo.layout = _raytracerPipelineLayout;
-		
+
 		try
 		{
 			vk::Result result;
@@ -971,7 +978,7 @@ void VulkanEngine::init_descriptors()
 		pool_info.setPoolSizes(poolSizes);
 
 		_rasterizerDescriptorPool = _core._device.createDescriptorPool(pool_info);
-		
+
 		for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
 			vk::DescriptorSetAllocateInfo allocInfo;
@@ -1085,6 +1092,17 @@ void VulkanEngine::init_descriptors()
 			uniformBufferWrite.pBufferInfo = &uboDescriptor;
 			uniformBufferWrite.descriptorCount = 1;
 
+			vk::DescriptorBufferInfo lightsDescriptor;
+			lightsDescriptor.buffer = _currentScene->lightBuffer._buffer;
+			lightsDescriptor.offset = 0;
+			lightsDescriptor.range = _currentScene->lights.size() * sizeof(vkutils::LightProxy);
+			vk::WriteDescriptorSet lightBufferWrite;
+			lightBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
+			lightBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
+			lightBufferWrite.dstBinding = 6;
+			lightBufferWrite.pBufferInfo = &lightsDescriptor;
+			lightBufferWrite.descriptorCount = 1;
+
 			vk::DescriptorImageInfo hdrImageDescriptor;
 			hdrImageDescriptor.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 			hdrImageDescriptor.imageView = _hdrMap._view;
@@ -1092,7 +1110,7 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet hdrImageWrite;
 			hdrImageWrite.dstSet = _frames[i]._raytracerDescriptor;
 			hdrImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-			hdrImageWrite.dstBinding = 6;
+			hdrImageWrite.dstBinding = 7;
 			hdrImageWrite.pImageInfo = &hdrImageDescriptor;
 			hdrImageWrite.descriptorCount = 1;
 
@@ -1103,13 +1121,13 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet settingsUniformBufferWrite;
 			settingsUniformBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			settingsUniformBufferWrite.descriptorType = vk::DescriptorType::eUniformBuffer;
-			settingsUniformBufferWrite.dstBinding = 7;
+			settingsUniformBufferWrite.dstBinding = 8;
 			settingsUniformBufferWrite.pBufferInfo = &settingsUboDescriptor;
 			settingsUniformBufferWrite.descriptorCount = 1;
 
 			vk::WriteDescriptorSet textureImageWrite;
             textureImageWrite.dstSet = _frames[i]._raytracerDescriptor;
-            textureImageWrite.dstBinding = 8;
+            textureImageWrite.dstBinding = 9;
             textureImageWrite.dstArrayElement = 0;
             textureImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
 			std::vector<vk::DescriptorImageInfo> imageInfos{};
@@ -1126,6 +1144,7 @@ void VulkanEngine::init_descriptors()
 				indexBufferWrite,
 				vertexBufferWrite,
 				uniformBufferWrite,
+				lightBufferWrite,
 				hdrImageWrite,
 				settingsUniformBufferWrite,
 				textureImageWrite
@@ -1170,10 +1189,10 @@ void VulkanEngine::load_models()
 {
 	auto start_all = std::chrono::high_resolution_clock::now();
 
-	//load bistro optimized
+	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
 	Model* model1 = new Model(_core);
-	model1->load_from_glb(ASSET_PATH"/models/cornell_box.glb");
+	model1->load_from_glb(ASSET_PATH"/models/bistro_new.glb");
 	scene1->add(model1);
 	scene1->build();
 	scene1->buildAccelerationStructure();
@@ -1193,7 +1212,7 @@ void VulkanEngine::load_models()
 	// scene2->buildAccelerationStructure();
 	// _currentScene = scene2;
 	// _scenes.push_back(scene2);
-	
+
 	auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
 
 	long long microseconds_all = std::chrono::duration_cast<std::chrono::microseconds>(elapsed_all).count();
@@ -1208,7 +1227,7 @@ void VulkanEngine::load_models()
 	});
 }
 
-void VulkanEngine::updateBuffers() { 
+void VulkanEngine::updateBuffers() {
 	// write camdata to push constant struct
 	glm::mat4 view = _cam.getView();
 	glm::mat4 projection = glm::perspective(glm::radians(_fov), (float) _core._windowExtent.width / _core._windowExtent.height, 0.1f, 1000.0f);
@@ -1235,12 +1254,8 @@ void VulkanEngine::updateBuffers() {
 	// shwo cam pos
 	glm::vec3 cam_pos = _cam.getPosition();
 	glm::vec3 cam_dir = _cam.getDirection();
-	_gui.settings.cam_pos[0] = cam_pos.x;
-	_gui.settings.cam_pos[1] = cam_pos.y;
-	_gui.settings.cam_pos[2] = cam_pos.z;
-	_gui.settings.cam_dir[0] = cam_dir.x;
-	_gui.settings.cam_dir[1] = cam_dir.y;
-	_gui.settings.cam_dir[2] = cam_dir.z;
+	_gui.settings.cam_pos = cam_pos;
+	_gui.settings.cam_dir = cam_dir;
 	//write settings to gpu buffer
 	_fov = _gui.settings.fov;
     _settingsUBO.accumulate = _gui.settings.accumulate ? 1 : 0;

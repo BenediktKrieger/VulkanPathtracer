@@ -9,9 +9,11 @@ public:
     vkutils::AllocatedBuffer vertexBuffer;
     vkutils::AllocatedBuffer indexBuffer;
     vkutils::AllocatedBuffer materialBuffer;
+    vkutils::AllocatedBuffer lightBuffer;
     std::vector<Vertex> vertices{};
     std::vector<uint32_t> indices{};
     std::vector<vkutils::Material> materials{};
+    std::vector<vkutils::LightProxy> lights{};
     std::vector<Texture> textures{};
     std::vector<Model *> models{};
     std::vector<glm::mat4> modelMatrices{};

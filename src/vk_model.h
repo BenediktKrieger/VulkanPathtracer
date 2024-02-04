@@ -107,6 +107,7 @@ public:
 	Model(vk::Core &core);
 	void destroy();
 	bool load_from_glb(const char *filename);
+	tinygltf::Model* getGltfData();
 	void build();
 private:
 	bool isBuilded;

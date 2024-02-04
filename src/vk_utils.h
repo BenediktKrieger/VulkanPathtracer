@@ -12,9 +12,9 @@ namespace vkutils
         // Renderer Settings
         int renderer;
         // Camera Settings
-        float cam_pos[3];
+        glm::vec3 cam_pos;
         float fov;
-        float cam_dir[3];
+        glm::vec3 cam_dir;
         uint32_t cam_mode;
         // Pathtracer Settings
         bool accumulate;
@@ -124,6 +124,20 @@ namespace vkutils
 	    float ior;
         uint32_t alphaMode;
 	};
+    class LightProxy {
+    public:
+        enum GeoType
+        {
+            SPHERE,
+            AABB
+        };
+        float min[3];
+        GeoType geoType;
+        float max[3];
+        float radius;
+        float center[3];
+        float pad;
+    };
     VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
     bool checkValidationLayerSupport(std::vector<const char *> &instanceLayers);
     bool isDeviceSuitable(vk::PhysicalDevice &physicalDevice, vk::SurfaceKHR &surface, std::vector<const char *> &device_extensions);

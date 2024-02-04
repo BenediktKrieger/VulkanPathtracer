@@ -214,8 +214,8 @@ void vk::GUI::update()
             ImGui::RadioButton("Rasterizer", &settings.renderer, 0); ImGui::SameLine();
             ImGui::RadioButton("Pathtracer", &settings.renderer, 1);
             ImGui::SeparatorText("Camera Setup");
-            ImGui::InputFloat3("Position", settings.cam_pos);
-            ImGui::InputFloat3("Direction", settings.cam_dir);
+            ImGui::InputFloat3("Position", glm::value_ptr(settings.cam_pos));
+            ImGui::InputFloat3("Direction", glm::value_ptr(settings.cam_dir));
             ImGui::SliderFloat("Field Of View", &settings.fov, 10.f, 150.f, "%.1f");
             ImGui::SeparatorText("Pathtracer Setup");
             ImGui::Checkbox("Accumulate Image", &settings.accumulate);

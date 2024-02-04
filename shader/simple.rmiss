@@ -9,6 +9,8 @@ struct RayPayload {
 	vec3 color;
 	vec3 origin;
 	vec3 dir;
+    float f;
+    float pdf;
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
@@ -16,8 +18,8 @@ struct RayPayload {
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
-layout(binding = 6, set = 0) uniform sampler2D hdrMapSampler;
-layout(binding = 7, set = 0) uniform Settings {
+layout(binding = 7, set = 0) uniform sampler2D hdrMapSampler;
+layout(binding = 8, set = 0) uniform Settings {
     bool accumulate;
     uint samples;
     uint reflection_recursion;

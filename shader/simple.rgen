@@ -16,6 +16,8 @@ struct RayPayload {
 	vec3 color;
 	vec3 origin;
 	vec3 dir;
+	float f;
+    float pdf;
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
@@ -25,7 +27,7 @@ struct RayPayload {
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 1, set = 0, rgba8) uniform image2D image;
 layout(binding = 2, set = 0, rgba32f) uniform image2D accImage;
-layout(binding = 7, set = 0) uniform Settings {
+layout(binding = 8, set = 0) uniform Settings {
   	bool accumulate;
 	uint samples;
 	uint reflection_recursion;
@@ -75,12 +77,19 @@ void main()
 		Payload.origin = origin.xyz;
 		Payload.shadow = true;
 		Payload.dir = direction.xyz;
+		Payload.f = 1.0;
+		Payload.pdf = 1.0;
 		
 		while(Payload.continueTrace) {
 			traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
 		}
 
-		sumofHitValues +=  Payload.color;
+		if(Payload.pdf < 0.0001 || Payload.f < 0.0001 || Payload.pdf != Payload.pdf ||  Payload.f != Payload.f){
+			sumofHitValues += vec3(0.0);
+		}else{
+			float sample_weight = Payload.f / Payload.pdf;
+			sumofHitValues +=  Payload.color * sample_weight;
+		}
 	}
 
 	vec3 newColor = sumofHitValues / spp;

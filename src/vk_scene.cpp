@@ -1,4 +1,5 @@
 #include <vk_scene.h>
+#include <iterator>
 
 Scene::Scene(): core(){
     _isBuilded = false;
@@ -31,8 +32,10 @@ void Scene::buildAccelerationStructure()
 
     vk::DeviceSize vertexBufferSize = vertices.size() * sizeof(Vertex);
     vk::DeviceSize indexBufferSize = indices.size() * sizeof(uint32_t);
+    vk::DeviceSize lightBufferSize = lights.size() * sizeof(vkutils::LightProxy);
     vertexBuffer = vkutils::deviceBufferFromData(*core, (void*) vertices.data(), vertexBufferSize, vk::BufferUsageFlagBits::eVertexBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice);
     indexBuffer = vkutils::deviceBufferFromData(*core, (void*) indices.data(), indexBufferSize, vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice);
+    lightBuffer = vkutils::deviceBufferFromData(*core, (void*) lights.data(), lightBufferSize, vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice);
     
     std::vector<uint32_t> materialOffsets;
     //build blas
@@ -299,6 +302,97 @@ void Scene::build()
         vertices.insert(std::end(vertices), std::begin(model->_vertices), std::end(model->_vertices));
         indices.insert(std::end(indices), std::begin(model->_indices), std::end(model->_indices));
         textures.insert(std::end(textures), std::begin(model->_textures), std::end(model->_textures));
+        for (auto node : model->_linearNodes) {
+            glm::mat4 modelMatrix = node->getMatrix();
+            for (auto primitive : node->primitives) {
+                bool isEmissive = primitive->material.emissiveStrength > 1.01;
+                if (primitive->indexCount > 0 && isEmissive) {
+                    std::vector<unsigned char> emissiveTexture;
+                    int32_t textureWidth = 0;
+                    int32_t textureHeight = 0;
+                    int32_t textureComponents = 0;
+                    // if(primitive->material.emissiveTexture > -1){
+                    //     emissiveTexture = model->getGltfData()->images[primitive->material.emissiveTexture].image;
+                    //     textureWidth = model->getGltfData()->images[primitive->material.emissiveTexture].width;
+                    //     textureHeight = model->getGltfData()->images[primitive->material.emissiveTexture].height;
+                    //     textureComponents = model->getGltfData()->images[primitive->material.emissiveTexture].component;
+                    // }
+                    uint32_t indexCount = primitive->indexCount;
+                    std::vector<uint32_t>::iterator start = model->_indices.begin();
+                    std::advance(start, primitive->firstIndex);
+                    std::vector<uint32_t>::iterator end = model->_indices.begin();
+                    std::advance(end, primitive->firstIndex + primitive->indexCount);
+                    std::vector<uint32_t> primitiveIndexBuffer(start, end);
+                    //std::vector<uint32_t> untouchedIndices(start, end);
+                    std::sort(primitiveIndexBuffer.begin(), primitiveIndexBuffer.end());
+                    primitiveIndexBuffer.erase(std::unique(primitiveIndexBuffer.begin(), primitiveIndexBuffer.end()), primitiveIndexBuffer.end());
+                    
+                    glm::vec3 min = glm::vec3(1000000);
+                    glm::vec3 max = glm::vec3(-1000000);
+                    for (const auto index : primitiveIndexBuffer) {
+                        Vertex currentVertex = model->_vertices[index];
+                        bool isEmissive = true;
+                        // if(primitive->material.emissiveTexture > -1){
+                        //     glm::vec2 uv = currentVertex.uv;
+                            
+                        //     if(uv.x > 1.0f)
+                        //         uv.x = uv.x - floor(uv.x);
+                        //     if(uv.y > 1.0f)
+                        //         uv.y = uv.y - floor(uv.y);
+                        //     if(uv.x < 0.0f)
+                        //         uv.x = 1 - (abs(uv.x) - floor(abs(uv.x)));
+                        //     if(uv.y < 0.0f)
+                        //         uv.y = 1 - (abs(uv.y) - floor(abs(uv.y)));
+                        //     glm::ivec2 textureIndex((currentVertex.uv.x) * textureWidth, currentVertex.uv.y * textureHeight);
+                        //     int32_t arrayIndex = textureIndex.y * textureWidth + textureIndex.x * textureComponents;
+                        //     glm::vec3 color(emissiveTexture[arrayIndex], emissiveTexture[arrayIndex + 1], emissiveTexture[arrayIndex + 2]);
+                        //     if(!(emissiveTexture[arrayIndex] > 0.1 || emissiveTexture[arrayIndex + 1] > 0.1 || emissiveTexture[arrayIndex + 2] > 0.1)){
+                        //         bool isEmissive = false;
+                        //     }
+                        // }
+                        if(isEmissive) {
+                            glm::vec4 pos = modelMatrix * glm::vec4(currentVertex.pos, 1.0f);
+                            min.x = pos.x < min.x ? pos.x : min.x;
+                            min.y = pos.y < min.y ? pos.y : min.y;
+                            min.z = pos.z < min.z ? pos.z : min.z;
+                            max.x = pos.x > max.x ? pos.x : max.x;
+                            max.y = pos.y > max.y ? pos.y : max.y;
+                            max.z = pos.z > max.z ? pos.z : max.z;
+                        }
+                    }
+                    std::cout << "Lightsource found with " << primitiveIndexBuffer.size() << " vertices" << std::endl;
+                    min = min - glm::vec3(0.001f);
+                    max = max + glm::vec3(0.001f);
+
+                    // select proxi-geometry
+                    glm::vec3 extent(max - min);
+                    float max_extent = std::max(abs(extent.x), abs(extent.y));
+                    max_extent = std::max(max_extent, abs(extent.z));
+                    float radius = max_extent / 2.0f;
+                    float sphere_volume = 4.0f / 3.0f * glm::pi<float>() * glm::pow(radius, 3.0f);
+                    glm::vec3 min_to_max(max - min);
+                    float aabb_volume = min_to_max.x * min_to_max.y * min_to_max.z;
+                    vkutils::LightProxy light;
+                    if(sphere_volume < aabb_volume) {
+                        glm::vec3 center((max + min) / 2.0f);
+                        light.geoType = vkutils::LightProxy::SPHERE;
+                        light.center[0] = center.x;
+                        light.center[1] = center.y;
+                        light.center[2] = center.z;
+                        light.radius = radius;
+                    } else {
+                        light.geoType = vkutils::LightProxy::AABB;
+                        light.min[0] = min.x;
+                        light.min[1] = min.y;
+                        light.min[2] = min.z;
+                        light.max[0] = max.x;
+                        light.max[1] = max.y;
+                        light.max[2] = max.z;
+                    }
+                    lights.push_back(light);
+                }
+            }
+        }
     }
     _isBuilded = true;
     std::cout << "Scene loaded with " << indices.size() / 3 << " Triangles and " << vertices.size() << " Vertices" << std::endl;
@@ -314,6 +408,7 @@ void Scene::destroy()
         core->_allocator.destroyBuffer(indexBuffer._buffer, indexBuffer._allocation);
         core->_allocator.destroyBuffer(vertexBuffer._buffer, vertexBuffer._allocation);
         core->_allocator.destroyBuffer(materialBuffer._buffer, materialBuffer._allocation);
+        core->_allocator.destroyBuffer(lightBuffer._buffer, lightBuffer._allocation);
         core->_device.destroyImageView(textures.back().image._view);
         core->_allocator.destroyImage(textures.back().image._image, textures.back().image._allocation);
         core->_device.destroySampler(sampler);

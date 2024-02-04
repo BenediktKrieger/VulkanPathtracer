@@ -40,6 +40,8 @@ struct RayPayload {
 	vec3 color;
 	vec3 origin;
 	vec3 dir;
+  float f;
+  float pdf;
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
@@ -53,7 +55,7 @@ layout(location = 0) rayPayloadInEXT RayPayload Payload;
 layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
 layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
 layout(binding = 5, set = 0) buffer Materials { Material m[]; } materials;
-layout(binding = 8, set = 0) uniform sampler2D texSampler[];
+layout(binding = 9, set = 0) uniform sampler2D texSampler[];
 
 
 void main()

@@ -28,6 +28,15 @@ struct Material {
     uint alphaMode;
 };
 
+struct Light {
+    vec3 min;
+    uint geoType;
+    vec3 max;
+    float radius;
+    vec3 center;
+    float pad;
+};
+
 struct Vertex {
     vec3 pos;
     float pad0;
@@ -45,6 +54,8 @@ struct RayPayload {
 	vec3 color;
 	vec3 origin;
 	vec3 dir;
+    float f;
+    float pdf;
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
@@ -55,14 +66,15 @@ layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
 layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
 layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
 layout(binding = 5, set = 0) buffer Materials { Material m[]; } materials;
-layout(binding = 7, set = 0) uniform Settings {
+layout(binding = 6, set = 0) buffer Lights { Light l[]; } lights;
+layout(binding = 8, set = 0) uniform Settings {
     bool accumulate;
 	uint samples;
 	uint reflection_recursion;
 	uint refraction_recursion;
     float ambient_multiplier;
 } settings;
-layout(binding = 8, set = 0) uniform sampler2D texSampler[];
+layout(binding = 9, set = 0) uniform sampler2D texSampler[];
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
@@ -191,6 +203,33 @@ bool intersectAABB(vec3 minB, vec3 maxB, vec3 origin, vec3 direction, inout floa
     return true;
 }
 
+float getSpherePdf(vec3 center, float radius, vec3 origin){
+    float direction_length_squared = pow(length(center - origin), 2);
+    float cos_theta_max = sqrt(1 - radius*radius / direction_length_squared);
+    float solid_angle = 2*PI*(1-cos_theta_max);
+    return  1 / solid_angle;
+}
+
+float getAABBPdf(vec3 minB, vec3 maxB, vec3 origin){
+    vec3 direction = vec3((minB + maxB) / 2)-origin;
+    float distanceToLight = length(direction);
+    float distanceSquared = distanceToLight * distanceToLight;
+    float visibleArea = 0.0;
+    for(uint face = 0; face < 3; face++){
+        vec3 normalFace = vec3(0.0, 0.0, 0.0);
+        normalFace[face] = 1.0;
+        if(dot(normalFace, direction) < 0){
+            normalFace[face] = 1.0;
+        }
+        vec2 minFace = vec2(minB[(face + 1) % 3], minB[(face + 2) % 3]);
+        vec2 maxFace = vec2(maxB[(face + 1) % 3], maxB[(face + 2) % 3]);
+        float aabbFaceArea = (maxFace.x - minFace.x) * (maxFace.y - minFace.y);
+        float aabbFaceCosine = max(0.000001, abs(dot(direction, normalFace)));
+        visibleArea += (aabbFaceCosine * aabbFaceArea);
+    }
+    return distanceSquared / max(0.0001, visibleArea);
+}
+
 float getSpherePdf(vec3 center, float radius, vec3 origin, vec3 direction){
     float t;
     if (!intersectSphere(center, radius, origin, direction, t))
@@ -231,15 +270,6 @@ float getCosinePdf(vec3 normal, vec3 direction) {
 
 void main()
 {
-    vec3 a = vec3(-0.23, 0.9879, -0.21);
-    vec3 b = vec3(0.24, 0.9881, 0.17);
-
-    vec3 c = vec3(-1, -1, 1.12);
-    vec3 d = vec3(1, 1, 1.121);
-
-    vec3 center = vec3(0.567, 0.343, 0.749) * 20;
-    float radius = 8;
-
     mat4 normalToWorld = transpose(inverse(mat4(gl_ObjectToWorldEXT)));
     Material material = materials.m[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
     const uint triIndex = material.indexOffset + gl_PrimitiveID * 3;
@@ -254,19 +284,47 @@ void main()
     vec3 color = vec3(0.0);
     vec3 emission = vec3(0.0);
 
+    // for(uint i = 0; i < lights.l.length(); i++){
+    //     Light light = lights.l[i];
+    //     float dist;
+    //     if(light.geoType == 0){
+    //         if(intersectSphere(light.center, light.radius, gl_WorldRayOriginEXT, gl_WorldRayDirectionEXT, dist)){
+    //             Payload.color *= vec3(1.0, 0, 0);
+    //             Payload.continueTrace = false;
+    //             return;
+    //         }
+    //     } else {
+    //         if(intersectAABB(light.min, light.max, gl_WorldRayOriginEXT, gl_WorldRayDirectionEXT, dist)){
+    //             Payload.color *= vec3(1.0, 0, 0);
+    //             Payload.continueTrace = false;
+    //             return;
+    //         }
+    //     }
+    // }
+
+    // if(material.emissiveTexture >= 0){
+    //     vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).rgb;
+    //     if(emissiveFactor.x > 0.5 || emissiveFactor.y > 0.5 || emissiveFactor.z > 0.5)
+    //     Payload.color *= vec3(1.0, 0, 0);
+    //     Payload.continueTrace = false;
+    //     return;
+    // }
+
     // check for emission of hit
     if(material.emissiveStrength > 1.0 || material.emissiveTexture >= 0){
         if(material.emissiveTexture >= 0){
             vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).xyz;
             emission = vec3(material.emissiveStrength) * emissiveFactor;
             if(emissiveFactor.x > 0.1 || emissiveFactor.y > 0.1 || emissiveFactor.z > 0.1){
-                Payload.color *= emission;
+                if(Payload.f / Payload.pdf < 10.0)
+                    Payload.color *= emission;
                 Payload.continueTrace = false;
                 return;
             }
         } else {
             emission = vec3(material.emissiveStrength) * material.emissiveFactor.xyz;
-            Payload.color *= emission;
+            if(Payload.f / Payload.pdf < 10.0)
+                Payload.color *= emission;
             Payload.continueTrace = false;
             return;
         }
@@ -295,28 +353,77 @@ void main()
         vec3 newDir = vec3(0.0);
         float russianRoulette = rand();
 
-        float importance1 = 0.25;
-        float importance2 = 0.25;
-        float importance3 = 0.5;
+        const uint maxLightCount = 30;
+        uint lightCandidates[maxLightCount];
+        uint lightCount = 0;
+        for(uint i = 0; i < lights.l.length() && lightCount < maxLightCount; i++){
+            Light light = lights.l[i];
+            vec3 center = light.center;
+            if(light.geoType != 0){
+                center = (light.min + light.max) / 2;
+            }
+            if(distance(center, newOrigin) < 5){
+                lightCandidates[lightCount] = i;
+                lightCount++;
+            }
+        }
 
-        if(russianRoulette < importance1){
-            newDir = random_to_aabb(a, b, newOrigin);
-        } else if(russianRoulette < importance1 + importance2) {
-            newDir = random_to_sphere(center, radius, newOrigin);
+        float brdfImportance = .5;
+        float directLightImportance = .5;
+        float singleLightImportance = directLightImportance / lightCount;
+        if(lightCount < 1){
+            brdfImportance = 1.0;
+            directLightImportance = -1;
+        }
+
+        // get sample by importance
+        int lighIndex = -1;
+        float distanceToLight = -1;
+        if(russianRoulette < directLightImportance){
+            //sample lights
+            uint index = uint(floor(russianRoulette / singleLightImportance));
+            lighIndex = int(lightCandidates[index]);
+            Light light = lights.l[lighIndex];
+            if(light.geoType == 0){
+                newDir = random_to_sphere(light.center, light.radius, newOrigin);
+            } else {
+                newDir = random_to_aabb(light.min, light.max, newOrigin);
+            }
         } else {
+            // sample material-brdf
             newDir = random_on_cosine_hemisphere(normal);
         }
-        float mat_pdf = getCosinePdf(normal, newDir);
-        float sampling_pdf1 = getAABBPdf(a, b, newOrigin, newDir);
-        float sampling_pdf2 = getSpherePdf(center, radius, newOrigin, newDir);
-        float sampling_pdf3 = getCosinePdf(normal, newDir);
-        float sampling_pdf = importance1 * sampling_pdf1 + importance2 * sampling_pdf2 + importance3 * sampling_pdf3;
 
-        color = (color * mat_pdf) / max(0.001, sampling_pdf);
+        // get material-brdf pdf
+        float mat_pdf = getCosinePdf(normal, newDir);
+
+        // get sample pdf
+        float sampling_pdf = brdfImportance * getCosinePdf(normal, newDir);
+        if(directLightImportance > 0.0001){
+            for(uint i = 0; i < lightCount; i++){
+                uint index = lightCandidates[i];
+                Light light = lights.l[index];
+                if(light.geoType == 0){
+                    if(lighIndex == index){
+                        sampling_pdf += singleLightImportance * getSpherePdf(light.center, light.radius, newOrigin);
+                    }else{
+                        sampling_pdf += singleLightImportance * getSpherePdf(light.center, light.radius, newOrigin, newDir);
+                    }
+                } else {
+                    if(lighIndex == index){
+                        sampling_pdf += singleLightImportance * getAABBPdf(light.min, light.max, newOrigin);
+                    }else{
+                        sampling_pdf += singleLightImportance * getAABBPdf(light.min, light.max, newOrigin, newDir);
+                    }
+                }
+            }
+        }
 
         Payload.diffuseRecursion += 1;
         Payload.origin = newOrigin;
         Payload.dir = newDir;
+        Payload.f *= mat_pdf;
+        Payload.pdf *= sampling_pdf;
     }
 
     Payload.color *= color;

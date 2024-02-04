@@ -435,6 +435,11 @@ bool Model::load_from_glb(const char *filename)
 	return fileLoaded;
 }
 
+tinygltf::Model* Model::getGltfData()
+{
+	return &_input;
+}
+
 void Model::build()
 {
 	loadImages();
