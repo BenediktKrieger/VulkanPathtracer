@@ -311,12 +311,6 @@ void Scene::build()
                     int32_t textureWidth = 0;
                     int32_t textureHeight = 0;
                     int32_t textureComponents = 0;
-                    // if(primitive->material.emissiveTexture > -1){
-                    //     emissiveTexture = model->getGltfData()->images[primitive->material.emissiveTexture].image;
-                    //     textureWidth = model->getGltfData()->images[primitive->material.emissiveTexture].width;
-                    //     textureHeight = model->getGltfData()->images[primitive->material.emissiveTexture].height;
-                    //     textureComponents = model->getGltfData()->images[primitive->material.emissiveTexture].component;
-                    // }
                     uint32_t indexCount = primitive->indexCount;
                     std::vector<uint32_t>::iterator start = model->_indices.begin();
                     std::advance(start, primitive->firstIndex);
@@ -332,24 +326,6 @@ void Scene::build()
                     for (const auto index : primitiveIndexBuffer) {
                         Vertex currentVertex = model->_vertices[index];
                         bool isEmissive = true;
-                        // if(primitive->material.emissiveTexture > -1){
-                        //     glm::vec2 uv = currentVertex.uv;
-                            
-                        //     if(uv.x > 1.0f)
-                        //         uv.x = uv.x - floor(uv.x);
-                        //     if(uv.y > 1.0f)
-                        //         uv.y = uv.y - floor(uv.y);
-                        //     if(uv.x < 0.0f)
-                        //         uv.x = 1 - (abs(uv.x) - floor(abs(uv.x)));
-                        //     if(uv.y < 0.0f)
-                        //         uv.y = 1 - (abs(uv.y) - floor(abs(uv.y)));
-                        //     glm::ivec2 textureIndex((currentVertex.uv.x) * textureWidth, currentVertex.uv.y * textureHeight);
-                        //     int32_t arrayIndex = textureIndex.y * textureWidth + textureIndex.x * textureComponents;
-                        //     glm::vec3 color(emissiveTexture[arrayIndex], emissiveTexture[arrayIndex + 1], emissiveTexture[arrayIndex + 2]);
-                        //     if(!(emissiveTexture[arrayIndex] > 0.1 || emissiveTexture[arrayIndex + 1] > 0.1 || emissiveTexture[arrayIndex + 2] > 0.1)){
-                        //         bool isEmissive = false;
-                        //     }
-                        // }
                         if(isEmissive) {
                             glm::vec4 pos = modelMatrix * glm::vec4(currentVertex.pos, 1.0f);
                             min.x = pos.x < min.x ? pos.x : min.x;
