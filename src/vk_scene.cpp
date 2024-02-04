@@ -317,7 +317,6 @@ void Scene::build()
                     std::vector<uint32_t>::iterator end = model->_indices.begin();
                     std::advance(end, primitive->firstIndex + primitive->indexCount);
                     std::vector<uint32_t> primitiveIndexBuffer(start, end);
-                    //std::vector<uint32_t> untouchedIndices(start, end);
                     std::sort(primitiveIndexBuffer.begin(), primitiveIndexBuffer.end());
                     primitiveIndexBuffer.erase(std::unique(primitiveIndexBuffer.begin(), primitiveIndexBuffer.end()), primitiveIndexBuffer.end());
                     
