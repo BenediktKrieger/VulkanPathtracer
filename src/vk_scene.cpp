@@ -324,32 +324,33 @@ void Scene::build()
                     glm::vec3 max = glm::vec3(-1000000);
                     for (const auto index : primitiveIndexBuffer) {
                         Vertex currentVertex = model->_vertices[index];
-                        bool isEmissive = true;
-                        if(isEmissive) {
-                            glm::vec4 pos = modelMatrix * glm::vec4(currentVertex.pos, 1.0f);
-                            min.x = pos.x < min.x ? pos.x : min.x;
-                            min.y = pos.y < min.y ? pos.y : min.y;
-                            min.z = pos.z < min.z ? pos.z : min.z;
-                            max.x = pos.x > max.x ? pos.x : max.x;
-                            max.y = pos.y > max.y ? pos.y : max.y;
-                            max.z = pos.z > max.z ? pos.z : max.z;
-                        }
+                        glm::vec4 pos = modelMatrix * glm::vec4(currentVertex.pos, 1.0f);
+                        min.x = pos.x < min.x ? pos.x : min.x;
+                        min.y = pos.y < min.y ? pos.y : min.y;
+                        min.z = pos.z < min.z ? pos.z : min.z;
+                        max.x = pos.x > max.x ? pos.x : max.x;
+                        max.y = pos.y > max.y ? pos.y : max.y;
+                        max.z = pos.z > max.z ? pos.z : max.z;
                     }
-                    std::cout << "Lightsource found with " << primitiveIndexBuffer.size() << " vertices" << std::endl;
+                    glm::vec3 center((max + min) / 2.0f);
+                    float radius = 0.0f;
+                    for (const auto index : primitiveIndexBuffer) {
+                        Vertex currentVertex = model->_vertices[index];
+                        glm::vec4 pos = modelMatrix * glm::vec4(currentVertex.pos, 1.0f);
+                        float distance_to_center = glm::distance(glm::vec3(pos), center);
+                        if(distance_to_center > radius)
+                            radius = distance_to_center;
+                    }
+                    radius += 0.001f;
                     min = min - glm::vec3(0.001f);
                     max = max + glm::vec3(0.001f);
 
                     // select proxi-geometry
-                    glm::vec3 extent(max - min);
-                    float max_extent = std::max(abs(extent.x), abs(extent.y));
-                    max_extent = std::max(max_extent, abs(extent.z));
-                    float radius = max_extent / 2.0f;
                     float sphere_volume = 4.0f / 3.0f * glm::pi<float>() * glm::pow(radius, 3.0f);
                     glm::vec3 min_to_max(max - min);
                     float aabb_volume = min_to_max.x * min_to_max.y * min_to_max.z;
                     vkutils::LightProxy light;
                     if(sphere_volume < aabb_volume) {
-                        glm::vec3 center((max + min) / 2.0f);
                         light.geoType = vkutils::LightProxy::SPHERE;
                         light.center[0] = center.x;
                         light.center[1] = center.y;
@@ -364,6 +365,7 @@ void Scene::build()
                         light.max[1] = max.y;
                         light.max[2] = max.z;
                     }
+                    std::cout << "Lightsource found with " << primitiveIndexBuffer.size() << " vertices" << std::endl;
                     lights.push_back(light);
                 }
             }

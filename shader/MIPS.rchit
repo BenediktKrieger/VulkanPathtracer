@@ -135,31 +135,6 @@ vec3 random_on_uniform_hemisphere(vec3 normal){
     return uvw * random_uniform_hemisphere();
 }
 
-vec3 random_to_aabb(vec3 minB, vec3 maxB, vec3 origin) {
-    vec3 pointOnLight = vec3(minB.x + rand() * abs(maxB.x - minB.x), minB.y + rand() * abs(maxB.y - minB.y), minB.z + rand() * abs(maxB.z - minB.z));
-    vec3 toAABB = pointOnLight - origin;
-    return normalize(toAABB);
-}
-
-vec3 random_to_sphere(vec3 center, float radius, vec3 origin){
-    vec3 direction = center - origin;
-    vec3 w = normalize(direction);
-    vec3 h = abs(w.x) > 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0);
-    vec3 v = normalize(cross(w, h));
-    vec3 u = cross(w, v);
-    mat3 uvw = mat3(u,v,w);
-
-    float distanceSquared = pow(length(direction), 2);
-    float r1 = rand();
-    float r2 = rand();
-    float phi = 2*PI*r1;
-    float z = 1 + r2*(sqrt(1-radius*radius/distanceSquared) - 1);
-    float y = sin(phi)*sqrt(1-z*z);
-    float x = cos(phi)*sqrt(1-z*z);
-
-    return uvw * vec3(x, y, z);
-}
-
 bool intersectSphere(vec3 center, float radius, vec3 origin, vec3 direction, inout float t){
     vec3  oc           = origin - center;
     float a            = dot(direction, direction);
@@ -203,23 +178,54 @@ bool intersectAABB(vec3 minB, vec3 maxB, vec3 origin, vec3 direction, inout floa
     return true;
 }
 
-float getSpherePdf(vec3 center, float radius, vec3 origin){
-    float direction_length_squared = pow(length(center - origin), 2);
+vec3 random_on_aabb(vec3 minB, vec3 maxB, vec3 origin) {
+    vec3 pointInLight = vec3(minB.x + rand() * abs(maxB.x - minB.x), minB.y + rand() * abs(maxB.y - minB.y), minB.z + rand() * abs(maxB.z - minB.z));
+    vec3 dir = normalize(pointInLight - origin);
+    float visibleAreas[3];
+    for(uint face = 0; face < 3; face++){
+        vec3 normalFace = vec3(0.0, 0.0, 0.0);
+        normalFace[face] = 1.0;
+        if(dot(normalFace, dir) < 0){
+            normalFace[face] = -1.0;
+        }
+        vec2 minFace = vec2(minB[(face + 1) % 3], minB[(face + 2) % 3]);
+        vec2 maxFace = vec2(maxB[(face + 1) % 3], maxB[(face + 2) % 3]);
+        float aabbFaceArea = (maxFace.x - minFace.x) * (maxFace.y - minFace.y);
+        float aabbFaceCosine = max(0.000001, abs(dot(dir, normalFace)));
+        visibleAreas[face] = (aabbFaceCosine * aabbFaceArea);
+    }
+    float pick_face = rand() * (visibleAreas[0] + visibleAreas[1] + visibleAreas[2]);
+    if(pick_face < visibleAreas[0])
+        pointInLight.x = dir.x > 0 ? maxB.x : minB.x;
+    else if(pick_face < visibleAreas[1])
+        pointInLight.y = dir.y > 0 ? maxB.y : minB.y;
+    else
+        pointInLight.z = dir.z > 0 ? maxB.z : minB.z;
+    return pointInLight;
+}
+
+vec3 random_on_sphere(vec3 center, float radius, vec3 origin){
+    vec3 on_sphere = random_on_cosine_hemisphere(-1 * normalize(center - origin));
+    return (center + radius * on_sphere);
+}
+
+float getSpherePdf(vec3 center, float radius, vec3 direction){
+    float direction_length_squared = pow(length(direction), 2);
     float cos_theta_max = sqrt(1 - radius*radius / direction_length_squared);
     float solid_angle = 2*PI*(1-cos_theta_max);
     return  1 / solid_angle;
 }
 
-float getAABBPdf(vec3 minB, vec3 maxB, vec3 origin){
-    vec3 direction = vec3((minB + maxB) / 2)-origin;
+float getAABBPdf(vec3 minB, vec3 maxB, vec3 direction){
     float distanceToLight = length(direction);
+    direction = normalize(direction);
     float distanceSquared = distanceToLight * distanceToLight;
     float visibleArea = 0.0;
     for(uint face = 0; face < 3; face++){
         vec3 normalFace = vec3(0.0, 0.0, 0.0);
         normalFace[face] = 1.0;
         if(dot(normalFace, direction) < 0){
-            normalFace[face] = 1.0;
+            normalFace[face] = -1.0;
         }
         vec2 minFace = vec2(minB[(face + 1) % 3], minB[(face + 2) % 3]);
         vec2 maxFace = vec2(maxB[(face + 1) % 3], maxB[(face + 2) % 3]);
@@ -233,7 +239,7 @@ float getAABBPdf(vec3 minB, vec3 maxB, vec3 origin){
 float getSpherePdf(vec3 center, float radius, vec3 origin, vec3 direction){
     float t;
     if (!intersectSphere(center, radius, origin, direction, t))
-        return 0.000001;
+        return 0;
 
     float direction_length_squared = pow(length(center - origin), 2);
     float cos_theta_max = sqrt(1 - radius*radius / direction_length_squared);
@@ -250,7 +256,7 @@ float getAABBPdf(vec3 minB, vec3 maxB, vec3 origin, vec3 direction){
             vec3 normalFace = vec3(0.0, 0.0, 0.0);
             normalFace[face] = 1.0;
             if(dot(normalFace, direction) < 0){
-                normalFace[face] = 1.0;
+                normalFace[face] = -1.0;
             }
             vec2 minFace = vec2(minB[(face + 1) % 3], minB[(face + 2) % 3]);
             vec2 maxFace = vec2(maxB[(face + 1) % 3], maxB[(face + 2) % 3]);
@@ -260,7 +266,7 @@ float getAABBPdf(vec3 minB, vec3 maxB, vec3 origin, vec3 direction){
         }
         return distanceSquared / max(0.0001, visibleArea);
     } else {
-        return 0.000001;
+        return 0;
     }
 }
 
@@ -316,15 +322,13 @@ void main()
             vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).xyz;
             emission = vec3(material.emissiveStrength) * emissiveFactor;
             if(emissiveFactor.x > 0.1 || emissiveFactor.y > 0.1 || emissiveFactor.z > 0.1){
-                if(Payload.f / Payload.pdf < 10.0)
-                    Payload.color *= emission;
+                Payload.color *= emission;
                 Payload.continueTrace = false;
                 return;
             }
         } else {
             emission = vec3(material.emissiveStrength) * material.emissiveFactor.xyz;
-            if(Payload.f / Payload.pdf < 10.0)
-                Payload.color *= emission;
+            Payload.color *= emission;
             Payload.continueTrace = false;
             return;
         }
@@ -362,33 +366,35 @@ void main()
             if(light.geoType != 0){
                 center = (light.min + light.max) / 2;
             }
-            if(distance(center, newOrigin) < 5){
+            if(distance(center, newOrigin) < 10){
                 lightCandidates[lightCount] = i;
                 lightCount++;
             }
         }
 
-        float brdfImportance = .5;
-        float directLightImportance = .5;
+        float brdfImportance = 0;
+        float directLightImportance = 1;
         float singleLightImportance = directLightImportance / lightCount;
-        if(lightCount < 1){
-            brdfImportance = 1.0;
-            directLightImportance = -1;
-        }
+        // if(lightCount < 1){
+        //     brdfImportance = 1.0;
+        //     directLightImportance = 0;
+        // }
 
         // get sample by importance
         int lighIndex = -1;
         float distanceToLight = -1;
+        vec3 pointOnLight = vec3(0);
         if(russianRoulette < directLightImportance){
             //sample lights
             uint index = uint(floor(russianRoulette / singleLightImportance));
             lighIndex = int(lightCandidates[index]);
             Light light = lights.l[lighIndex];
             if(light.geoType == 0){
-                newDir = random_to_sphere(light.center, light.radius, newOrigin);
+                pointOnLight = random_on_sphere(light.center, light.radius, newOrigin);
             } else {
-                newDir = random_to_aabb(light.min, light.max, newOrigin);
+                pointOnLight = random_on_aabb(light.min, light.max, newOrigin);
             }
+            newDir = normalize(pointOnLight - newOrigin);
         } else {
             // sample material-brdf
             newDir = random_on_cosine_hemisphere(normal);
@@ -405,13 +411,13 @@ void main()
                 Light light = lights.l[index];
                 if(light.geoType == 0){
                     if(lighIndex == index){
-                        sampling_pdf += singleLightImportance * getSpherePdf(light.center, light.radius, newOrigin);
+                        sampling_pdf += singleLightImportance * getSpherePdf(light.center, light.radius, pointOnLight - newOrigin);
                     }else{
                         sampling_pdf += singleLightImportance * getSpherePdf(light.center, light.radius, newOrigin, newDir);
                     }
                 } else {
                     if(lighIndex == index){
-                        sampling_pdf += singleLightImportance * getAABBPdf(light.min, light.max, newOrigin);
+                        sampling_pdf += singleLightImportance * getAABBPdf(light.min, light.max, pointOnLight - newOrigin);
                     }else{
                         sampling_pdf += singleLightImportance * getAABBPdf(light.min, light.max, newOrigin, newDir);
                     }
