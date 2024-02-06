@@ -136,7 +136,7 @@ namespace vkutils
         float max[3];
         float radius;
         float center[3];
-        float pad;
+        float radiosity;
     };
     VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity, VkDebugUtilsMessageTypeFlagsEXT messageTypes, const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData, void *pUserData);
     bool checkValidationLayerSupport(std::vector<const char *> &instanceLayers);

@@ -305,8 +305,7 @@ void Scene::build()
         for (auto node : model->_linearNodes) {
             glm::mat4 modelMatrix = node->getMatrix();
             for (auto primitive : node->primitives) {
-                bool isEmissive = primitive->material.emissiveStrength > 1.01;
-                if (primitive->indexCount > 0 && isEmissive) {
+                if (primitive->indexCount > 0 && primitive->material.emissiveStrength > 1.01) {
                     std::vector<unsigned char> emissiveTexture;
                     int32_t textureWidth = 0;
                     int32_t textureHeight = 0;
@@ -356,6 +355,7 @@ void Scene::build()
                         light.center[1] = center.y;
                         light.center[2] = center.z;
                         light.radius = radius;
+                        light.radiosity = ((4.0f * glm::pi<float>() * radius * radius) / 2) *  primitive->material.emissiveStrength;
                     } else {
                         light.geoType = vkutils::LightProxy::AABB;
                         light.min[0] = min.x;
@@ -364,8 +364,10 @@ void Scene::build()
                         light.max[0] = max.x;
                         light.max[1] = max.y;
                         light.max[2] = max.z;
+                        glm::vec3 size = max - min;
+                        light.radiosity = (size.x * size.y + size.z * size.y + size.x * size.z) *  primitive->material.emissiveStrength;
                     }
-                    std::cout << "Lightsource found with " << primitiveIndexBuffer.size() << " vertices" << std::endl;
+                    std::cout << "Lightsource found with " << primitiveIndexBuffer.size() << " and estimated radiosity of " << light.radiosity << " vertices" << std::endl;
                     lights.push_back(light);
                 }
             }

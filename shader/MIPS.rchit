@@ -34,7 +34,7 @@ struct Light {
     vec3 max;
     float radius;
     vec3 center;
-    float pad;
+    float radiosity;
 };
 
 struct Vertex {
@@ -205,7 +205,7 @@ vec3 random_on_aabb(vec3 minB, vec3 maxB, vec3 origin) {
 }
 
 vec3 random_on_sphere(vec3 center, float radius, vec3 origin){
-    vec3 on_sphere = random_on_cosine_hemisphere(-1 * normalize(center - origin));
+    vec3 on_sphere = random_on_cosine_hemisphere(normalize(origin - center));
     return (center + radius * on_sphere);
 }
 
@@ -274,6 +274,31 @@ float getCosinePdf(vec3 normal, vec3 direction) {
     return max(0.000001, dot(normal, direction) / PI);
 }
 
+// Input Ve: viewdirection
+// Input alpha_x, alpha_y: roughnessparameters
+// Input U1, U2: uniformrandom numbers
+// Output Ne: normal sampled with PDFD_Ve(Ne)=G1(Ve) * max(0,dot(Ve,Ne)) * D(Ne)/Ve.z 
+vec3 sampleGGXVNDF(vec3 Ve, float alpha_x, float alpha_y, float U1, float U2) { 
+    // Section3.2: transforming the view direction to the hemisphere configuration 
+    vec3 Vh = normalize(vec3(alpha_x * Ve.x, alpha_y * Ve.y, Ve.z)); 
+    // Section4.1: orthonormalbasis(withspecialcaseifcrossproductiszero) 
+    float lensq = Vh.x * Vh.x + Vh.y * Vh.y; 
+    vec3 T1 = lensq > 0 ? vec3(-Vh.y, Vh.x ,0) * inversesqrt(lensq): vec3(1, 0, 0);
+    vec3 T2 = cross(Vh,T1); 
+    // Section4.2: parameterization of the projected area 
+    float r = sqrt(U1); 
+    float phi = 2.0 * PI * U2; 
+    float t1 = r * cos(phi); 
+    float t2 = r * sin(phi); 
+    float s = 0.5 * (1.0+Vh.z); 
+    t2 = (1.0-s)*sqrt(1.0-t1*t1)+s*t2; 
+    // Section4.3: reprojection on to hemisphere 
+    vec3 Nh= t1 * T1 + t2 * T2 + sqrt(max(0.0, 1.0 - t1 * t1 - t2 * t2)) * Vh;
+    // Section3.4: transforming the normal back to the ellipsoid configuration 
+    vec3 Ne = normalize(vec3(alpha_x * Nh.x,alpha_y * Nh.y, max(0.0, Nh.z))); 
+    return Ne;
+}
+
 void main()
 {
     mat4 normalToWorld = transpose(inverse(mat4(gl_ObjectToWorldEXT)));
@@ -308,27 +333,21 @@ void main()
     //     }
     // }
 
-    // if(material.emissiveTexture >= 0){
-    //     vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).rgb;
-    //     if(emissiveFactor.x > 0.5 || emissiveFactor.y > 0.5 || emissiveFactor.z > 0.5)
-    //     Payload.color *= vec3(1.0, 0, 0);
-    //     Payload.continueTrace = false;
-    //     return;
-    // }
-
     // check for emission of hit
     if(material.emissiveStrength > 1.0 || material.emissiveTexture >= 0){
         if(material.emissiveTexture >= 0){
             vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).xyz;
             emission = vec3(material.emissiveStrength) * emissiveFactor;
             if(emissiveFactor.x > 0.1 || emissiveFactor.y > 0.1 || emissiveFactor.z > 0.1){
-                Payload.color *= emission;
+                float lvk_weight = abs(dot(normal_geometric, -1 * gl_WorldRayDirectionEXT));
+                Payload.color *= emission * lvk_weight;
                 Payload.continueTrace = false;
                 return;
             }
         } else {
+            float lvk_weight = abs(dot(normal_geometric, -1 * gl_WorldRayDirectionEXT));
             emission = vec3(material.emissiveStrength) * material.emissiveFactor.xyz;
-            Payload.color *= emission;
+            Payload.color *= emission * lvk_weight;
             Payload.continueTrace = false;
             return;
         }
@@ -366,19 +385,19 @@ void main()
             if(light.geoType != 0){
                 center = (light.min + light.max) / 2;
             }
-            if(distance(center, newOrigin) < 10){
+            if(light.radiosity / pow(distance(center, newOrigin), 2) > 0.3){
                 lightCandidates[lightCount] = i;
                 lightCount++;
             }
         }
 
-        float brdfImportance = 0;
-        float directLightImportance = 1;
+        float brdfImportance = 0.5;
+        float directLightImportance = 0.5;
         float singleLightImportance = directLightImportance / lightCount;
-        // if(lightCount < 1){
-        //     brdfImportance = 1.0;
-        //     directLightImportance = 0;
-        // }
+        if(lightCount < 1){
+            brdfImportance = 1.0;
+            directLightImportance = 0;
+        }
 
         // get sample by importance
         int lighIndex = -1;
