@@ -274,6 +274,7 @@ float getCosinePdf(vec3 normal, vec3 direction) {
     return max(0.000001, dot(normal, direction) / PI);
 }
 
+// https://jcgt.org/published/0007/04/01/paper.pdf
 // Input Ve: viewdirection
 // Input alpha_x, alpha_y: roughnessparameters
 // Input U1, U2: uniformrandom numbers
@@ -291,11 +292,11 @@ vec3 sampleGGXVNDF(vec3 Ve, float alpha_x, float alpha_y, float U1, float U2) {
     float t1 = r * cos(phi); 
     float t2 = r * sin(phi); 
     float s = 0.5 * (1.0+Vh.z); 
-    t2 = (1.0-s)*sqrt(1.0-t1*t1)+s*t2; 
+    t2 = (1.0 - s) * sqrt(1.0 - t1 * t1) + s * t2;
     // Section4.3: reprojection on to hemisphere 
     vec3 Nh= t1 * T1 + t2 * T2 + sqrt(max(0.0, 1.0 - t1 * t1 - t2 * t2)) * Vh;
     // Section3.4: transforming the normal back to the ellipsoid configuration 
-    vec3 Ne = normalize(vec3(alpha_x * Nh.x,alpha_y * Nh.y, max(0.0, Nh.z))); 
+    vec3 Ne = normalize(vec3(alpha_x * Nh.x, alpha_y * Nh.y, max(0.0, Nh.z))); 
     return Ne;
 }
 
