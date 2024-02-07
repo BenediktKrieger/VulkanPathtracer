@@ -274,30 +274,85 @@ float getCosinePdf(vec3 normal, vec3 direction) {
     return max(0.000001, dot(normal, direction) / PI);
 }
 
-// https://jcgt.org/published/0007/04/01/paper.pdf
-// Input Ve: viewdirection
-// Input alpha_x, alpha_y: roughnessparameters
-// Input U1, U2: uniformrandom numbers
-// Output Ne: normal sampled with PDFD_Ve(Ne)=G1(Ve) * max(0,dot(Ve,Ne)) * D(Ne)/Ve.z 
-vec3 sampleGGXVNDF(vec3 Ve, float alpha_x, float alpha_y, float U1, float U2) { 
-    // Section3.2: transforming the view direction to the hemisphere configuration 
-    vec3 Vh = normalize(vec3(alpha_x * Ve.x, alpha_y * Ve.y, Ve.z)); 
-    // Section4.1: orthonormalbasis(withspecialcaseifcrossproductiszero) 
+float GGXNDF(vec3 N, vec2 alpha) {
+    vec3 nSquare = (N * N) / vec3(alpha * alpha, 1);
+    float nominator = PI * alpha.x * alpha.y * pow(nSquare.x + nSquare.y + nSquare.z, 2);
+    return 1 / nominator;
+}
+
+float SmithG1(vec3 V, vec2 alpha) {
+    vec3 V2A2 = V * V * vec3(alpha * alpha, 1);
+    float lambda = (-1 + sqrt(1+((V2A2.x + V2A2.y) / V2A2.z))) / 2;
+    return 1 / (1 + lambda);
+}
+
+float GGXVNDF(vec3 N, vec3 V, vec2 alpha) {
+    return (SmithG1(V, alpha) * max(0, dot(V, N)) * GGXNDF(N, alpha)) / dot(V, vec3(0, 0, 1));
+}
+
+float pdfGGX(vec3 N, vec3 NI, vec3 V, vec2 alpha) {
+    vec3 w = N;
+    vec3 h = abs(w.x) > 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+    vec3 v = normalize(cross(w, h));
+    vec3 u = cross(w, v);
+    mat3 uvw = transpose(mat3(u,v,w));
+    V = uvw * V;
+    NI = uvw * NI;
+    float GGXVNDF = GGXVNDF(NI, V, alpha);
+    float JacobianR = 4 * dot(V,NI);
+    return GGXVNDF / JacobianR;
+}
+
+vec3 sampleGGXVNDF(vec3 normal, vec3 V, vec2 alpha) {
+    float U1 = rand();
+    float U2 = rand();
+    vec3 w = normal;
+    vec3 h = abs(w.x) > 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+    vec3 v = normalize(cross(w, h));
+    vec3 u = cross(w, v);
+    mat3 uvw = mat3(u,v,w);
+    V = transpose(uvw) * V;
+    // transforming the view direction to the hemisphere configuration 
+    vec3 Vh = normalize(vec3(alpha.x * V.x, alpha.y * V.y, V.z)); 
+    // orthonormal basis(with special case if cross product is zero)
     float lensq = Vh.x * Vh.x + Vh.y * Vh.y; 
     vec3 T1 = lensq > 0 ? vec3(-Vh.y, Vh.x ,0) * inversesqrt(lensq): vec3(1, 0, 0);
     vec3 T2 = cross(Vh,T1); 
-    // Section4.2: parameterization of the projected area 
+    // parameterization of the projected area 
     float r = sqrt(U1); 
     float phi = 2.0 * PI * U2; 
     float t1 = r * cos(phi); 
     float t2 = r * sin(phi); 
     float s = 0.5 * (1.0+Vh.z); 
     t2 = (1.0 - s) * sqrt(1.0 - t1 * t1) + s * t2;
-    // Section4.3: reprojection on to hemisphere 
+    // reprojection on to hemisphere 
     vec3 Nh= t1 * T1 + t2 * T2 + sqrt(max(0.0, 1.0 - t1 * t1 - t2 * t2)) * Vh;
-    // Section3.4: transforming the normal back to the ellipsoid configuration 
-    vec3 Ne = normalize(vec3(alpha_x * Nh.x, alpha_y * Nh.y, max(0.0, Nh.z))); 
-    return Ne;
+    // transforming the normal back to the ellipsoid configuration 
+    vec3 Ne = normalize(vec3(alpha.x * Nh.x, alpha.y * Nh.y, max(0.0, Nh.z)));
+    return uvw * Ne;
+}
+
+void fresnel(const vec3 V, const vec3 N, const float ior, inout float kr, inout float kt){ 
+  float cosi = clamp(-1, 1, dot(V, N)); 
+  float etai = 1; 
+  float etat = ior; 
+  if (cosi > 0) { 
+    float oldetai = etai;
+    etai = etat;
+    etat = oldetai;
+  }
+  float sint = etai / etat * sqrt(max(0.f, 1 - cosi * cosi));
+  if (sint >= 1) { 
+    kr = 1; 
+  } 
+  else { 
+    float cost = sqrt(max(0.f, 1 - sint * sint)); 
+    cosi = abs(cosi); 
+    float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost)); 
+    float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost)); 
+    kr = (Rs * Rs + Rp * Rp) / 2; 
+  }
+  kt = 1.0 - kr;
 }
 
 void main()
@@ -371,6 +426,17 @@ void main()
             normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[material.normalTexture], uv).xyz * 2.0 - 1.0));
         }
         normal = normalize((normalToWorld * vec4(normal, 1.0)).xyz);
+
+        float roughness = 0.05;
+        vec2 alpha = vec2(roughness * roughness);
+        float reflectance = 0;
+        float transmission = 0;
+        vec3 normalBRDF = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, alpha);
+        fresnel(gl_WorldRayDirectionEXT, normal, 1.5, reflectance, transmission);
+
+        // Payload.color = vec3(transmission);
+        // Payload.continueTrace = false;
+        // return;
         
         vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
 
@@ -417,14 +483,19 @@ void main()
             newDir = normalize(pointOnLight - newOrigin);
         } else {
             // sample material-brdf
-            newDir = random_on_cosine_hemisphere(normal);
+            // newDir = random_on_cosine_hemisphere(normal
+            float brdfMix = rand();
+            if(brdfMix < reflectance)
+                newDir = reflect(gl_WorldRayDirectionEXT, normalBRDF);
+            else
+                newDir = random_on_cosine_hemisphere(normal);
         }
 
         // get material-brdf pdf
-        float mat_pdf = getCosinePdf(normal, newDir);
+        float mat_pdf = 1;
 
         // get sample pdf
-        float sampling_pdf = brdfImportance * getCosinePdf(normal, newDir);
+        float sampling_pdf = brdfImportance * mat_pdf;
         if(directLightImportance > 0.0001){
             for(uint i = 0; i < lightCount; i++){
                 uint index = lightCandidates[i];
