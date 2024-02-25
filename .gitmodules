@@ -14,6 +14,6 @@
 	path = third_party/imgui
 	url = https://github.com/BenediktKrieger/imgui.git
 	branch = docking
-[submodule "shaderc"]
-	path = shaderc
+[submodule "third_party/shaderc"]
+	path = third_party/shaderc
 	url = https://github.com/BenediktKrieger/shaderc
