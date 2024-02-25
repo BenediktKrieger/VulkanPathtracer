@@ -16,12 +16,11 @@ struct RayPayload {
 	vec3 color;
 	vec3 origin;
 	vec3 dir;
-	float f;
+    float f;
     float pdf;
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
-  	bool shadow;
 };
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
@@ -75,7 +74,6 @@ void main()
 		Payload.translucentRecursion = 0;
 		Payload.continueTrace = true;
 		Payload.origin = origin.xyz;
-		Payload.shadow = true;
 		Payload.dir = direction.xyz;
 		Payload.f = 1.0;
 		Payload.pdf = 1.0;

@@ -129,7 +129,8 @@ namespace vkutils
         enum GeoType
         {
             SPHERE,
-            AABB
+            AABB,
+            EMPTY
         };
         float min[3];
         GeoType geoType;

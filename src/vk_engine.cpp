@@ -1192,7 +1192,7 @@ void VulkanEngine::load_models()
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
 	Model* model1 = new Model(_core);
-	model1->load_from_glb(ASSET_PATH"/models/cornell_box.glb");
+	model1->load_from_glb(ASSET_PATH"/models/bistro_new.glb");
 	scene1->add(model1);
 	scene1->build();
 	scene1->buildAccelerationStructure();

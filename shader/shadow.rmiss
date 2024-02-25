@@ -9,17 +9,16 @@ struct RayPayload {
 	vec3 color;
 	vec3 origin;
 	vec3 dir;
-	float f;
+    float f;
     float pdf;
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
-    bool shadow;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
 void main()
 {
-	Payload.shadow = false;
+	//Payload.shadow = false;
 }

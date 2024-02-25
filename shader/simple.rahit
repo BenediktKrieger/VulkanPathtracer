@@ -36,21 +36,7 @@ struct Vertex {
 	vec4 tangent;
 };
 
-struct RayPayload {
-	vec3 color;
-	vec3 origin;
-	vec3 dir;
-  float f;
-  float pdf;
-	uint translucentRecursion;
-	uint diffuseRecursion;
-	bool continueTrace;
-  bool shadow;
-};
-
 hitAttributeEXT vec3 attribs;
-
-layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
 layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
 layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;

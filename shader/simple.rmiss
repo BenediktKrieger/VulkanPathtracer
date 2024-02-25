@@ -14,7 +14,6 @@ struct RayPayload {
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
-  	bool shadow;
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;

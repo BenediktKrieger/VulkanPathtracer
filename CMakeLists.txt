@@ -34,9 +34,10 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl)
 #add glm
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
 
-#add glslang
-set(ENABLE_OPT OFF CACHE INTERNAL "" FORCE)
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glslang)
+#add shaderc
+set(SHADERC_SKIP_TESTS ON)
+set(SHADERC_SKIP_EXAMPLES ON)
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/shaderc)
 
 #add vma
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma)

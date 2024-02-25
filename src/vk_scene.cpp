@@ -371,6 +371,10 @@ void Scene::build()
                     lights.push_back(light);
                 }
             }
+            vkutils::LightProxy emptyLight;
+            emptyLight.geoType = vkutils::LightProxy::EMPTY;
+            emptyLight.radiosity = lights.size() + 1;
+            lights.push_back(emptyLight);
         }
     }
     _isBuilded = true;

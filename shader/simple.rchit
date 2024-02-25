@@ -45,12 +45,11 @@ struct RayPayload {
 	vec3 color;
 	vec3 origin;
 	vec3 dir;
-  float f;
-  float pdf;
+    float f;
+    float pdf;
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
-  bool shadow;
 };
 
 

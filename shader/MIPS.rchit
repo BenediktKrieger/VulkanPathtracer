@@ -59,7 +59,6 @@ struct RayPayload {
 	uint translucentRecursion;
 	uint diffuseRecursion;
 	bool continueTrace;
-    bool shadow;
 };
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
@@ -205,7 +204,7 @@ vec3 random_on_aabb(vec3 minB, vec3 maxB, vec3 origin) {
 }
 
 vec3 random_on_sphere(vec3 center, float radius, vec3 origin){
-    vec3 on_sphere = random_on_cosine_hemisphere(normalize(origin - center));
+    vec3 on_sphere = random_on_cosine_hemisphere(-1 * normalize(center - origin));
     return (center + radius * on_sphere);
 }
 
@@ -300,7 +299,7 @@ float pdfGGX(vec3 N, vec3 NI, vec3 V, vec2 alpha) {
     NI = uvw * NI;
     float GGXVNDF = GGXVNDF(NI, V, alpha);
     float JacobianR = 4 * dot(V,NI);
-    return GGXVNDF / JacobianR;
+    return clamp(GGXVNDF / JacobianR, 0, 1);
 }
 
 vec3 sampleGGXVNDF(vec3 normal, vec3 V, vec2 alpha) {
@@ -389,21 +388,29 @@ void main()
     //     }
     // }
 
+    // if(material.emissiveTexture >= 0){
+    //     vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).rgb;
+    //     if(emissiveFactor.x > 0.5 || emissiveFactor.y > 0.5 || emissiveFactor.z > 0.5)
+    //     Payload.color *= vec3(1.0, 0, 0);
+    //     Payload.continueTrace = false;
+    //     return;
+    // }
+
     // check for emission of hit
     if(material.emissiveStrength > 1.0 || material.emissiveTexture >= 0){
         if(material.emissiveTexture >= 0){
             vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).xyz;
             emission = vec3(material.emissiveStrength) * emissiveFactor;
             if(emissiveFactor.x > 0.1 || emissiveFactor.y > 0.1 || emissiveFactor.z > 0.1){
-                float lvk_weight = abs(dot(normal_geometric, -1 * gl_WorldRayDirectionEXT));
-                Payload.color *= emission * lvk_weight;
+                //float lvk_weight = max(0, dot(normal_geometric, -gl_WorldRayDirectionEXT));
+                Payload.color *= emission;
                 Payload.continueTrace = false;
                 return;
             }
         } else {
-            float lvk_weight = abs(dot(normal_geometric, -1 * gl_WorldRayDirectionEXT));
             emission = vec3(material.emissiveStrength) * material.emissiveFactor.xyz;
-            Payload.color *= emission * lvk_weight;
+            //float lvk_weight = max(0, dot(normal_geometric, -gl_WorldRayDirectionEXT));
+            Payload.color *= emission;
             Payload.continueTrace = false;
             return;
         }
@@ -426,45 +433,41 @@ void main()
             normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[material.normalTexture], uv).xyz * 2.0 - 1.0));
         }
         normal = normalize((normalToWorld * vec4(normal, 1.0)).xyz);
-
-        float roughness = 0.05;
-        vec2 alpha = vec2(roughness * roughness);
-        float reflectance = 0;
-        float transmission = 0;
-        vec3 normalBRDF = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, alpha);
-        fresnel(gl_WorldRayDirectionEXT, normal, 1.5, reflectance, transmission);
-
-        // Payload.color = vec3(transmission);
-        // Payload.continueTrace = false;
-        // return;
         
         vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
 
         vec3 newDir = vec3(0.0);
         float russianRoulette = rand();
 
-        const uint maxLightCount = 30;
+        const uint maxLightCount = 20;
         uint lightCandidates[maxLightCount];
         uint lightCount = 0;
-        for(uint i = 0; i < lights.l.length() && lightCount < maxLightCount; i++){
+        uint lightLength = uint(lights.l[0].radiosity);
+        for(uint i = 0; i < lightLength && lightCount < maxLightCount; i++){
             Light light = lights.l[i];
-            vec3 center = light.center;
-            if(light.geoType != 0){
-                center = (light.min + light.max) / 2;
-            }
-            if(light.radiosity / pow(distance(center, newOrigin), 2) > 0.3){
-                lightCandidates[lightCount] = i;
-                lightCount++;
+            if(light.geoType < 3){
+                vec3 center = light.center;
+                if(light.geoType != 0){
+                    center = (light.min + light.max) / 2;
+                }
+                float radApprox = light.radiosity / pow(distance(center, newOrigin), 2);
+                if(radApprox > 0.3){
+                    lightCandidates[lightCount] = i;
+                    lightCount++;
+                }
             }
         }
-
-        float brdfImportance = 0.5;
-        float directLightImportance = 0.5;
-        float singleLightImportance = directLightImportance / lightCount;
+        
+        vec3 sampleNormal = normal;
+        float roughness = material.roughnessFactor;
+        vec2 alpha = vec2(roughness * roughness);
+        float directLightImportance = roughness * 0.7;
+        float brdfImportance = (1 - directLightImportance);
         if(lightCount < 1){
             brdfImportance = 1.0;
             directLightImportance = 0;
         }
+        float singleLightImportance = directLightImportance / lightCount;
 
         // get sample by importance
         int lighIndex = -1;
@@ -481,18 +484,21 @@ void main()
                 pointOnLight = random_on_aabb(light.min, light.max, newOrigin);
             }
             newDir = normalize(pointOnLight - newOrigin);
+            sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
         } else {
             // sample material-brdf
-            // newDir = random_on_cosine_hemisphere(normal
-            float brdfMix = rand();
-            if(brdfMix < reflectance)
-                newDir = reflect(gl_WorldRayDirectionEXT, normalBRDF);
-            else
+            if((russianRoulette - directLightImportance) < (brdfImportance * 0.5))
                 newDir = random_on_cosine_hemisphere(normal);
+            else{
+                sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, alpha);
+                newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
+            }
         }
 
         // get material-brdf pdf
-        float mat_pdf = 1;
+        float mat_specular_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, alpha);
+        float mat_diffuse_pdf = getCosinePdf(normal, newDir);
+        float mat_pdf =  (0.5 * mat_specular_pdf + 0.5 * mat_diffuse_pdf);
 
         // get sample pdf
         float sampling_pdf = brdfImportance * mat_pdf;
@@ -500,19 +506,13 @@ void main()
             for(uint i = 0; i < lightCount; i++){
                 uint index = lightCandidates[i];
                 Light light = lights.l[index];
+                float lightPdf = 0.0;
                 if(light.geoType == 0){
-                    if(lighIndex == index){
-                        sampling_pdf += singleLightImportance * getSpherePdf(light.center, light.radius, pointOnLight - newOrigin);
-                    }else{
-                        sampling_pdf += singleLightImportance * getSpherePdf(light.center, light.radius, newOrigin, newDir);
-                    }
+                    lightPdf = lighIndex == index ? getSpherePdf(light.center, light.radius, pointOnLight - newOrigin) : getSpherePdf(light.center, light.radius, newOrigin, newDir);
                 } else {
-                    if(lighIndex == index){
-                        sampling_pdf += singleLightImportance * getAABBPdf(light.min, light.max, pointOnLight - newOrigin);
-                    }else{
-                        sampling_pdf += singleLightImportance * getAABBPdf(light.min, light.max, newOrigin, newDir);
-                    }
+                    lightPdf = lighIndex == index ? getAABBPdf(light.min, light.max, pointOnLight - newOrigin) : getAABBPdf(light.min, light.max, newOrigin, newDir);
                 }
+                sampling_pdf += singleLightImportance * lightPdf;
             }
         }
 
@@ -522,6 +522,5 @@ void main()
         Payload.f *= mat_pdf;
         Payload.pdf *= sampling_pdf;
     }
-
     Payload.color *= color;
 }
