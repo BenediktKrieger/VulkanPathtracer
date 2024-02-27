@@ -39,4 +39,4 @@ std::vector<uint32_t> vkshader::compile_file(const std::string& source_name, sha
   }
 
   return {module.cbegin(), module.cend()};
-}
+} 
