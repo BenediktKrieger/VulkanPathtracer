@@ -363,13 +363,14 @@ void VulkanEngine::init_vulkan()
 	{
 		createInfo = vk::DeviceCreateInfo({}, queueCreateInfos, {}, _core._deviceExtensions, {});
 	}
-	vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceRayTracingPipelineFeaturesKHR, vk::PhysicalDeviceAccelerationStructureFeaturesKHR, vk::PhysicalDeviceBufferDeviceAddressFeatures, vk::PhysicalDeviceDescriptorIndexingFeatures> deviceCreateInfo = {
+	vk::StructureChain<vk::DeviceCreateInfo, vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceRayTracingPipelineFeaturesKHR, vk::PhysicalDeviceAccelerationStructureFeaturesKHR, vk::PhysicalDeviceBufferDeviceAddressFeatures, vk::PhysicalDeviceDescriptorIndexingFeatures, vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT> deviceCreateInfo = {
 		createInfo,
 		vk::PhysicalDeviceFeatures2().setFeatures(vk::PhysicalDeviceFeatures().setSamplerAnisotropy(true).setShaderInt64(true)),
 		vk::PhysicalDeviceRayTracingPipelineFeaturesKHR().setRayTracingPipeline(true),
 		vk::PhysicalDeviceAccelerationStructureFeaturesKHR().setAccelerationStructure(true),
 		vk::PhysicalDeviceBufferDeviceAddressFeatures().setBufferDeviceAddress(true),
-		vk::PhysicalDeviceDescriptorIndexingFeatures().setRuntimeDescriptorArray(true)
+		vk::PhysicalDeviceDescriptorIndexingFeatures().setRuntimeDescriptorArray(true),
+		vk::PhysicalDeviceShaderAtomicFloatFeaturesEXT().setShaderBufferFloat32Atomics(true).setShaderBufferFloat32AtomicAdd(true)
 	};
 	auto _physicalDeviceProperties = _core._chosenGPU.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR, vk::PhysicalDeviceAccelerationStructurePropertiesKHR, vk::PhysicalDeviceDescriptorIndexingProperties>();
 	_raytracingPipelineProperties = _physicalDeviceProperties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
@@ -1232,33 +1233,27 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	Model* model1 = new Model(_core);
-	model1->load_from_glb(ASSET_PATH"/models/bistro_new_1.glb");
-	scene1->add(model1);
+	scene1->add(ASSET_PATH"/models/sponza.glb");
 	scene1->build();
 	scene1->buildAccelerationStructure();
 	_currentScene = scene1;
 	_scenes.push_back(scene1);
-
-	// Scene* scene2 = new Scene(_core);
-	// glm::mat4 t1 = glm::translate(glm::mat4(1.0), glm::vec3(100.0, 0.f, 0.f));
-	// scene2->add(ASSET_PATH"/models/sponza.glb", t1);
-	// glm::mat4 t2 = glm::translate(glm::mat4(1.0), glm::vec3(-100.0, 0.f, 0.f));
-	// scene2->add(ASSET_PATH"/models/sponza.glb", t2);
-	// glm::mat4 t3 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.f, 100.f));
-	// scene2->add(ASSET_PATH"/models/sponza.glb", t3);
-	// glm::mat4 t4 = glm::translate(glm::mat4(1.0), glm::vec3(0.0, 0.f, -100.f));
-	// scene2->add(ASSET_PATH"/models/sponza.glb", t4);
-	// scene2->build();
-	// scene2->buildAccelerationStructure();
-	// _currentScene = scene2;
-	// _scenes.push_back(scene2);
-
+	
 	auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
-
 	long long microseconds_all = std::chrono::duration_cast<std::chrono::microseconds>(elapsed_all).count();
+	std::cout << "scene1 loading time: " << microseconds_all / 1e6 << "s" << std::endl;
 
-	std::cout << "scene loading time: " << microseconds_all / 1e6 << "s" << std::endl;
+	start_all = std::chrono::high_resolution_clock::now();
+
+	std::thread th { [=]() {
+		Scene* scene2 = new Scene(_core);
+		scene2->add(ASSET_PATH"/models/cornelll_box.glb");
+		_scenes.push_back(scene2);
+		auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
+		auto microseconds_all = std::chrono::duration_cast<std::chrono::microseconds>(elapsed_all).count();
+		std::cout << "scene2 loading time: " << microseconds_all / 1e6 << "s" << std::endl;
+    }};
+	th.detach();
 
 	_mainDeletionQueue.push_function([&]() {
 		for(auto& scene : _scenes){

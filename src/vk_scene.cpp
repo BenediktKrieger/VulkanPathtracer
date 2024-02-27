@@ -408,7 +408,6 @@ void Scene::destroy()
         for(auto& model : models){
             delete model;
         }
-       
     }
 }
 

@@ -62,11 +62,11 @@ struct RayPayload {
 };
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
-layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
-layout(binding = 5, set = 0) buffer Materials { Material m[]; } materials;
-layout(binding = 6, set = 0) buffer Lights { Light l[]; } lights;
-layout(binding = 8, set = 0) uniform Settings {
+layout(binding = 3, set = 0) readonly buffer Indices { uint i[]; } indices;
+layout(binding = 4, set = 0) readonly buffer Vertices { Vertex v[]; } vertices;
+layout(binding = 5, set = 0) readonly buffer Materials { Material m[]; } materials;
+layout(binding = 6, set = 0) readonly buffer Lights { Light l[]; } lights;
+layout(binding = 8, set = 0) readonly uniform Settings {
     bool accumulate;
 	uint samples;
 	uint reflection_recursion;

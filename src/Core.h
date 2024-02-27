@@ -23,7 +23,7 @@ namespace vk {
             VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
             VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
             VK_KHR_SPIRV_1_4_EXTENSION_NAME,
-            VK_KHR_SHADER_FLOAT_CONTROLS_EXTENSION_NAME
+            VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME
         };
 
         const bool useValidationLayers = true;
