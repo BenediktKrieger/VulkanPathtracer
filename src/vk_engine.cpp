@@ -1167,10 +1167,53 @@ void VulkanEngine::init_descriptors()
 
 vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, std::string filePath)
 {
-	glslang::InitializeProcess();
-	std::vector<uint32_t> shaderCodeSPIRV;
-	vkshader::GLSLtoSPV(type, filePath, shaderCodeSPIRV);
-	vk::ShaderModuleCreateInfo createInfo({}, shaderCodeSPIRV);
+	shaderc_shader_kind shaderKind = shaderc_glsl_infer_from_source;
+	switch (type) {
+		case vk::ShaderStageFlagBits::eVertex:
+			shaderKind = shaderc_glsl_vertex_shader;
+			break;
+		case vk::ShaderStageFlagBits::eFragment:
+			shaderKind = shaderc_glsl_fragment_shader;
+			break;
+		case vk::ShaderStageFlagBits::eCompute:
+			shaderKind = shaderc_glsl_compute_shader;
+			break;
+		case vk::ShaderStageFlagBits::eGeometry:
+			shaderKind = shaderc_glsl_geometry_shader;
+			break;
+		case vk::ShaderStageFlagBits::eRaygenKHR:
+			shaderKind = shaderc_raygen_shader;
+			break;
+		case vk::ShaderStageFlagBits::eAnyHitKHR:
+			shaderKind = shaderc_anyhit_shader;
+			break;
+		case vk::ShaderStageFlagBits::eClosestHitKHR:
+			shaderKind = shaderc_closesthit_shader;
+			break;
+		case vk::ShaderStageFlagBits::eMissKHR:
+			shaderKind = shaderc_miss_shader;
+			break;
+		case vk::ShaderStageFlagBits::eIntersectionKHR:
+			shaderKind = shaderc_intersection_shader;
+			break;
+		case vk::ShaderStageFlagBits::eCallableKHR:
+			shaderKind = shaderc_callable_shader;
+			break;
+	}
+
+    std::ifstream input_file(SHADER_PATH + filePath);
+    if (!input_file.is_open()) {
+        std::cerr << "Could not open the file - '" << SHADER_PATH + filePath << "'" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+    std::string shaderCodeGlsl = std::string((std::istreambuf_iterator<char>(input_file)), std::istreambuf_iterator<char>());
+
+	auto preprocessed = vkshader::preprocess_shader("shader_src", shaderKind, shaderCodeGlsl, shaderc_optimization_level_performance);
+
+    std::cout << "Compiling shader  " << SHADER_PATH + filePath << "" << std::endl;
+    auto spirv = vkshader::compile_file("shader_src", shaderKind, preprocessed.c_str(), shaderc_optimization_level_performance);
+
+	vk::ShaderModuleCreateInfo createInfo({}, spirv);
 	vk::ShaderModule shaderModule;
 	try
 	{
@@ -1180,8 +1223,6 @@ vk::ShaderModule VulkanEngine::load_shader_module(vk::ShaderStageFlagBits type, 
 	{
 		std::cerr << "Exception Thrown: " << e.what();
 	}
-	glslang::FinalizeProcess();
-
 	return shaderModule;
 }
 
@@ -1192,7 +1233,7 @@ void VulkanEngine::load_models()
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
 	Model* model1 = new Model(_core);
-	model1->load_from_glb(ASSET_PATH"/models/bistro_new.glb");
+	model1->load_from_glb(ASSET_PATH"/models/bistro_new_1.glb");
 	scene1->add(model1);
 	scene1->build();
 	scene1->buildAccelerationStructure();

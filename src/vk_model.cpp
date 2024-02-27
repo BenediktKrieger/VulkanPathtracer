@@ -101,9 +101,9 @@ void Model::loadImages()
 	samplerInfo.magFilter = vk::Filter::eLinear;
 	samplerInfo.minFilter = vk::Filter::eNearest;
 	samplerInfo.mipmapMode = vk::SamplerMipmapMode::eNearest;
-	samplerInfo.addressModeU = vk::SamplerAddressMode::eMirroredRepeat;
-	samplerInfo.addressModeV = vk::SamplerAddressMode::eMirroredRepeat;
-	samplerInfo.addressModeW = vk::SamplerAddressMode::eMirroredRepeat;
+	samplerInfo.addressModeU = vk::SamplerAddressMode::eRepeat;
+	samplerInfo.addressModeV = vk::SamplerAddressMode::eRepeat;
+	samplerInfo.addressModeW = vk::SamplerAddressMode::eRepeat;
 	samplerInfo.compareOp = vk::CompareOp::eNever;
 	samplerInfo.borderColor = vk::BorderColor::eFloatOpaqueWhite;
 	samplerInfo.maxLod = 1;

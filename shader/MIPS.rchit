@@ -356,7 +356,6 @@ void fresnel(const vec3 V, const vec3 N, const float ior, inout float kr, inout 
 
 void main()
 {
-    mat4 normalToWorld = transpose(inverse(mat4(gl_ObjectToWorldEXT)));
     Material material = materials.m[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
     const uint triIndex = material.indexOffset + gl_PrimitiveID * 3;
     Vertex TriVertices[3];
@@ -366,7 +365,7 @@ void main()
     }   
 	vec3 barycentricCoords = vec3(1.0f - attribs.x - attribs.y, attribs.x, attribs.y);
 	vec2 uv = TriVertices[0].uv * barycentricCoords.x + TriVertices[1].uv * barycentricCoords.y + TriVertices[2].uv *  barycentricCoords.z;
-    vec3 normal_geometric = normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z);
+
     vec3 color = vec3(0.0);
     vec3 emission = vec3(0.0);
 
@@ -402,50 +401,69 @@ void main()
             vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).xyz;
             emission = vec3(material.emissiveStrength) * emissiveFactor;
             if(emissiveFactor.x > 0.1 || emissiveFactor.y > 0.1 || emissiveFactor.z > 0.1){
-                //float lvk_weight = max(0, dot(normal_geometric, -gl_WorldRayDirectionEXT));
                 Payload.color *= emission;
                 Payload.continueTrace = false;
                 return;
             }
         } else {
             emission = vec3(material.emissiveStrength) * material.emissiveFactor.xyz;
-            //float lvk_weight = max(0, dot(normal_geometric, -gl_WorldRayDirectionEXT));
             Payload.color *= emission;
             Payload.continueTrace = false;
             return;
         }
     }
 
-    if(Payload.diffuseRecursion >= settings.reflection_recursion){
+    if(Payload.diffuseRecursion >= settings.reflection_recursion || Payload.translucentRecursion >= settings.refraction_recursion){
         //this is the last bounce
         Payload.continueTrace = false;
     } else {
+        mat4 normalToWorld = transpose(inverse(mat4(gl_ObjectToWorldEXT)));
         // color
         color = material.baseColorFactor.xyz;
         if(material.baseColorTexture >= 0){
             color = texture(texSampler[material.baseColorTexture], uv).xyz;
         }
+        if(material.alphaMode == 2){
+            Payload.translucentRecursion += 1;
+            Payload.origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+            Payload.dir = Payload.dir;
+            Payload.color *= color;
+            return;
+        }
+
         // normal
-        vec3 normal = normal_geometric;
+        vec3 normal = (normalToWorld * vec4(normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z), 1.0)).xyz;
         if(material.normalTexture >= 0){
-            vec3 tangent = normalize(TriVertices[0].tangent.xyz * barycentricCoords.x + TriVertices[1].tangent.xyz *  barycentricCoords.y + TriVertices[2].tangent.xyz *  barycentricCoords.z);
-            vec3 binormal = cross(normal, tangent);
+            vec3 edge1 = TriVertices[1].pos - TriVertices[0].pos;
+            vec3 edge2 = TriVertices[2].pos - TriVertices[0].pos;
+            vec2 deltaUV1 = TriVertices[1].uv - TriVertices[0].uv;
+            vec2 deltaUV2 = TriVertices[2].uv - TriVertices[0].uv;
+            float f = 1.0f / (deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+            vec3 tangent = normalize(f * (deltaUV2.y * edge1 - deltaUV1.y * edge2));
+            vec3 binormal = normalize(f * (-deltaUV2.x * edge1 + deltaUV1.x * edge2));
             normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[material.normalTexture], uv).xyz * 2.0 - 1.0));
         }
-        normal = normalize((normalToWorld * vec4(normal, 1.0)).xyz);
+
+        // debug normal
+        // color = (normal + 1) / 2;
+        // Payload.color *= color;
+        // Payload.continueTrace = false;
+        // return;
+
+        float metallic = material.metallicFactor;
         
         vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
 
         vec3 newDir = vec3(0.0);
         float russianRoulette = rand();
 
-        const uint maxLightCount = 20;
+        const uint maxLightCount = 30;
         uint lightCandidates[maxLightCount];
         uint lightCount = 0;
         uint lightLength = uint(lights.l[0].radiosity);
         for(uint i = 0; i < lightLength && lightCount < maxLightCount; i++){
             Light light = lights.l[i];
-            if(light.geoType < 3){
+            if(light.geoType < 2){
                 vec3 center = light.center;
                 if(light.geoType != 0){
                     center = (light.min + light.max) / 2;
@@ -460,9 +478,12 @@ void main()
         
         vec3 sampleNormal = normal;
         float roughness = material.roughnessFactor;
-        vec2 alpha = vec2(roughness * roughness);
+        vec2 roughness_alpha = vec2(roughness * roughness);
         float directLightImportance = roughness * 0.7;
         float brdfImportance = (1 - directLightImportance);
+        
+        brdfImportance = 0.5;
+        directLightImportance = 0.5;
         if(lightCount < 1){
             brdfImportance = 1.0;
             directLightImportance = 0;
@@ -486,19 +507,24 @@ void main()
             newDir = normalize(pointOnLight - newOrigin);
             sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
         } else {
-            // sample material-brdf
-            if((russianRoulette - directLightImportance) < (brdfImportance * 0.5))
-                newDir = random_on_cosine_hemisphere(normal);
-            else{
-                sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, alpha);
+            if(metallic > 0){
+                sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
                 newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
+            } else {
+                newDir = random_on_cosine_hemisphere(normal);
             }
         }
 
         // get material-brdf pdf
-        float mat_specular_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, alpha);
-        float mat_diffuse_pdf = getCosinePdf(normal, newDir);
-        float mat_pdf =  (0.5 * mat_specular_pdf + 0.5 * mat_diffuse_pdf);
+        // float mat_specular_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
+        // float mat_diffuse_pdf = getCosinePdf(normal, newDir);
+        // float mat_pdf =  (0.5 * mat_specular_pdf + 0.5 * mat_diffuse_pdf);
+        float mat_pdf = 1.0;
+        if(metallic > 0){
+            mat_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
+        } else {
+            mat_pdf = getCosinePdf(normal, newDir);
+        }
 
         // get sample pdf
         float sampling_pdf = brdfImportance * mat_pdf;

@@ -34,11 +34,6 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl)
 #add glm
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
 
-#add shaderc
-set(SHADERC_SKIP_TESTS ON)
-set(SHADERC_SKIP_EXAMPLES ON)
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/shaderc)
-
 #add vma
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma)
 
@@ -53,7 +48,12 @@ set(USE_BACKEND_VULKAN ON)
 set(USE_BACKEND_SDL3 ON)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/imgui)
 
-target_link_libraries(${CMAKE_PROJECT_NAME} glslang SPIRV glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator imgui)
+#add shaderc
+set(SHADERC_SKIP_TESTS ON)
+set(SHADERC_SKIP_EXAMPLES ON)
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/shaderc)
+
+target_link_libraries(${CMAKE_PROJECT_NAME} shaderc glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator imgui)
 
 
 #add vma

@@ -302,6 +302,10 @@ void Scene::build()
         vertices.insert(std::end(vertices), std::begin(model->_vertices), std::end(model->_vertices));
         indices.insert(std::end(indices), std::begin(model->_indices), std::end(model->_indices));
         textures.insert(std::end(textures), std::begin(model->_textures), std::end(model->_textures));
+        //process emissive geometry
+        vkutils::LightProxy emptyLight;
+        emptyLight.geoType = vkutils::LightProxy::EMPTY;
+        lights.push_back(emptyLight);
         for (auto node : model->_linearNodes) {
             glm::mat4 modelMatrix = node->getMatrix();
             for (auto primitive : node->primitives) {
@@ -371,11 +375,8 @@ void Scene::build()
                     lights.push_back(light);
                 }
             }
-            vkutils::LightProxy emptyLight;
-            emptyLight.geoType = vkutils::LightProxy::EMPTY;
-            emptyLight.radiosity = lights.size() + 1;
-            lights.push_back(emptyLight);
         }
+        lights[0].radiosity = static_cast<float>(lights.size());
     }
     _isBuilded = true;
     std::cout << "Scene loaded with " << indices.size() / 3 << " Triangles and " << vertices.size() << " Vertices" << std::endl;

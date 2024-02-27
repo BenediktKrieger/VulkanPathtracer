@@ -1,8 +1,8 @@
 ﻿#pragma once
 
+#include <vk_shader_utils.h>
 #include <vk_utils.h>
 #include <vk_scene.h>
-#include <vk_shaderConverter.h>
 #include <Camera.h>
 #include <GUI.h>
 
