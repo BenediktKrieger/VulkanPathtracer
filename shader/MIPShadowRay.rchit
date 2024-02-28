@@ -52,9 +52,9 @@ struct RayPayload {
 };
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 3, set = 0) buffer Indices { uint i[]; } indices;
-layout(binding = 4, set = 0) buffer Vertices { Vertex v[]; } vertices;
-layout(binding = 5, set = 0) buffer Materials { Material m[]; } materials;
+layout(binding = 2, set = 0) buffer Indices { uint i[]; } indices;
+layout(binding = 3, set = 0) buffer Vertices { Vertex v[]; } vertices;
+layout(binding = 4, set = 0) buffer Materials { Material m[]; } materials;
 layout(binding = 7, set = 0) uniform Settings {
     bool accumulate;
 	uint samples;

@@ -24,9 +24,8 @@ struct RayPayload {
 };
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 1, set = 0, rgba8) writeonly uniform image2D image;
-layout(binding = 2, set = 0, rgba32f) uniform image2D accImage;
-layout(binding = 8, set = 0) readonly uniform Settings {
+layout(binding = 1, set = 0, rgba32f) uniform image2D accImage;
+layout(binding = 7, set = 0) readonly uniform Settings {
   	bool accumulate;
 	uint samples;
 	uint reflection_recursion;
@@ -100,5 +99,4 @@ void main()
 	}
 	
 	imageStore(accImage, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
-	imageStore(image, ivec2(gl_LaunchIDEXT.xy), vec4(newColor, 1.0));
 }

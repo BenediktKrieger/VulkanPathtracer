@@ -19,6 +19,7 @@ public:
 	int _selectedShader{0};
 
 	vkutils::PushConstants PushConstants;
+	vkutils::ComputeConstants ComputeConstants;
 	Camera _cam;
 	float _fov;
 
@@ -26,6 +27,7 @@ public:
 	vk::RenderPass _renderPass;
 	vk::PipelineLayout _rasterizerPipelineLayout;
 	vk::PipelineLayout _raytracerPipelineLayout;
+	vk::PipelineLayout _computePipelineLayout;
 	vkutils::AllocatedBuffer _raygenShaderBindingTable;
 	vkutils::AllocatedBuffer _missShaderBindingTable;
 	vkutils::AllocatedBuffer _hitShaderBindingTable;
@@ -34,6 +36,7 @@ public:
 
 	vk::Pipeline _rasterizerPipeline;
 	vk::Pipeline _raytracerPipeline;
+	vk::Pipeline _computePipeline;
 	std::vector<vk::RayTracingShaderGroupCreateInfoKHR> _shaderGroups;
 	
 	Scene* _currentScene;
@@ -51,8 +54,10 @@ public:
 
 	vk::DescriptorPool _rasterizerDescriptorPool;
 	vk::DescriptorPool _raytracerDescriptorPool;
+	vk::DescriptorPool _computeDescriptorPool;
 	vk::DescriptorSetLayout _rasterizerSetLayout;
 	vk::DescriptorSetLayout _raytracerSetLayout;
+	vk::DescriptorSetLayout _computeSetLayout;
 
 	vkutils::AllocatedImage _accumulationImage;
 

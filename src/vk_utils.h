@@ -60,6 +60,7 @@ namespace vkutils
         vk::CommandBuffer _mainCommandBuffer;
 	    vk::DescriptorSet _rasterizerDescriptor;
         vk::DescriptorSet _raytracerDescriptor;
+        vk::DescriptorSet _computeDescriptor;
         AllocatedImage _storageImage;
     };
     class PushConstants {
@@ -68,6 +69,11 @@ namespace vkutils
         glm::mat4 view;
         glm::mat4 model;
         uint32_t accumulatedFrames;
+    };
+    class ComputeConstants {
+    public:
+        uint32_t width;
+        uint32_t height;
     };
     class PipelineBuilder {
     public:

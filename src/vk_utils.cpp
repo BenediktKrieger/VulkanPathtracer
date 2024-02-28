@@ -174,7 +174,7 @@ vkutils::QueueFamilyIndices vkutils::findQueueFamilies(vk::PhysicalDevice &physi
     std::vector<vk::QueueFamilyProperties> queueFamilies = physicalDevice.getQueueFamilyProperties();
     for (uint32_t i = 0; i < queueFamilies.size(); i++)
     {
-        if (queueFamilies[i].queueFlags & vk::QueueFlagBits::eGraphics)
+        if ((queueFamilies[i].queueFlags & vk::QueueFlagBits::eGraphics) && (queueFamilies[i].queueFlags & vk::QueueFlagBits::eCompute))
         {
             indices.graphicsFamily = i;
         }

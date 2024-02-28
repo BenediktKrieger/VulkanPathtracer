@@ -17,8 +17,8 @@ struct RayPayload {
 };
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
-layout(binding = 7, set = 0) uniform sampler2D hdrMapSampler;
-layout(binding = 8, set = 0) readonly uniform Settings {
+layout(binding = 6, set = 0) uniform sampler2D hdrMapSampler;
+layout(binding = 7, set = 0) readonly uniform Settings {
     bool accumulate;
     uint samples;
     uint reflection_recursion;
@@ -38,8 +38,12 @@ vec2 SampleSphericalMap(vec3 direction)
 
 void main()
 {
-    vec3 unit_direction = gl_WorldRayDirectionEXT;
-    vec3 color = texture(hdrMapSampler, SampleSphericalMap(unit_direction)).xyz * settings.ambient_multiplier;
-    Payload.color *= color;
+    if(settings.ambient_multiplier > 0.0001) {
+        vec3 unit_direction = gl_WorldRayDirectionEXT;
+        vec3 color = texture(hdrMapSampler, SampleSphericalMap(unit_direction)).xyz * settings.ambient_multiplier;
+        Payload.color *= color;
+    } else {
+        Payload.color = vec3(0.0);
+    }
     Payload.continueTrace = false;
 }

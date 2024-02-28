@@ -171,10 +171,19 @@ void VulkanEngine::draw()
 
 			vk::StridedDeviceAddressRegionKHR callableShaderSbtEntry;
 
+			// raytracing pipeline dispatch
 			cmd.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, _raytracerPipeline);
 			cmd.bindDescriptorSets(vk::PipelineBindPoint::eRayTracingKHR, _raytracerPipelineLayout, 0, 1, &get_current_frame()._raytracerDescriptor, 0, 0);
 			cmd.pushConstants(_raytracerPipelineLayout, vk::ShaderStageFlagBits::eRaygenKHR, 0, sizeof(vkutils::PushConstants), &PushConstants);
 			cmd.traceRaysKHR(&raygenShaderSbtEntry, &missShaderSbtEntry, &hitShaderSbtEntry, &callableShaderSbtEntry, _core._windowExtent.width, _core._windowExtent.height, 1);
+
+			// compute pipeline dispatch
+			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipeline);
+			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
+			ComputeConstants.width = _core._windowExtent.width;
+			ComputeConstants.height = _core._windowExtent.height;
+			cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
+			cmd.dispatch(ceil(_core._windowExtent.width/16.f), ceil(_core._windowExtent.height/16.f), 1);
 
 			vkutils::setImageLayout(cmd, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, subresourceRange);
 			vkutils::setImageLayout(cmd, get_current_frame()._storageImage._image, vk::ImageLayout::eGeneral,  vk::ImageLayout::eTransferSrcOptimal, subresourceRange);
@@ -792,57 +801,51 @@ void VulkanEngine::init_pipelines()
 		accelerationStructureLayoutBinding.descriptorCount = 1;
 		accelerationStructureLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eRaygenKHR | vk::ShaderStageFlagBits::eClosestHitKHR;
 
-		vk::DescriptorSetLayoutBinding resultImageLayoutBinding;
-		resultImageLayoutBinding.binding = 1;
-		resultImageLayoutBinding.descriptorType = vk::DescriptorType::eStorageImage;
-		resultImageLayoutBinding.descriptorCount = 1;
-		resultImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eRaygenKHR;
-
 		vk::DescriptorSetLayoutBinding accumulationImageLayoutBinding;
-		accumulationImageLayoutBinding.binding = 2;
+		accumulationImageLayoutBinding.binding = 1;
 		accumulationImageLayoutBinding.descriptorType = vk::DescriptorType::eStorageImage;
 		accumulationImageLayoutBinding.descriptorCount = 1;
 		accumulationImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eRaygenKHR;
 
 		vk::DescriptorSetLayoutBinding indexBufferBinding;
-		indexBufferBinding.binding = 3;
+		indexBufferBinding.binding = 2;
 		indexBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		indexBufferBinding.descriptorCount = 1;
 		indexBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
 		vk::DescriptorSetLayoutBinding vertexBufferBinding;
-		vertexBufferBinding.binding = 4;
+		vertexBufferBinding.binding = 3;
 		vertexBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		vertexBufferBinding.descriptorCount = 1;
 		vertexBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
 		vk::DescriptorSetLayoutBinding materialBufferBinding;
-		materialBufferBinding.binding = 5;
+		materialBufferBinding.binding = 4;
 		materialBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		materialBufferBinding.descriptorCount = 1;
 		materialBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eAnyHitKHR;
 
 		vk::DescriptorSetLayoutBinding lightBufferBinding;
-		lightBufferBinding.binding = 6;
+		lightBufferBinding.binding = 5;
 		lightBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
 		lightBufferBinding.descriptorCount = 1;
 		lightBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR;
 
 		vk::DescriptorSetLayoutBinding hdrMapLayoutBinding{};
-        hdrMapLayoutBinding.binding = 7;
+        hdrMapLayoutBinding.binding = 6;
         hdrMapLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
         hdrMapLayoutBinding.descriptorCount = 1;
         hdrMapLayoutBinding.pImmutableSamplers = nullptr;
         hdrMapLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eMissKHR;
 
 		vk::DescriptorSetLayoutBinding settingsBufferBinding;
-		settingsBufferBinding.binding = 8;
+		settingsBufferBinding.binding = 7;
 		settingsBufferBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
 		settingsBufferBinding.descriptorCount = 1;
 		settingsBufferBinding.stageFlags = vk::ShaderStageFlagBits::eClosestHitKHR | vk::ShaderStageFlagBits::eRaygenKHR | vk::ShaderStageFlagBits::eMissKHR;
 
 		vk::DescriptorSetLayoutBinding textureLayoutBinding{};
-        textureLayoutBinding.binding = 9;
+        textureLayoutBinding.binding = 8;
         textureLayoutBinding.descriptorType = vk::DescriptorType::eCombinedImageSampler;
         textureLayoutBinding.descriptorCount = static_cast<uint32_t>(_currentScene->textures.size());
         textureLayoutBinding.pImmutableSamplers = nullptr;
@@ -850,7 +853,6 @@ void VulkanEngine::init_pipelines()
 
 		std::vector<vk::DescriptorSetLayoutBinding> bindings({
 			accelerationStructureLayoutBinding,
-			resultImageLayoutBinding,
 			accumulationImageLayoutBinding,
 			indexBufferBinding,
 			vertexBufferBinding,
@@ -963,6 +965,64 @@ void VulkanEngine::init_pipelines()
 			_core._device.destroyDescriptorSetLayout(_raytracerSetLayout);
 		});
 	}
+
+	// init compute Pipeline
+	{
+		vk::DescriptorSetLayoutBinding resultImageLayoutBinding;
+		resultImageLayoutBinding.binding = 1;
+		resultImageLayoutBinding.descriptorType = vk::DescriptorType::eStorageImage;
+		resultImageLayoutBinding.descriptorCount = 1;
+		resultImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eCompute;
+
+		vk::DescriptorSetLayoutBinding accumulationImageLayoutBinding;
+		accumulationImageLayoutBinding.binding = 2;
+		accumulationImageLayoutBinding.descriptorType = vk::DescriptorType::eStorageImage;
+		accumulationImageLayoutBinding.descriptorCount = 1;
+		accumulationImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eCompute;
+
+		std::vector<vk::DescriptorSetLayoutBinding> bindings({
+			resultImageLayoutBinding,
+			accumulationImageLayoutBinding
+		});
+
+		vk::DescriptorSetLayoutCreateInfo setinfo;
+		setinfo.setBindings(bindings);
+		_computeSetLayout = _core._device.createDescriptorSetLayout(setinfo);
+
+		vk::ShaderModule computeShaderModule = load_shader_module(vk::ShaderStageFlagBits::eCompute, "/postprocessing.comp");
+		vk::PipelineShaderStageCreateInfo computeShaderStageInfo = vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eCompute, computeShaderModule);
+
+		vk::PipelineLayoutCreateInfo pipelineLayoutInfo({}, _computeSetLayout);
+		vk::PushConstantRange push_constants{vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants)};
+		pipelineLayoutInfo.setPushConstantRanges(push_constants);
+
+		_computePipelineLayout = _core._device.createPipelineLayout(pipelineLayoutInfo);
+
+		vk::ComputePipelineCreateInfo pipelineInfo({}, computeShaderStageInfo, _computePipelineLayout);
+
+		try
+		{
+			vk::Result result;
+			std::tie(result, _computePipeline) = _core._device.createComputePipeline({}, pipelineInfo);
+			if (result != vk::Result::eSuccess)
+			{
+				throw std::runtime_error("failed to create compute Pipeline!");
+			}
+		}
+		catch (std::exception &e)
+		{
+			std::cerr << "Exception Thrown: " << e.what();
+		}
+
+		_core._device.destroyShaderModule(computeShaderModule);
+
+		_mainDeletionQueue.push_function([=]() {
+			_core._device.destroyPipeline(_computePipeline);
+			_core._device.destroyPipelineLayout(_computePipelineLayout);
+			_core._device.destroyDescriptorSetLayout(_computeSetLayout);
+		});
+	}
+
 }
 
 void VulkanEngine::init_descriptors()
@@ -1008,7 +1068,6 @@ void VulkanEngine::init_descriptors()
 		std::vector<vk::DescriptorPoolSize> poolSizes = {
 			{ vk::DescriptorType::eAccelerationStructureKHR, 1 },
 			{ vk::DescriptorType::eStorageImage, 1 },
-			{ vk::DescriptorType::eStorageImage, 1 },
 			{ vk::DescriptorType::eStorageBuffer, 1 },
 			{ vk::DescriptorType::eStorageBuffer, 1 },
 			{ vk::DescriptorType::eStorageBuffer, 1 },
@@ -1022,8 +1081,6 @@ void VulkanEngine::init_descriptors()
 
 		for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
-			_frames[i]._storageImage = createStorageImage(_core._swapchainImageFormat, _core._windowExtent.width, _core._windowExtent.height);
-
 			vk::DescriptorSetAllocateInfo allocInfo;
 			allocInfo.descriptorPool = _raytracerDescriptorPool;
 			allocInfo.setSetLayouts(_raytracerSetLayout);
@@ -1040,23 +1097,13 @@ void VulkanEngine::init_descriptors()
 			accelerationStructureWrite.descriptorCount = 1;
 			accelerationStructureWrite.descriptorType = vk::DescriptorType::eAccelerationStructureKHR;
 
-			vk::DescriptorImageInfo resultImageDescriptor;
-			resultImageDescriptor.imageView = _frames[i]._storageImage._view;
-			resultImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
-			vk::WriteDescriptorSet resultImageWrite;
-			resultImageWrite.dstSet = _frames[i]._raytracerDescriptor;
-			resultImageWrite.descriptorType = vk::DescriptorType::eStorageImage;
-			resultImageWrite.dstBinding = 1;
-			resultImageWrite.pImageInfo = &resultImageDescriptor;
-			resultImageWrite.descriptorCount = 1;
-
 			vk::DescriptorImageInfo accumulationImageDescriptor;
 			accumulationImageDescriptor.imageView = _accumulationImage._view;
 			accumulationImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
 			vk::WriteDescriptorSet accumulationImageWrite;
 			accumulationImageWrite.dstSet = _frames[i]._raytracerDescriptor;
 			accumulationImageWrite.descriptorType = vk::DescriptorType::eStorageImage;
-			accumulationImageWrite.dstBinding = 2;
+			accumulationImageWrite.dstBinding = 1;
 			accumulationImageWrite.pImageInfo = &accumulationImageDescriptor;
 			accumulationImageWrite.descriptorCount = 1;
 
@@ -1067,7 +1114,7 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet indexBufferWrite;
 			indexBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			indexBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
-			indexBufferWrite.dstBinding = 3;
+			indexBufferWrite.dstBinding = 2;
 			indexBufferWrite.pBufferInfo = &indexDescriptor;
 			indexBufferWrite.descriptorCount = 1;
 
@@ -1078,7 +1125,7 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet vertexBufferWrite;
 			vertexBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			vertexBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
-			vertexBufferWrite.dstBinding = 4;
+			vertexBufferWrite.dstBinding = 3;
 			vertexBufferWrite.pBufferInfo = &vertexDescriptor;
 			vertexBufferWrite.descriptorCount = 1;
 
@@ -1089,7 +1136,7 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet uniformBufferWrite;
 			uniformBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			uniformBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
-			uniformBufferWrite.dstBinding = 5;
+			uniformBufferWrite.dstBinding = 4;
 			uniformBufferWrite.pBufferInfo = &uboDescriptor;
 			uniformBufferWrite.descriptorCount = 1;
 
@@ -1100,7 +1147,7 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet lightBufferWrite;
 			lightBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			lightBufferWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
-			lightBufferWrite.dstBinding = 6;
+			lightBufferWrite.dstBinding = 5;
 			lightBufferWrite.pBufferInfo = &lightsDescriptor;
 			lightBufferWrite.descriptorCount = 1;
 
@@ -1111,7 +1158,7 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet hdrImageWrite;
 			hdrImageWrite.dstSet = _frames[i]._raytracerDescriptor;
 			hdrImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
-			hdrImageWrite.dstBinding = 7;
+			hdrImageWrite.dstBinding = 6;
 			hdrImageWrite.pImageInfo = &hdrImageDescriptor;
 			hdrImageWrite.descriptorCount = 1;
 
@@ -1122,13 +1169,13 @@ void VulkanEngine::init_descriptors()
 			vk::WriteDescriptorSet settingsUniformBufferWrite;
 			settingsUniformBufferWrite.dstSet = _frames[i]._raytracerDescriptor;
 			settingsUniformBufferWrite.descriptorType = vk::DescriptorType::eUniformBuffer;
-			settingsUniformBufferWrite.dstBinding = 8;
+			settingsUniformBufferWrite.dstBinding = 7;
 			settingsUniformBufferWrite.pBufferInfo = &settingsUboDescriptor;
 			settingsUniformBufferWrite.descriptorCount = 1;
 
 			vk::WriteDescriptorSet textureImageWrite;
             textureImageWrite.dstSet = _frames[i]._raytracerDescriptor;
-            textureImageWrite.dstBinding = 9;
+            textureImageWrite.dstBinding = 8;
             textureImageWrite.dstArrayElement = 0;
             textureImageWrite.descriptorType = vk::DescriptorType::eCombinedImageSampler;
 			std::vector<vk::DescriptorImageInfo> imageInfos{};
@@ -1140,7 +1187,6 @@ void VulkanEngine::init_descriptors()
 
 			std::vector<vk::WriteDescriptorSet> setWrites = {
 				accelerationStructureWrite,
-				resultImageWrite,
 				accumulationImageWrite,
 				indexBufferWrite,
 				vertexBufferWrite,
@@ -1153,9 +1199,61 @@ void VulkanEngine::init_descriptors()
 			_core._device.updateDescriptorSets(setWrites, {});
 		}
 	}
+	//init compute descriptors
+	{
+		std::vector<vk::DescriptorPoolSize> poolSizes =
+		{
+			{vk::DescriptorType::eStorageImage, 1 },
+			{vk::DescriptorType::eStorageImage, 1 }
+		};
+
+		vk::DescriptorPoolCreateInfo pool_info;
+		pool_info.setMaxSets(2);
+		pool_info.setPoolSizes(poolSizes);
+
+		_computeDescriptorPool = _core._device.createDescriptorPool(pool_info);
+
+		for (int i = 0; i < FRAME_OVERLAP; i++)
+		{
+			_frames[i]._storageImage = createStorageImage(_core._swapchainImageFormat, _core._windowExtent.width, _core._windowExtent.height);
+
+			vk::DescriptorSetAllocateInfo allocInfo;
+			allocInfo.descriptorPool = _computeDescriptorPool;
+			allocInfo.setSetLayouts(_computeSetLayout);
+			
+			_frames[i]._computeDescriptor = _core._device.allocateDescriptorSets(allocInfo).front();
+
+			vk::DescriptorImageInfo resultImageDescriptor;
+			resultImageDescriptor.imageView = _frames[i]._storageImage._view;
+			resultImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
+			vk::WriteDescriptorSet resultImageWrite;
+			resultImageWrite.dstSet = _frames[i]._computeDescriptor;
+			resultImageWrite.descriptorType = vk::DescriptorType::eStorageImage;
+			resultImageWrite.dstBinding = 1;
+			resultImageWrite.pImageInfo = &resultImageDescriptor;
+			resultImageWrite.descriptorCount = 1;
+
+			vk::DescriptorImageInfo accumulationImageDescriptor;
+			accumulationImageDescriptor.imageView = _accumulationImage._view;
+			accumulationImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
+			vk::WriteDescriptorSet accumulationImageWrite;
+			accumulationImageWrite.dstSet = _frames[i]._computeDescriptor;
+			accumulationImageWrite.descriptorType = vk::DescriptorType::eStorageImage;
+			accumulationImageWrite.dstBinding = 2;
+			accumulationImageWrite.pImageInfo = &accumulationImageDescriptor;
+			accumulationImageWrite.descriptorCount = 1;
+
+			std::vector<vk::WriteDescriptorSet> setWrites = {
+				resultImageWrite,
+				accumulationImageWrite
+			};
+			_core._device.updateDescriptorSets(setWrites, {});
+		}
+	}
 	_mainDeletionQueue.push_function([&]() {
 		_core._device.destroyDescriptorPool(_raytracerDescriptorPool);
 		_core._device.destroyDescriptorPool(_rasterizerDescriptorPool);
+		_core._device.destroyDescriptorPool(_computeDescriptorPool);
 	});
 	_resizeDeletionQueue.push_function([&]() {
 		for (int i = 0; i < FRAME_OVERLAP; i++)
@@ -1243,17 +1341,16 @@ void VulkanEngine::load_models()
 	long long microseconds_all = std::chrono::duration_cast<std::chrono::microseconds>(elapsed_all).count();
 	std::cout << "scene1 loading time: " << microseconds_all / 1e6 << "s" << std::endl;
 
-	start_all = std::chrono::high_resolution_clock::now();
-
-	std::thread th { [=]() {
-		Scene* scene2 = new Scene(_core);
-		scene2->add(ASSET_PATH"/models/cornelll_box.glb");
-		_scenes.push_back(scene2);
-		auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
-		auto microseconds_all = std::chrono::duration_cast<std::chrono::microseconds>(elapsed_all).count();
-		std::cout << "scene2 loading time: " << microseconds_all / 1e6 << "s" << std::endl;
-    }};
-	th.detach();
+	// start_all = std::chrono::high_resolution_clock::now();
+	// std::thread th { [=]() {
+	// 	Scene* scene2 = new Scene(_core);
+	// 	scene2->add(ASSET_PATH"/models/bistro_new_1.glb");
+	// 	_scenes.push_back(scene2);
+	// 	auto elapsed_all = std::chrono::high_resolution_clock::now() - start_all;
+	// 	auto microseconds_all = std::chrono::duration_cast<std::chrono::microseconds>(elapsed_all).count();
+	// 	std::cout << "scene2 loading time: " << microseconds_all / 1e6 << "s" << std::endl;
+    // }};
+	// th.detach();
 
 	_mainDeletionQueue.push_function([&]() {
 		for(auto& scene : _scenes){
@@ -1404,15 +1501,15 @@ void VulkanEngine::recreateSwapchain() {
 		vk::DescriptorImageInfo resultImageDescriptor;
 		resultImageDescriptor.imageView = _frames[i]._storageImage._view;
 		resultImageDescriptor.imageLayout = vk::ImageLayout::eGeneral;
-		vk::WriteDescriptorSet resultImageWrite;
-		resultImageWrite.dstSet = _frames[i]._raytracerDescriptor;
-		resultImageWrite.descriptorType = vk::DescriptorType::eStorageImage;
-		resultImageWrite.dstBinding = 1;
-		resultImageWrite.pImageInfo = &resultImageDescriptor;
-		resultImageWrite.descriptorCount = 1;
+		vk::WriteDescriptorSet resultImageWriteCompute;
+		resultImageWriteCompute.dstSet = _frames[i]._computeDescriptor;
+		resultImageWriteCompute.descriptorType = vk::DescriptorType::eStorageImage;
+		resultImageWriteCompute.dstBinding = 1;
+		resultImageWriteCompute.pImageInfo = &resultImageDescriptor;
+		resultImageWriteCompute.descriptorCount = 1;
 
 		std::vector<vk::WriteDescriptorSet> setWrites = {
-			resultImageWrite
+			resultImageWriteCompute
 		};
 		_core._device.updateDescriptorSets(setWrites, {});
 	}

@@ -62,18 +62,18 @@ struct RayPayload {
 };
 
 layout(binding = 0, set = 0) uniform accelerationStructureEXT topLevelAS;
-layout(binding = 3, set = 0) readonly buffer Indices { uint i[]; } indices;
-layout(binding = 4, set = 0) readonly buffer Vertices { Vertex v[]; } vertices;
-layout(binding = 5, set = 0) readonly buffer Materials { Material m[]; } materials;
-layout(binding = 6, set = 0) readonly buffer Lights { Light l[]; } lights;
-layout(binding = 8, set = 0) readonly uniform Settings {
+layout(binding = 2, set = 0) readonly buffer Indices { uint i[]; } indices;
+layout(binding = 3, set = 0) readonly buffer Vertices { Vertex v[]; } vertices;
+layout(binding = 4, set = 0) readonly buffer Materials { Material m[]; } materials;
+layout(binding = 5, set = 0) readonly buffer Lights { Light l[]; } lights;
+layout(binding = 7, set = 0) readonly uniform Settings {
     bool accumulate;
 	uint samples;
 	uint reflection_recursion;
 	uint refraction_recursion;
     float ambient_multiplier;
 } settings;
-layout(binding = 9, set = 0) uniform sampler2D texSampler[];
+layout(binding = 8, set = 0) uniform sampler2D texSampler[];
 
 layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
@@ -469,7 +469,7 @@ void main()
                     center = (light.min + light.max) / 2;
                 }
                 float radApprox = light.radiosity / pow(distance(center, newOrigin), 2);
-                if(radApprox > 0.3){
+                if(radApprox > 0.1){
                     lightCandidates[lightCount] = i;
                     lightCount++;
                 }
