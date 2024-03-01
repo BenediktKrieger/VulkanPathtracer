@@ -1,20 +1,20 @@
 #version 460
-layout( push_constant ) uniform PushConstants
-{
+
+layout( push_constant ) uniform PushConstants {
     uint width;
     uint height;
 } constants;
-layout(binding = 1, set = 0, rgba8) writeonly uniform image2D image;
-layout(binding = 2, set = 0, rgba32f) uniform image2D accImage;
+layout(binding = 0, set = 0) buffer ImageInfo {uint histogram[256]; float average;} imageInfo;
+layout(binding = 1, set = 0, rgba8) restrict writeonly uniform image2D image;
+layout(binding = 2, set = 0, rgba32f) restrict readonly uniform image2D accImage;
 
 layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
-
-shared uint histogramShared[256];
 
 void main() 
 {
     if (gl_GlobalInvocationID.x < constants.width && gl_GlobalInvocationID.y < constants.height) {
         vec4 color = imageLoad(accImage, ivec2(gl_GlobalInvocationID.xy));
-	    imageStore(image, ivec2(gl_GlobalInvocationID.xy), color);
+        vec3 tonemappedColor = color.xyz / (9.6 * imageInfo.average);
+	    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(tonemappedColor, 1.0));
     }
 }

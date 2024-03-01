@@ -25,6 +25,11 @@ namespace vkutils
         // Scene
         
     };
+    class ImageStats {
+    public:
+        uint32_t histogram[256];
+        float average;
+    };
     class Shadersettings {
     public:
         uint32_t accumulate;
@@ -62,6 +67,7 @@ namespace vkutils
         vk::DescriptorSet _raytracerDescriptor;
         vk::DescriptorSet _computeDescriptor;
         AllocatedImage _storageImage;
+        AllocatedBuffer _imageStats;
     };
     class PushConstants {
     public:

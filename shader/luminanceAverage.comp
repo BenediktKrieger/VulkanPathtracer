@@ -1,0 +1,42 @@
+#version 460
+#define GROUP_SIZE 256
+const float minLogLuminance = -10;
+const float logLuminanceRange = 12.0;
+
+layout( push_constant ) uniform PushConstants {
+    uint width;
+    uint height;
+} constants;
+layout(binding = 0, set = 0) buffer ImageInfo {uint histogram[256]; float average;} imageInfo;
+layout(binding = 1, set = 0, rgba8) restrict uniform image2D image;
+layout(binding = 2, set = 0, rgba32f) restrict uniform image2D accImage;
+
+layout (local_size_x = 256, local_size_y = 1, local_size_z = 1) in;
+
+shared uint histogramShared[GROUP_SIZE];
+
+void main() 
+{
+    const float numPixels  = constants.width * constants.height;
+
+    uint countForThisBin = imageInfo.histogram[gl_LocalInvocationIndex];
+    histogramShared[gl_LocalInvocationIndex] = countForThisBin * gl_LocalInvocationIndex;
+
+    barrier();
+
+    imageInfo.histogram[gl_LocalInvocationIndex] = 0;
+
+    for (uint cutoff = (GROUP_SIZE >> 1); cutoff > 0; cutoff >>= 1) {
+        if (uint(gl_LocalInvocationIndex) < cutoff) {
+            histogramShared[gl_LocalInvocationIndex] += histogramShared[gl_LocalInvocationIndex + cutoff];
+        }
+        barrier();
+    }
+
+    if (gl_LocalInvocationIndex == 0) {
+        float weightedLogAverage = (histogramShared[0] / max(numPixels - float(countForThisBin), 1.0)) - 1.0;
+        float weightedAvgLum = exp2(((weightedLogAverage / 254.0) * logLuminanceRange) + minLogLuminance);
+        imageInfo.average = weightedAvgLum;
+    }
+    imageInfo.histogram[gl_LocalInvocationIndex] = 0;
+}

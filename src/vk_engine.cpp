@@ -178,12 +178,26 @@ void VulkanEngine::draw()
 			cmd.traceRaysKHR(&raygenShaderSbtEntry, &missShaderSbtEntry, &hitShaderSbtEntry, &callableShaderSbtEntry, _core._windowExtent.width, _core._windowExtent.height, 1);
 
 			// compute pipeline dispatch
-			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipeline);
-			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
 			ComputeConstants.width = _core._windowExtent.width;
 			ComputeConstants.height = _core._windowExtent.height;
+			uint32_t groupCountX = static_cast<uint32_t>(ceil(_core._windowExtent.width/16.f));
+			uint32_t groupCountY = static_cast<uint32_t>(ceil(_core._windowExtent.height/16.f));
+			uint32_t groupCountZ = 1;
+
+			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[0]);
+			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
 			cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
-			cmd.dispatch(ceil(_core._windowExtent.width/16.f), ceil(_core._windowExtent.height/16.f), 1);
+			cmd.dispatch(groupCountX, groupCountY, groupCountZ);
+
+			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[1]);
+			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
+			cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
+			cmd.dispatch(1, 1, 1);
+
+			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[2]);
+			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
+			cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
+			cmd.dispatch(groupCountX, groupCountY, groupCountZ);
 
 			vkutils::setImageLayout(cmd, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, subresourceRange);
 			vkutils::setImageLayout(cmd, get_current_frame()._storageImage._image, vk::ImageLayout::eGeneral,  vk::ImageLayout::eTransferSrcOptimal, subresourceRange);
@@ -968,6 +982,12 @@ void VulkanEngine::init_pipelines()
 
 	// init compute Pipeline
 	{
+		vk::DescriptorSetLayoutBinding histogramBufferBinding;
+		histogramBufferBinding.binding = 0;
+		histogramBufferBinding.descriptorType = vk::DescriptorType::eStorageBuffer;
+		histogramBufferBinding.descriptorCount = 1;
+		histogramBufferBinding.stageFlags = vk::ShaderStageFlagBits::eCompute;
+
 		vk::DescriptorSetLayoutBinding resultImageLayoutBinding;
 		resultImageLayoutBinding.binding = 1;
 		resultImageLayoutBinding.descriptorType = vk::DescriptorType::eStorageImage;
@@ -981,6 +1001,7 @@ void VulkanEngine::init_pipelines()
 		accumulationImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eCompute;
 
 		std::vector<vk::DescriptorSetLayoutBinding> bindings({
+			histogramBufferBinding,
 			resultImageLayoutBinding,
 			accumulationImageLayoutBinding
 		});
@@ -989,24 +1010,35 @@ void VulkanEngine::init_pipelines()
 		setinfo.setBindings(bindings);
 		_computeSetLayout = _core._device.createDescriptorSetLayout(setinfo);
 
-		vk::ShaderModule computeShaderModule = load_shader_module(vk::ShaderStageFlagBits::eCompute, "/postprocessing.comp");
-		vk::PipelineShaderStageCreateInfo computeShaderStageInfo = vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eCompute, computeShaderModule);
+		vk::ShaderModule histogramShaderModule = load_shader_module(vk::ShaderStageFlagBits::eCompute, "/luminanceHistogram.comp");
+		vk::PipelineShaderStageCreateInfo histogramShaderStageInfo = vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eCompute, histogramShaderModule);
+
+		vk::ShaderModule averageShaderModule = load_shader_module(vk::ShaderStageFlagBits::eCompute, "/luminanceAverage.comp");
+		vk::PipelineShaderStageCreateInfo averageShaderStageInfo = vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eCompute, averageShaderModule);
+
+		vk::ShaderModule postprocessingShaderModule = load_shader_module(vk::ShaderStageFlagBits::eCompute, "/postprocessing.comp");
+		vk::PipelineShaderStageCreateInfo postprocessingShaderStageInfo = vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eCompute, postprocessingShaderModule);
 
 		vk::PipelineLayoutCreateInfo pipelineLayoutInfo({}, _computeSetLayout);
 		vk::PushConstantRange push_constants{vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants)};
 		pipelineLayoutInfo.setPushConstantRanges(push_constants);
 
 		_computePipelineLayout = _core._device.createPipelineLayout(pipelineLayoutInfo);
-
-		vk::ComputePipelineCreateInfo pipelineInfo({}, computeShaderStageInfo, _computePipelineLayout);
-
+		
+		vk::ComputePipelineCreateInfo pipelineInfos[3];
+		pipelineInfos[0] = vk::ComputePipelineCreateInfo({}, histogramShaderStageInfo, _computePipelineLayout);
+		pipelineInfos[1] = vk::ComputePipelineCreateInfo({}, averageShaderStageInfo, _computePipelineLayout);
+		pipelineInfos[2] = vk::ComputePipelineCreateInfo({}, postprocessingShaderStageInfo, _computePipelineLayout);
 		try
 		{
-			vk::Result result;
-			std::tie(result, _computePipeline) = _core._device.createComputePipeline({}, pipelineInfo);
-			if (result != vk::Result::eSuccess)
+			for (size_t i = 0; i < 3; i++)
 			{
-				throw std::runtime_error("failed to create compute Pipeline!");
+				vk::Result result;
+				std::tie(result, _computePipelines[i]) = _core._device.createComputePipeline({}, pipelineInfos[i]);
+				if (result != vk::Result::eSuccess)
+				{
+					throw std::runtime_error("failed to create compute Pipeline!");
+				}
 			}
 		}
 		catch (std::exception &e)
@@ -1014,10 +1046,14 @@ void VulkanEngine::init_pipelines()
 			std::cerr << "Exception Thrown: " << e.what();
 		}
 
-		_core._device.destroyShaderModule(computeShaderModule);
+		_core._device.destroyShaderModule(histogramShaderModule);
+		_core._device.destroyShaderModule(averageShaderModule);
+		_core._device.destroyShaderModule(postprocessingShaderModule);
 
 		_mainDeletionQueue.push_function([=]() {
-			_core._device.destroyPipeline(_computePipeline);
+			for(auto pipeline : _computePipelines){
+				_core._device.destroyPipeline(pipeline);
+			}
 			_core._device.destroyPipelineLayout(_computePipelineLayout);
 			_core._device.destroyDescriptorSetLayout(_computeSetLayout);
 		});
@@ -1035,7 +1071,7 @@ void VulkanEngine::init_descriptors()
 		};
 
 		vk::DescriptorPoolCreateInfo pool_info;
-		pool_info.setMaxSets(2);
+		pool_info.setMaxSets(3);
 		pool_info.setPoolSizes(poolSizes);
 
 		_rasterizerDescriptorPool = _core._device.createDescriptorPool(pool_info);
@@ -1074,7 +1110,7 @@ void VulkanEngine::init_descriptors()
 			{ vk::DescriptorType::eCombinedImageSampler, static_cast<uint32_t>(_currentScene->textures.size())}
 		};
 		vk::DescriptorPoolCreateInfo pool_info;
-		pool_info.setMaxSets(2);
+		pool_info.setMaxSets(3);
 		pool_info.setPoolSizes(poolSizes);
 
 		_raytracerDescriptorPool = _core._device.createDescriptorPool(pool_info);
@@ -1208,7 +1244,7 @@ void VulkanEngine::init_descriptors()
 		};
 
 		vk::DescriptorPoolCreateInfo pool_info;
-		pool_info.setMaxSets(2);
+		pool_info.setMaxSets(3);
 		pool_info.setPoolSizes(poolSizes);
 
 		_computeDescriptorPool = _core._device.createDescriptorPool(pool_info);
@@ -1216,12 +1252,29 @@ void VulkanEngine::init_descriptors()
 		for (int i = 0; i < FRAME_OVERLAP; i++)
 		{
 			_frames[i]._storageImage = createStorageImage(_core._swapchainImageFormat, _core._windowExtent.width, _core._windowExtent.height);
+			vkutils::ImageStats imageInfo;
+			imageInfo.average = 0;
+			for (auto bin : imageInfo.histogram) {
+				bin = 0;
+			}
+			_frames[i]._imageStats = vkutils::deviceBufferFromData(_core, &imageInfo, sizeof(vkutils::ImageStats), vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice);
 
 			vk::DescriptorSetAllocateInfo allocInfo;
 			allocInfo.descriptorPool = _computeDescriptorPool;
 			allocInfo.setSetLayouts(_computeSetLayout);
 			
 			_frames[i]._computeDescriptor = _core._device.allocateDescriptorSets(allocInfo).front();
+			
+			vk::DescriptorBufferInfo histogramDescriptor;
+			histogramDescriptor.buffer = _frames[i]._imageStats._buffer;
+			histogramDescriptor.offset = 0;
+			histogramDescriptor.range = sizeof(vkutils::ImageStats);
+			vk::WriteDescriptorSet histogramWrite;
+			histogramWrite.dstBinding = 0;
+			histogramWrite.dstSet = _frames[i]._computeDescriptor;
+			histogramWrite.descriptorCount = 1;
+			histogramWrite.descriptorType = vk::DescriptorType::eStorageBuffer;
+			histogramWrite.setBufferInfo(histogramDescriptor);
 
 			vk::DescriptorImageInfo resultImageDescriptor;
 			resultImageDescriptor.imageView = _frames[i]._storageImage._view;
@@ -1244,6 +1297,7 @@ void VulkanEngine::init_descriptors()
 			accumulationImageWrite.descriptorCount = 1;
 
 			std::vector<vk::WriteDescriptorSet> setWrites = {
+				histogramWrite,
 				resultImageWrite,
 				accumulationImageWrite
 			};
@@ -1254,6 +1308,10 @@ void VulkanEngine::init_descriptors()
 		_core._device.destroyDescriptorPool(_raytracerDescriptorPool);
 		_core._device.destroyDescriptorPool(_rasterizerDescriptorPool);
 		_core._device.destroyDescriptorPool(_computeDescriptorPool);
+		for (int i = 0; i < FRAME_OVERLAP; i++)
+		{
+			_core._allocator.destroyBuffer(_frames[i]._imageStats._buffer, _frames[i]._imageStats._allocation);
+		}
 	});
 	_resizeDeletionQueue.push_function([&]() {
 		for (int i = 0; i < FRAME_OVERLAP; i++)
@@ -1331,7 +1389,7 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	scene1->add(ASSET_PATH"/models/sponza.glb");
+	scene1->add(ASSET_PATH"/models/cornell_box.glb");
 	scene1->build();
 	scene1->buildAccelerationStructure();
 	_currentScene = scene1;

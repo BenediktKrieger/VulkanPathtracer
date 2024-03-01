@@ -25,9 +25,11 @@ public:
 
 	vkutils::FrameData _frames[FRAME_OVERLAP];
 	vk::RenderPass _renderPass;
+
 	vk::PipelineLayout _rasterizerPipelineLayout;
 	vk::PipelineLayout _raytracerPipelineLayout;
 	vk::PipelineLayout _computePipelineLayout;
+
 	vkutils::AllocatedBuffer _raygenShaderBindingTable;
 	vkutils::AllocatedBuffer _missShaderBindingTable;
 	vkutils::AllocatedBuffer _hitShaderBindingTable;
@@ -36,7 +38,7 @@ public:
 
 	vk::Pipeline _rasterizerPipeline;
 	vk::Pipeline _raytracerPipeline;
-	vk::Pipeline _computePipeline;
+	vk::Pipeline _computePipelines[3];
 	std::vector<vk::RayTracingShaderGroupCreateInfoKHR> _shaderGroups;
 	
 	Scene* _currentScene;
