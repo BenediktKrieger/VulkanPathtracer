@@ -30,7 +30,6 @@ uint colorToBin(vec3 hdrColor, float minLogLum, float inverseLogLumRange) {
 
 void main() 
 {
-    // Initialize the bin for this thread to 0
     histogramShared[gl_LocalInvocationIndex] = 0;
 
     barrier();

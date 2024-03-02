@@ -189,20 +189,30 @@ void VulkanEngine::draw()
 			uint32_t groupCountY = static_cast<uint32_t>(ceil(_core._windowExtent.height/16.f));
 			uint32_t groupCountZ = 1;
 
+			vk::MemoryBarrier test(vk::AccessFlagBits::eMemoryWrite, vk::AccessFlagBits::eMemoryRead);
+
+			cmd.pipelineBarrier(vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eComputeShader, {}, test, nullptr, nullptr);
+
 			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[0]);
 			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
 			cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
 			cmd.dispatch(groupCountX, groupCountY, groupCountZ);
+
+			cmd.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, {}, test, nullptr, nullptr);
 
 			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[1]);
 			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
 			cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
 			cmd.dispatch(1, 1, 1);
 
+			cmd.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, {}, test, nullptr, nullptr);
+
 			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[2]);
 			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
 			cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
 			cmd.dispatch(groupCountX, groupCountY, groupCountZ);
+
+			cmd.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eBottomOfPipe, {}, test, nullptr, nullptr);
 
 			vkutils::setImageLayout(cmd, _core._swapchainImages[swapchainImageIndex], vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal, subresourceRange);
 			vkutils::setImageLayout(cmd, get_current_frame()._storageImage._image, vk::ImageLayout::eGeneral,  vk::ImageLayout::eTransferSrcOptimal, subresourceRange);
@@ -1394,7 +1404,7 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	scene1->add(ASSET_PATH"/models/bistro_new_1.glb");
+	scene1->add(ASSET_PATH"/models/san_miguel.glb");
 	scene1->build();
 	scene1->buildAccelerationStructure();
 	_currentScene = scene1;

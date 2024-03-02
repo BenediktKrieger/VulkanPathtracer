@@ -58,7 +58,7 @@ void main()
 
     rgb = xyY_to_rgb(xyY);
 
-    rgb = pow(rgb, vec3(1.0 / 2.2));
+    //rgb = pow(rgb, vec3(1.0 / 2.2));
 
     if (gl_GlobalInvocationID.x < constants.width && gl_GlobalInvocationID.y < constants.height) {
 	    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(rgb, 1.0));

@@ -6,6 +6,8 @@
 #include <Camera.h>
 #include <GUI.h>
 
+#undef MemoryBarrier
+
 constexpr unsigned int FRAME_OVERLAP = 2;
 
 class VulkanEngine

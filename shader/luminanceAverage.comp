@@ -2,7 +2,7 @@
 #define GROUP_SIZE 256
 const float minLogLuminance = -10;
 const float logLuminanceRange = 12.0;
-const float tau = 2;
+const float tau = 1.1;
 
 layout( push_constant ) uniform PushConstants {
     float deltaTime;
