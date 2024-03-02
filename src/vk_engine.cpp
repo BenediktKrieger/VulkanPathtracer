@@ -91,6 +91,10 @@ void VulkanEngine::draw()
 	vk::ImageSubresourceRange subresourceRange = { vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 };
 	updateBuffers();
 
+	auto now = std::chrono::steady_clock::now();
+	_deltaTime = std::chrono::duration_cast<std::chrono::microseconds>(now - _lastTime).count() / 1000000.0f;
+	_lastTime = now;
+
 	cmd.begin(cmdBeginInfo);
 		if(_gui.settings.renderer == 0)
 		{
@@ -178,6 +182,7 @@ void VulkanEngine::draw()
 			cmd.traceRaysKHR(&raygenShaderSbtEntry, &missShaderSbtEntry, &hitShaderSbtEntry, &callableShaderSbtEntry, _core._windowExtent.width, _core._windowExtent.height, 1);
 
 			// compute pipeline dispatch
+			ComputeConstants.deltaTime = static_cast<float>(_deltaTime);
 			ComputeConstants.width = _core._windowExtent.width;
 			ComputeConstants.height = _core._windowExtent.height;
 			uint32_t groupCountX = static_cast<uint32_t>(ceil(_core._windowExtent.width/16.f));
@@ -1253,7 +1258,7 @@ void VulkanEngine::init_descriptors()
 		{
 			_frames[i]._storageImage = createStorageImage(_core._swapchainImageFormat, _core._windowExtent.width, _core._windowExtent.height);
 			vkutils::ImageStats imageInfo;
-			imageInfo.average = 0;
+			imageInfo.average = 0.3f;
 			for (auto bin : imageInfo.histogram) {
 				bin = 0;
 			}
@@ -1389,7 +1394,7 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	scene1->add(ASSET_PATH"/models/cornell_box.glb");
+	scene1->add(ASSET_PATH"/models/bistro_new_1.glb");
 	scene1->build();
 	scene1->buildAccelerationStructure();
 	_currentScene = scene1;

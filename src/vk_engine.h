@@ -17,6 +17,8 @@ public:
 	bool _framebufferResized{false};
 	uint32_t _frameNumber{0};
 	int _selectedShader{0};
+	double _deltaTime{0.0};
+	std::chrono::steady_clock::time_point _lastTime = std::chrono::steady_clock::now();
 
 	vkutils::PushConstants PushConstants;
 	vkutils::ComputeConstants ComputeConstants;

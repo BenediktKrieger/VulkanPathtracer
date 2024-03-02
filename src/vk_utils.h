@@ -78,6 +78,7 @@ namespace vkutils
     };
     class ComputeConstants {
     public:
+        float deltaTime;
         uint32_t width;
         uint32_t height;
     };

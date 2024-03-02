@@ -2,8 +2,10 @@
 #define GROUP_SIZE 256
 const float minLogLuminance = -10;
 const float logLuminanceRange = 12.0;
+const float tau = 2;
 
 layout( push_constant ) uniform PushConstants {
+    float deltaTime;
     uint width;
     uint height;
 } constants;
@@ -36,7 +38,12 @@ void main()
     if (gl_LocalInvocationIndex == 0) {
         float weightedLogAverage = (histogramShared[0] / max(numPixels - float(countForThisBin), 1.0)) - 1.0;
         float weightedAvgLum = exp2(((weightedLogAverage / 254.0) * logLuminanceRange) + minLogLuminance);
-        imageInfo.average = weightedAvgLum;
+        float luminanceLastFrame = imageInfo.average;
+        float adaptedLuminance = luminanceLastFrame + (weightedAvgLum - luminanceLastFrame) * (1 - exp(-constants.deltaTime * tau));
+        if(!isnan(adaptedLuminance) && !isinf(adaptedLuminance) && abs(luminanceLastFrame - weightedAvgLum) < 10.0){
+            imageInfo.average = adaptedLuminance;
+        }
     }
+    barrier();
     imageInfo.histogram[gl_LocalInvocationIndex] = 0;
 }

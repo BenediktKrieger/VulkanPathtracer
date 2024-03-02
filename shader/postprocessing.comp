@@ -1,6 +1,7 @@
 #version 460
 
 layout( push_constant ) uniform PushConstants {
+    float deltaTime;
     uint width;
     uint height;
 } constants;
@@ -10,11 +11,56 @@ layout(binding = 2, set = 0, rgba32f) restrict readonly uniform image2D accImage
 
 layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
+const mat3 RGB_2_XYZ = mat3(
+    0.4124564, 0.2126729, 0.0193339,
+    0.3575761, 0.7151522, 0.1191920,
+    0.1804375, 0.0721750, 0.9503041
+);
+
+const mat3 XYZ_2_RGB = mat3(
+     3.2404542,-0.9692660, 0.0556434,
+    -1.5371385, 1.8760108,-0.2040259,
+    -0.4985314, 0.0415560, 1.0572252
+);
+
+vec3 rgb_to_xyY(vec3 rgb) {
+    vec3 xyz = RGB_2_XYZ * rgb;
+    float Y = xyz.y;
+    float x = xyz.x / (xyz.x + xyz.y + xyz.z);
+    float y = xyz.y / (xyz.x + xyz.y + xyz.z);
+    return vec3(x, y, Y);
+}
+
+vec3 xyY_to_rgb(vec3 xyY) {
+    float Y = xyY.z;
+    float x = Y * xyY.x / xyY.y;
+    float z = Y * (1.0 - xyY.x - xyY.y) / xyY.y;
+    vec3 xyz = vec3(x, Y, z);
+    return  XYZ_2_RGB * xyz;
+}
+
+float reinhard2(float x, float whitePoint) {
+    return (x * (1.0 + x / (whitePoint * whitePoint))) / (1.0 + x);
+}
+
 void main() 
 {
+    vec3 rgb = imageLoad(accImage, ivec2(gl_GlobalInvocationID.xy)).xyz;
+    float avgLum = imageInfo.average;
+
+    vec3 xyY = rgb_to_xyY(rgb);
+
+    float whitePoint = 2;
+
+    float lp = xyY.z / (9.6 * avgLum + 0.0001);
+
+    xyY.z = reinhard2(lp, whitePoint);
+
+    rgb = xyY_to_rgb(xyY);
+
+    rgb = pow(rgb, vec3(1.0 / 2.2));
+
     if (gl_GlobalInvocationID.x < constants.width && gl_GlobalInvocationID.y < constants.height) {
-        vec4 color = imageLoad(accImage, ivec2(gl_GlobalInvocationID.xy));
-        vec3 tonemappedColor = color.xyz / (9.6 * imageInfo.average);
-	    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(tonemappedColor, 1.0));
+	    imageStore(image, ivec2(gl_GlobalInvocationID.xy), vec4(rgb, 1.0));
     }
 }

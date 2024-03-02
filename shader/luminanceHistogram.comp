@@ -6,6 +6,7 @@ const float minLogLuminance = -10;
 const float invLogLuminanceRange = 0.083333333;
 
 layout( push_constant ) uniform PushConstants {
+    float deltaTime;
     uint width;
     uint height;
 } constants;
