@@ -40,7 +40,7 @@ void main()
         float weightedAvgLum = exp2(((weightedLogAverage / 254.0) * logLuminanceRange) + minLogLuminance);
         float luminanceLastFrame = imageInfo.average;
         float adaptedLuminance = luminanceLastFrame + (weightedAvgLum - luminanceLastFrame) * (1 - exp(-constants.deltaTime * tau));
-        if(!isnan(adaptedLuminance) && !isinf(adaptedLuminance) && abs(luminanceLastFrame - weightedAvgLum) < 10.0){
+        if(!isnan(adaptedLuminance) && !isinf(adaptedLuminance)){
             imageInfo.average = adaptedLuminance;
         }
     }

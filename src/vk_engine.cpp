@@ -1404,7 +1404,7 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	scene1->add(ASSET_PATH"/models/san_miguel.glb");
+	scene1->add(ASSET_PATH"/models/bistro_new_1.glb");
 	scene1->build();
 	scene1->buildAccelerationStructure();
 	_currentScene = scene1;
