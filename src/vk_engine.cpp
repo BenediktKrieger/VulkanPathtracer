@@ -1405,6 +1405,8 @@ void VulkanEngine::load_models()
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
 	scene1->add(ASSET_PATH"/models/bistro_new_1.glb");
+	//scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(-0.5, -0.75, 0.5)), glm::vec3(0.25)));
+	// scene1->add(ASSET_PATH"/models/dragon.glb");
 	scene1->build();
 	scene1->buildAccelerationStructure();
 	_currentScene = scene1;

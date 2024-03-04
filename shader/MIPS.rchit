@@ -432,7 +432,7 @@ void main()
         }
 
         // normal
-        vec3 normal = (normalToWorld * vec4(normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z), 1.0)).xyz;
+        vec3 normal = normalize((normalToWorld * vec4(normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z), 1.0)).xyz);
         if(material.normalTexture >= 0){
             vec3 edge1 = TriVertices[1].pos - TriVertices[0].pos;
             vec3 edge2 = TriVertices[2].pos - TriVertices[0].pos;
@@ -444,15 +444,28 @@ void main()
             normal = normalize(mat3(tangent, binormal, normal) * (texture(texSampler[material.normalTexture], uv).xyz * 2.0 - 1.0));
         }
 
+        float metallic = material.metallicFactor;
+        float roughness = material.roughnessFactor;
+        if(material.metallicRoughnessTexture >= 0){
+            vec3 metallicroughness = texture(texSampler[material.metallicRoughnessTexture], uv).xyz;
+            roughness = metallicroughness.y;
+            metallic = metallicroughness.z;
+        }
+
         // debug normal
-        // color = (normal + 1) / 2;
-        // Payload.color *= color;
+        // Payload.color *= roughness;
         // Payload.continueTrace = false;
         // return;
-
-        float metallic = material.metallicFactor;
         
         vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+        
+        // material is perfect mirror importance sampling can be sipped. Path weight stays the same.
+        if(metallic > 0.0001 && roughness < 0.0001){
+            Payload.diffuseRecursion += 1;
+            Payload.origin = newOrigin;
+            Payload.dir = reflect(gl_WorldRayDirectionEXT, normal);
+            return;
+        }
 
         vec3 newDir = vec3(0.0);
         float russianRoulette = rand();
@@ -477,13 +490,10 @@ void main()
         }
         
         vec3 sampleNormal = normal;
-        float roughness = material.roughnessFactor;
         vec2 roughness_alpha = vec2(roughness * roughness);
         float directLightImportance = roughness * 0.7;
         float brdfImportance = (1 - directLightImportance);
         
-        brdfImportance = 0.5;
-        directLightImportance = 0.5;
         if(lightCount < 1){
             brdfImportance = 1.0;
             directLightImportance = 0;
@@ -507,23 +517,25 @@ void main()
             newDir = normalize(pointOnLight - newOrigin);
             sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
         } else {
-            if(metallic > 0){
+            if(metallic > 0.0001){
                 sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
                 newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
             } else {
-                newDir = random_on_cosine_hemisphere(normal);
+                float selectRayRoulette = (russianRoulette - directLightImportance) / brdfImportance;
+                if(selectRayRoulette < 0.84){
+                    newDir = random_on_cosine_hemisphere(normal);
+                } else {
+                    color = vec3(1.0);
+                    sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
+                    newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
+                }
             }
         }
-
-        // get material-brdf pdf
-        // float mat_specular_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
-        // float mat_diffuse_pdf = getCosinePdf(normal, newDir);
-        // float mat_pdf =  (0.5 * mat_specular_pdf + 0.5 * mat_diffuse_pdf);
         float mat_pdf = 1.0;
-        if(metallic > 0){
+        if(metallic > 0.0001){
             mat_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
         } else {
-            mat_pdf = getCosinePdf(normal, newDir);
+            mat_pdf = 0.84 * getCosinePdf(normal, newDir) + 0.16 * pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
         }
 
         // get sample pdf
