@@ -147,27 +147,27 @@ void Camera::update(){
         glm::vec3 left = glm::cross(up, forward);
         glm::vec3 right = -1.f * left;
         if (_buttonState_W){
-            _eye += forward * (float) delta_time * 3.f;
+            _eye += forward * (float) delta_time * 1.5f;
             changed = true;
         }
         if (_buttonState_A){
-            _eye += left * (float) delta_time * 3.f;
+            _eye += left * (float) delta_time * 1.5f;
             changed = true;
         }
         if (_buttonState_S){
-            _eye += backwards * (float) delta_time * 3.f;
+            _eye += backwards * (float) delta_time * 1.5f;
             changed = true;
         }
 	    if (_buttonState_D){
-            _eye += right * (float) delta_time * 3.f;
+            _eye += right * (float) delta_time * 1.5f;
             changed = true;
         }
         if (_buttonState_LCTRL){
-            _eye += down * (float) delta_time * 3.f;
+            _eye += down * (float) delta_time * 1.5f;
             changed = true;
         }
         if (_buttonState_SPACE){
-            _eye += up * (float) delta_time * 3.f;
+            _eye += up * (float) delta_time * 1.5f;
             changed = true;
         }
         _radius = glm::length(_eye);

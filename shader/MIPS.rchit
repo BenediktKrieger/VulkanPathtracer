@@ -331,27 +331,27 @@ vec3 sampleGGXVNDF(vec3 normal, vec3 V, vec2 alpha) {
     return uvw * Ne;
 }
 
-void fresnel(const vec3 V, const vec3 N, const float ior, inout float kr, inout float kt){ 
-  float cosi = clamp(-1, 1, dot(V, N)); 
-  float etai = 1; 
-  float etat = ior; 
-  if (cosi > 0) { 
-    float oldetai = etai;
-    etai = etat;
-    etat = oldetai;
-  }
-  float sint = etai / etat * sqrt(max(0.f, 1 - cosi * cosi));
-  if (sint >= 1) { 
-    kr = 1; 
-  } 
-  else { 
-    float cost = sqrt(max(0.f, 1 - sint * sint)); 
-    cosi = abs(cosi); 
-    float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost)); 
-    float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost)); 
-    kr = (Rs * Rs + Rp * Rp) / 2; 
-  }
-  kt = 1.0 - kr;
+void schlick(const vec3 V, const vec3 N, const float ior, inout float kr, inout float kt){
+    // entering medium
+    float cosi = dot(-V, N);
+    float n1 = 1.0;
+    float n2 = ior;
+    // leaving medium
+    if(cosi < 0){
+        n1 = ior;
+        n2 = 1.0;
+        cosi *= -1;
+    }
+    float F0 = pow(n2 - n1, 2)/pow(n2 + n1, 2);
+    kr = F0 + (1 - F0) * pow(1 - cosi, 5);
+    kt = 1.0 - kr;
+}
+
+vec3 refractRay(const vec3 V, const vec3 N, const float ior){
+    if(dot(-V, N) < 0){
+        return refract(V, -N, 1 / ior);
+    }
+    return refract(V, N, 1 / ior);
 }
 
 void main()
@@ -423,13 +423,13 @@ void main()
         if(material.baseColorTexture >= 0){
             color = texture(texSampler[material.baseColorTexture], uv).xyz;
         }
-        if(material.alphaMode == 2){
-            Payload.translucentRecursion += 1;
-            Payload.origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-            Payload.dir = Payload.dir;
-            Payload.color *= color;
-            return;
-        }
+        // if(material.alphaMode == 2){
+        //     Payload.translucentRecursion += 1;
+        //     Payload.origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+        //     Payload.dir = Payload.dir;
+        //     Payload.color *= color;
+        //     return;
+        // }
 
         // normal
         vec3 normal = normalize((normalToWorld * vec4(normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z), 1.0)).xyz);
@@ -446,6 +446,7 @@ void main()
 
         float metallic = material.metallicFactor;
         float roughness = material.roughnessFactor;
+        float transmission = material.transmissionFactor;
         if(material.metallicRoughnessTexture >= 0){
             vec3 metallicroughness = texture(texSampler[material.metallicRoughnessTexture], uv).xyz;
             roughness = metallicroughness.y;
@@ -453,7 +454,7 @@ void main()
         }
 
         // debug normal
-        // Payload.color *= roughness;
+        // Payload.color = normal;
         // Payload.continueTrace = false;
         // return;
         
@@ -465,6 +466,10 @@ void main()
             Payload.origin = newOrigin;
             Payload.dir = reflect(gl_WorldRayDirectionEXT, normal);
             return;
+        }
+        if(roughness < 0.2){
+            color = vec3(0.95, 0.95, 0.95);
+            transmission = 0.98;
         }
 
         vec3 newDir = vec3(0.0);
@@ -491,19 +496,23 @@ void main()
         
         vec3 sampleNormal = normal;
         vec2 roughness_alpha = vec2(roughness * roughness);
-        float directLightImportance = roughness * 0.7;
+        float directLightImportance = roughness;
         float brdfImportance = (1 - directLightImportance);
         
+        // attention debuuging leftover
         if(lightCount < 1){
             brdfImportance = 1.0;
             directLightImportance = 0;
         }
+
         float singleLightImportance = directLightImportance / lightCount;
 
         // get sample by importance
         int lighIndex = -1;
         float distanceToLight = -1;
         vec3 pointOnLight = vec3(0);
+        float rprop = 0.0;
+        float tprop = 0.0;
         if(russianRoulette < directLightImportance){
             //sample lights
             uint index = uint(floor(russianRoulette / singleLightImportance));
@@ -516,26 +525,48 @@ void main()
             }
             newDir = normalize(pointOnLight - newOrigin);
             sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
+            Payload.diffuseRecursion += 1;
         } else {
             if(metallic > 0.0001){
                 sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
                 newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
+                Payload.diffuseRecursion += 1;
             } else {
-                float selectRayRoulette = (russianRoulette - directLightImportance) / brdfImportance;
-                if(selectRayRoulette < 0.84){
-                    newDir = random_on_cosine_hemisphere(normal);
+                russianRoulette = (russianRoulette - directLightImportance) / brdfImportance;
+                schlick(gl_WorldRayDirectionEXT, normal, 1.5, rprop, tprop);
+                if(russianRoulette < tprop){
+                    russianRoulette = russianRoulette / tprop;
+                    if(russianRoulette < transmission){
+                        sampleNormal = sampleGGXVNDF(normal, normal, roughness_alpha);
+                        newDir = refractRay(gl_WorldRayDirectionEXT, sampleNormal, 1.5);
+                        Payload.translucentRecursion += 1;
+                    }else{
+                        newDir = random_on_cosine_hemisphere(normal);
+                        Payload.diffuseRecursion += 1;
+                    }
                 } else {
-                    color = vec3(1.0);
+                    color = vec3(1);
                     sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
                     newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
+                    Payload.diffuseRecursion += 1;
                 }
             }
         }
-        float mat_pdf = 1.0;
+        float mat_pdf = 0.0;
         if(metallic > 0.0001){
             mat_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
         } else {
-            mat_pdf = 0.84 * getCosinePdf(normal, newDir) + 0.16 * pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
+            if(tprop > 0.001){
+                if(transmission > 0.001){
+                    mat_pdf += tprop * transmission * pdfGGX(normal, sampleNormal, normal, roughness_alpha);
+                }
+                if(transmission < 0.999){
+                    mat_pdf +=  tprop * (1 - transmission) * getCosinePdf(normal, newDir);
+                }
+            }
+            if(rprop > 0.001){
+                mat_pdf += rprop * pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
+            }
         }
 
         // get sample pdf
@@ -553,8 +584,6 @@ void main()
                 sampling_pdf += singleLightImportance * lightPdf;
             }
         }
-
-        Payload.diffuseRecursion += 1;
         Payload.origin = newOrigin;
         Payload.dir = newDir;
         Payload.f *= mat_pdf;
