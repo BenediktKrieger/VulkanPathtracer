@@ -26,6 +26,7 @@ struct Material {
     float transmissionFactor;
     float ior;
     uint alphaMode;
+    mat4 modelMatrix;
 };
 
 struct Light {
@@ -347,11 +348,28 @@ void schlick(const vec3 V, const vec3 N, const float ior, inout float kr, inout 
     kt = 1.0 - kr;
 }
 
-vec3 refractRay(const vec3 V, const vec3 N, const float ior){
-    if(dot(-V, N) < 0){
-        return refract(V, -N, 1 / ior);
-    }
-    return refract(V, N, 1 / ior);
+// vec3 refractRay(const vec3 V, const vec3 N, const float ior){
+//     if(dot(-V, N) < 0){
+//         return refract(V, -N, ior);
+//     }
+//     return refract(V, N, 1 / ior);
+// }
+
+vec3 refractRay(const vec3 I, const vec3 N, const float ior) { 
+    float cosi = clamp(-1, 1, dot(I, N)); 
+    float etai = 1;
+    float etat = ior; 
+    vec3 n = N; 
+    if (cosi < 0) { 
+        cosi = -cosi; 
+    } else { 
+        etai = ior;
+        etat = 1; 
+        n= -N; 
+    } 
+    float eta = etai / etat; 
+    float k = 1 - eta * eta * (1 - cosi * cosi); 
+    return k < 0 ? normalize(reflect(I, N)) : normalize(eta * I + (eta * cosi - sqrt(k)) * n);
 }
 
 void main()
@@ -413,23 +431,20 @@ void main()
         }
     }
 
-    if(Payload.diffuseRecursion >= settings.reflection_recursion || Payload.translucentRecursion >= settings.refraction_recursion){
+    if(Payload.diffuseRecursion >= settings.reflection_recursion || Payload.translucentRecursion >= settings.refraction_recursion || length(Payload.color * (Payload.f / Payload.pdf)) < 0.01){
         //this is the last bounce
         Payload.continueTrace = false;
     } else {
-        mat4 normalToWorld = transpose(inverse(mat4(gl_ObjectToWorldEXT)));
+        mat4 modelMatrix = mat4(gl_ObjectToWorldEXT) * material.modelMatrix;
+        mat4 normalToWorld = transpose(inverse(modelMatrix));
         // color
         color = material.baseColorFactor.xyz;
         if(material.baseColorTexture >= 0){
             color = texture(texSampler[material.baseColorTexture], uv).xyz;
         }
-        // if(material.alphaMode == 2){
-        //     Payload.translucentRecursion += 1;
-        //     Payload.origin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
-        //     Payload.dir = Payload.dir;
-        //     Payload.color *= color;
-        //     return;
-        // }
+
+        //position
+        vec3 position = (modelMatrix * vec4(TriVertices[0].pos * barycentricCoords.x + TriVertices[1].pos * barycentricCoords.y + TriVertices[2].pos * barycentricCoords.z, 1.0)).xyz;
 
         // normal
         vec3 normal = normalize((normalToWorld * vec4(normalize(TriVertices[0].normal * barycentricCoords.x + TriVertices[1].normal * barycentricCoords.y + TriVertices[2].normal * barycentricCoords.z), 1.0)).xyz);
@@ -454,23 +469,23 @@ void main()
         }
 
         // debug normal
-        // Payload.color = normal;
+        // Payload.color = (normal + 1)/2;
         // Payload.continueTrace = false;
         // return;
         
-        vec3 newOrigin = gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT;
+        vec3 newOrigin = position;
         
         // material is perfect mirror importance sampling can be sipped. Path weight stays the same.
-        if(metallic > 0.0001 && roughness < 0.0001){
+        if(metallic > 0.01 && roughness < 0.005){
             Payload.diffuseRecursion += 1;
-            Payload.origin = newOrigin;
+            Payload.origin = newOrigin + normal * 0.0001;
             Payload.dir = reflect(gl_WorldRayDirectionEXT, normal);
             return;
         }
         if(roughness < 0.2){
-            color = vec3(0.95, 0.95, 0.95);
-            transmission = 0.98;
+            roughness = 0.2;
         }
+        roughness = max(0.01, roughness);
 
         vec3 newDir = vec3(0.0);
         float russianRoulette = rand();
@@ -496,15 +511,12 @@ void main()
         
         vec3 sampleNormal = normal;
         vec2 roughness_alpha = vec2(roughness * roughness);
-        float directLightImportance = roughness;
+        float directLightImportance = roughness * 0.7;
         float brdfImportance = (1 - directLightImportance);
-        
-        // attention debuuging leftover
         if(lightCount < 1){
             brdfImportance = 1.0;
             directLightImportance = 0;
         }
-
         float singleLightImportance = directLightImportance / lightCount;
 
         // get sample by importance
@@ -532,40 +544,52 @@ void main()
                 newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
                 Payload.diffuseRecursion += 1;
             } else {
-                russianRoulette = (russianRoulette - directLightImportance) / brdfImportance;
-                schlick(gl_WorldRayDirectionEXT, normal, 1.5, rprop, tprop);
-                if(russianRoulette < tprop){
-                    russianRoulette = russianRoulette / tprop;
-                    if(russianRoulette < transmission){
-                        sampleNormal = sampleGGXVNDF(normal, normal, roughness_alpha);
-                        newDir = refractRay(gl_WorldRayDirectionEXT, sampleNormal, 1.5);
-                        Payload.translucentRecursion += 1;
-                    }else{
-                        newDir = random_on_cosine_hemisphere(normal);
+                if(roughness > 0.699){
+                    newDir = random_on_cosine_hemisphere(normal);
+                    sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
+                } else {
+                    russianRoulette = (russianRoulette - directLightImportance) / brdfImportance;
+                    schlick(gl_WorldRayDirectionEXT, normal, 1.5, rprop, tprop);
+                    if(russianRoulette < tprop){
+                        russianRoulette = russianRoulette / tprop;
+                        if(russianRoulette < transmission){
+                            sampleNormal = sampleGGXVNDF(normal, normal, roughness_alpha);
+                            newDir = refractRay(gl_WorldRayDirectionEXT, sampleNormal, 1.5);
+                            Payload.translucentRecursion += 1;
+                        }else{
+                            newDir = random_on_cosine_hemisphere(normal);
+                            sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
+                            Payload.diffuseRecursion += 1;
+                        }
+                    } else {
+                        color = vec3(1);
+                        sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
+                        newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
                         Payload.diffuseRecursion += 1;
                     }
-                } else {
-                    color = vec3(1);
-                    sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
-                    newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
-                    Payload.diffuseRecursion += 1;
                 }
             }
         }
+
         float mat_pdf = 0.0;
         if(metallic > 0.0001){
             mat_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
         } else {
-            if(tprop > 0.001){
-                if(transmission > 0.001){
-                    mat_pdf += tprop * transmission * pdfGGX(normal, sampleNormal, normal, roughness_alpha);
-                }
-                if(transmission < 0.999){
-                    mat_pdf +=  tprop * (1 - transmission) * getCosinePdf(normal, newDir);
-                }
+            if(roughness > 0.699){
+                mat_pdf = getCosinePdf(normal, newDir);
             }
-            if(rprop > 0.001){
-                mat_pdf += rprop * pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
+            else {
+                if(tprop > 0.001){
+                    if(transmission > 0.001){
+                        mat_pdf += tprop * transmission * pdfGGX(normal, sampleNormal, normal, roughness_alpha);
+                    }
+                    if(transmission < 0.999){
+                        mat_pdf +=  tprop * (1 - transmission) * getCosinePdf(normal, newDir);
+                    }
+                }
+                if(rprop > 0.001){
+                    mat_pdf += rprop * pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
+                }
             }
         }
 
@@ -583,6 +607,11 @@ void main()
                 }
                 sampling_pdf += singleLightImportance * lightPdf;
             }
+        }
+        if(dot(newDir, normal) < 0){
+            newOrigin += 0.0001 * -normal;
+        }else{
+            newOrigin += 0.0001 * normal;
         }
         Payload.origin = newOrigin;
         Payload.dir = newDir;

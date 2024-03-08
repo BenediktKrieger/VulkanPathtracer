@@ -27,9 +27,9 @@ layout (location = 6) out vec3 outTangent;
 void main()
 {
 	gl_Position = PushConstants.proj * PushConstants.view * PushConstants.model * vec4(inPosition, 1.0f);
+	outPosition = (PushConstants.model * vec4(inPosition, 1.0f)).xyz;
 	vec3 normal = normalize((transpose(inverse(PushConstants.model)) * vec4(inNormal, 1.0)).xyz);
 	vec3 tangent = normalize(transpose(inverse(PushConstants.model)) * inTangent).xyz;
-	outPosition = inPosition;
 	outNormal =  normal;
 	outUV = inUV;
 	outColor = inColor;

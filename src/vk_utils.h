@@ -136,6 +136,7 @@ namespace vkutils
         float transmissionFactor;
 	    float ior;
         uint32_t alphaMode;
+        glm::mat4 modelMatrix;
 	};
     class LightProxy {
     public:

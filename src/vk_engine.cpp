@@ -1269,7 +1269,7 @@ void VulkanEngine::init_descriptors()
 			_frames[i]._storageImage = createStorageImage(_core._swapchainImageFormat, _core._windowExtent.width, _core._windowExtent.height);
 			vkutils::ImageStats imageInfo;
 			imageInfo.average = 0.3f;
-			for (auto bin : imageInfo.histogram) {
+			for (auto &&bin : imageInfo.histogram) {
 				bin = 0;
 			}
 			_frames[i]._imageStats = vkutils::deviceBufferFromData(_core, &imageInfo, sizeof(vkutils::ImageStats), vk::BufferUsageFlagBits::eStorageBuffer, vma::MemoryUsage::eAutoPreferDevice);
@@ -1404,8 +1404,10 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	scene1->add(ASSET_PATH"/models/cornell_box.glb");
-	scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(-0.5, -0.5, 0.5)), glm::vec3(0.25)));
+	scene1->add(ASSET_PATH"/models/flighthelmet.glb");
+	// scene1->add(ASSET_PATH"/models/spheres.glb");
+	scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(-0.5, -0.5, 0.5)), glm::vec3(0.25))); 
+	// scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(0.5, 0.25, 0.5)), glm::vec3(0.25))); 
 	// scene1->add(ASSET_PATH"/models/dragon.glb");
 	scene1->build();
 	scene1->buildAccelerationStructure();

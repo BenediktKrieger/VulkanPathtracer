@@ -20,7 +20,6 @@ shared uint histogramShared[GROUP_SIZE];
 void main() 
 {
     const float numPixels  = constants.width * constants.height;
-
     uint countForThisBin = imageInfo.histogram[gl_LocalInvocationIndex];
     histogramShared[gl_LocalInvocationIndex] = countForThisBin * gl_LocalInvocationIndex;
 

@@ -110,7 +110,7 @@ void main()
 
     float whitePoint = 2.0;
 
-    float exposure = 1.0 / (9.6 * avgLum + 0.0001);
+    float exposure = 1.0 / (9.7 * avgLum + 0.0001);
 
     float lp = xyY.z * exposure;
 

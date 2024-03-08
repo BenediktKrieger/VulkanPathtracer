@@ -26,6 +26,7 @@ struct Material {
   float transmissionFactor;
   float ior;
   uint alphaMode;
+  mat4 modelMatrix;
 };
 
 struct Vertex {

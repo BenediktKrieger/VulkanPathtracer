@@ -135,6 +135,7 @@ void Scene::buildAccelerationStructure()
                         material.emissiveStrength = primitive->material.emissiveStrength;
                         material.transmissionFactor = primitive->material.transmissionFactor;
                         material.ior = primitive->material.ior;
+                        material.modelMatrix = node->getMatrix();
                         materials.push_back(material);
                     }
                 }
@@ -299,6 +300,7 @@ void Scene::build()
 {
     for(auto& model : models){
         model->build();
+
         vertices.insert(std::end(vertices), std::begin(model->_vertices), std::end(model->_vertices));
         indices.insert(std::end(indices), std::begin(model->_indices), std::end(model->_indices));
         textures.insert(std::end(textures), std::begin(model->_textures), std::end(model->_textures));
