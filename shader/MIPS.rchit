@@ -348,13 +348,6 @@ void schlick(const vec3 V, const vec3 N, const float ior, inout float kr, inout 
     kt = 1.0 - kr;
 }
 
-// vec3 refractRay(const vec3 V, const vec3 N, const float ior){
-//     if(dot(-V, N) < 0){
-//         return refract(V, -N, ior);
-//     }
-//     return refract(V, N, 1 / ior);
-// }
-
 vec3 refractRay(const vec3 I, const vec3 N, const float ior) { 
     float cosi = clamp(-1, 1, dot(I, N)); 
     float etai = 1;
@@ -431,7 +424,7 @@ void main()
         }
     }
 
-    if(Payload.diffuseRecursion >= settings.reflection_recursion || Payload.translucentRecursion >= settings.refraction_recursion || length(Payload.color * (Payload.f / Payload.pdf)) < 0.01){
+    if(Payload.diffuseRecursion >= settings.reflection_recursion || Payload.translucentRecursion >= settings.refraction_recursion){
         //this is the last bounce
         Payload.continueTrace = false;
     } else {
@@ -472,7 +465,6 @@ void main()
         // Payload.color = (normal + 1)/2;
         // Payload.continueTrace = false;
         // return;
-        
         vec3 newOrigin = position;
         
         // material is perfect mirror importance sampling can be sipped. Path weight stays the same.
@@ -481,9 +473,6 @@ void main()
             Payload.origin = newOrigin + normal * 0.0001;
             Payload.dir = reflect(gl_WorldRayDirectionEXT, normal);
             return;
-        }
-        if(roughness < 0.2){
-            roughness = 0.2;
         }
         roughness = max(0.01, roughness);
 
@@ -511,7 +500,7 @@ void main()
         
         vec3 sampleNormal = normal;
         vec2 roughness_alpha = vec2(roughness * roughness);
-        float directLightImportance = roughness * 0.7;
+        float directLightImportance = roughness;
         float brdfImportance = (1 - directLightImportance);
         if(lightCount < 1){
             brdfImportance = 1.0;
@@ -547,6 +536,7 @@ void main()
                 if(roughness > 0.699){
                     newDir = random_on_cosine_hemisphere(normal);
                     sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
+                    Payload.diffuseRecursion += 1;
                 } else {
                     russianRoulette = (russianRoulette - directLightImportance) / brdfImportance;
                     schlick(gl_WorldRayDirectionEXT, normal, 1.5, rprop, tprop);
