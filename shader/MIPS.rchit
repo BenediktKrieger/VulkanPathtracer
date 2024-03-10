@@ -480,6 +480,7 @@ void main()
         float russianRoulette = rand();
 
         const uint maxLightCount = 30;
+        float maxRad = 0.0;
         uint lightCandidates[maxLightCount];
         uint lightCount = 0;
         uint lightLength = uint(lights.l[0].radiosity);
@@ -491,6 +492,7 @@ void main()
                     center = (light.min + light.max) / 2;
                 }
                 float radApprox = light.radiosity / pow(distance(center, newOrigin), 2);
+                maxRad += radApprox;
                 if(radApprox > 0.1){
                     lightCandidates[lightCount] = i;
                     lightCount++;
@@ -500,12 +502,13 @@ void main()
         
         vec3 sampleNormal = normal;
         vec2 roughness_alpha = vec2(roughness * roughness);
-        float directLightImportance = roughness;
+        float directLightImportance = roughness * 0.7 * min(1, maxRad);
         float brdfImportance = (1 - directLightImportance);
         if(lightCount < 1){
             brdfImportance = 1.0;
             directLightImportance = 0;
         }
+
         float singleLightImportance = directLightImportance / lightCount;
 
         // get sample by importance
@@ -524,6 +527,7 @@ void main()
             } else {
                 pointOnLight = random_on_aabb(light.min, light.max, newOrigin);
             }
+            schlick(gl_WorldRayDirectionEXT, normal, 1.5, rprop, tprop);
             newDir = normalize(pointOnLight - newOrigin);
             sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
             Payload.diffuseRecursion += 1;
@@ -563,10 +567,10 @@ void main()
 
         float mat_pdf = 0.0;
         if(metallic > 0.0001){
-            mat_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
+            mat_pdf += pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
         } else {
             if(roughness > 0.699){
-                mat_pdf = getCosinePdf(normal, newDir);
+                mat_pdf += getCosinePdf(normal, newDir);
             }
             else {
                 if(tprop > 0.001){
@@ -603,6 +607,7 @@ void main()
         }else{
             newOrigin += 0.0001 * normal;
         }
+
         Payload.origin = newOrigin;
         Payload.dir = newDir;
         Payload.f *= mat_pdf;

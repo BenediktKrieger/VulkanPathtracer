@@ -53,7 +53,7 @@ void main()
 	vec4 origin = PushConstants.invView * vec4(0,0,0,1);
 	uint accFrames = PushConstants.accumulatedFrames;
 
-	float tmin = 0.0001;
+	float tmin = 0.0;
 	float tmax = 10000.0;
 	uint spp = settings.samples;
 

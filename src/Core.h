@@ -31,7 +31,7 @@ namespace vk {
         vk::DebugUtilsMessageSeverityFlagsEXT _messageSeverityFlags = vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning | vk::DebugUtilsMessageSeverityFlagBitsEXT::eError;
         vk::DebugUtilsMessageTypeFlagsEXT _messageTypeFlags = vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation;
 
-        vk::Extent2D _windowExtent{1920, 1080};
+        vk::Extent2D _windowExtent{1600, 900};
         SDL_Window* _window{nullptr};
         vk::DynamicLoader _dl;
         vma::Allocator _allocator;
