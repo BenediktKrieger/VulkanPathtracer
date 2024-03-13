@@ -528,7 +528,7 @@ void main()
         vec3 pointOnLight = vec3(0);
         float rprop = 0.0;
         float tprop = 0.0;
-        schlick(gl_WorldRayDirectionEXT, normal, 1.5, rprop, tprop);
+        schlick(gl_WorldRayDirectionEXT, normal, material.ior, rprop, tprop);
         if(russianRoulette < directLightImportance){
             //sample lights
             russianRoulette = russianRoulette / directLightImportance;
@@ -578,7 +578,7 @@ void main()
                         russianRoulette = russianRoulette / tprop;
                         if(russianRoulette < transmission){
                             sampleNormal = sampleGGXVNDF(normal, normal, roughness_alpha);
-                            newDir = refractRay(gl_WorldRayDirectionEXT, sampleNormal, 1.5);
+                            newDir = refractRay(gl_WorldRayDirectionEXT, sampleNormal, material.ior);
                             Payload.translucentRecursion += 1;
                         }else{
                             newDir = random_on_cosine_hemisphere(normal);
