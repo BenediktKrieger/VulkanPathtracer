@@ -114,7 +114,7 @@ void main()
 
     float lp = xyY.z * exposure;
 
-    xyY.z = filmic_ACES(lp);
+    xyY.z = filmic_lottes(lp);
 
     rgb = xyY_to_rgb(xyY);
 

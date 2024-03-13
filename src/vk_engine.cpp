@@ -1404,7 +1404,7 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	scene1->add(ASSET_PATH"/models/bathroom.glb");
+	scene1->add(ASSET_PATH"/models/sponza.glb");
 	// scene1->add(ASSET_PATH"/models/spheres.glb");
 	// scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(-0.5, -0.5, 0.5)), glm::vec3(0.25))); 
 	// scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(0.5, 0.25, 0.5)), glm::vec3(0.25))); 

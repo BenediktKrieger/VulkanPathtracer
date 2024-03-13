@@ -242,7 +242,7 @@ float getSpherePdf(vec3 center, float radius, vec3 origin, vec3 direction){
         return 0;
 
     float direction_length_squared = pow(length(center - origin), 2);
-    float cos_theta_max = sqrt(1 - radius*radius / direction_length_squared);
+    float cos_theta_max = sqrt(1 - ((radius*radius) / direction_length_squared));
     float solid_angle = 2*PI*(1-cos_theta_max);
     return  1 / solid_angle;
 }
@@ -278,6 +278,18 @@ float GGXNDF(vec3 N, vec2 alpha) {
     vec3 nSquare = (N * N) / vec3(alpha * alpha, 1);
     float nominator = PI * alpha.x * alpha.y * pow(nSquare.x + nSquare.y + nSquare.z, 2);
     return 1 / nominator;
+}
+
+float SmithG1(vec3 N, vec3 V, vec2 alpha) {
+    vec3 w = N;
+    vec3 h = abs(w.x) > 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+    vec3 v = normalize(cross(w, h));
+    vec3 u = cross(w, v);
+    mat3 uvw = transpose(mat3(u,v,w));
+    V = uvw * V;
+    vec3 V2A2 = V * V * vec3(alpha * alpha, 1);
+    float lambda = (-1 + sqrt(1+((V2A2.x + V2A2.y) / V2A2.z))) / 2;
+    return 1 / (1 + lambda);
 }
 
 float SmithG1(vec3 V, vec2 alpha) {
@@ -462,7 +474,7 @@ void main()
         }
 
         // debug normal
-        // Payload.color = (normal + 1)/2;
+        // Payload.color = vec3(SmithG1(normal, -gl_WorldRayDirectionEXT, vec2(roughness * roughness)));
         // Payload.continueTrace = false;
         // return;
         vec3 newOrigin = position;
@@ -482,6 +494,7 @@ void main()
         const uint maxLightCount = 30;
         float maxRad = 0.0;
         uint lightCandidates[maxLightCount];
+        float lightRadApprox[maxLightCount];
         uint lightCount = 0;
         uint lightLength = uint(lights.l[0].radiosity);
         for(uint i = 0; i < lightLength && lightCount < maxLightCount; i++){
@@ -492,14 +505,14 @@ void main()
                     center = (light.min + light.max) / 2;
                 }
                 float radApprox = light.radiosity / pow(distance(center, newOrigin), 2);
-                maxRad += radApprox;
                 if(radApprox > 0.1){
+                    maxRad += radApprox;
                     lightCandidates[lightCount] = i;
+                    lightRadApprox[lightCount] = radApprox;
                     lightCount++;
                 }
             }
         }
-        
         vec3 sampleNormal = normal;
         vec2 roughness_alpha = vec2(roughness * roughness);
         float directLightImportance = roughness * 0.7 * min(1, maxRad);
@@ -509,33 +522,51 @@ void main()
             directLightImportance = 0;
         }
 
-        float singleLightImportance = directLightImportance / lightCount;
-
         // get sample by importance
-        int lighIndex = -1;
+        int lightIndex = -1;
         float distanceToLight = -1;
         vec3 pointOnLight = vec3(0);
         float rprop = 0.0;
         float tprop = 0.0;
+        schlick(gl_WorldRayDirectionEXT, normal, 1.5, rprop, tprop);
         if(russianRoulette < directLightImportance){
             //sample lights
-            uint index = uint(floor(russianRoulette / singleLightImportance));
-            lighIndex = int(lightCandidates[index]);
-            Light light = lights.l[lighIndex];
+            russianRoulette = russianRoulette / directLightImportance;
+            uint index = 0;
+            float lightWeight = 0.0;
+            while(lightWeight < russianRoulette && index < lightCount && lightWeight < 1.00001){
+                lightWeight += lightRadApprox[index] / maxRad;
+                index++;
+            }
+            lightIndex = int(lightCandidates[index-1]);
+            Light light = lights.l[lightIndex];
             if(light.geoType == 0){
                 pointOnLight = random_on_sphere(light.center, light.radius, newOrigin);
             } else {
                 pointOnLight = random_on_aabb(light.min, light.max, newOrigin);
             }
-            schlick(gl_WorldRayDirectionEXT, normal, 1.5, rprop, tprop);
             newDir = normalize(pointOnLight - newOrigin);
             sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
+
+            if(metallic <= 0.0001){
+                russianRoulette = rand();
+                if(russianRoulette < rprop){
+                    color = vec3(1.0);
+                }
+            }
             Payload.diffuseRecursion += 1;
         } else {
             if(metallic > 0.0001){
                 sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
                 newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
                 Payload.diffuseRecursion += 1;
+                float shadow_masking = SmithG1(normal, newDir, roughness_alpha);
+                russianRoulette = (russianRoulette - directLightImportance) / brdfImportance;
+                if(russianRoulette > shadow_masking){
+                    Payload.continueTrace = false;
+                    Payload.color = vec3(0.0);
+                    return;
+                }
             } else {
                 if(roughness > 0.699){
                     newDir = random_on_cosine_hemisphere(normal);
@@ -543,7 +574,6 @@ void main()
                     Payload.diffuseRecursion += 1;
                 } else {
                     russianRoulette = (russianRoulette - directLightImportance) / brdfImportance;
-                    schlick(gl_WorldRayDirectionEXT, normal, 1.5, rprop, tprop);
                     if(russianRoulette < tprop){
                         russianRoulette = russianRoulette / tprop;
                         if(russianRoulette < transmission){
@@ -556,10 +586,17 @@ void main()
                             Payload.diffuseRecursion += 1;
                         }
                     } else {
-                        color = vec3(1);
+                        color = vec3(1.0);
                         sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
                         newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
                         Payload.diffuseRecursion += 1;
+                        float shadow_masking = SmithG1(normal, newDir, roughness_alpha);
+                        russianRoulette = (russianRoulette - tprop) / rprop;
+                        if(russianRoulette > shadow_masking){
+                            Payload.continueTrace = false;
+                            Payload.color = vec3(0.0);
+                            return;
+                        }
                     }
                 }
             }
@@ -567,7 +604,7 @@ void main()
 
         float mat_pdf = 0.0;
         if(metallic > 0.0001){
-            mat_pdf += pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
+            mat_pdf += pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha) * SmithG1(normal, newDir, roughness_alpha);
         } else {
             if(roughness > 0.699){
                 mat_pdf += getCosinePdf(normal, newDir);
@@ -582,26 +619,29 @@ void main()
                     }
                 }
                 if(rprop > 0.001){
-                    mat_pdf += rprop * pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha);
+                    mat_pdf += rprop * pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha) * SmithG1(normal, newDir, roughness_alpha);
                 }
             }
         }
 
         // get sample pdf
-        float sampling_pdf = brdfImportance * mat_pdf;
+        float sampling_material_pdf = mat_pdf;
+        float sampling_light_pdf = 0.0;
         if(directLightImportance > 0.0001){
             for(uint i = 0; i < lightCount; i++){
                 uint index = lightCandidates[i];
+                float radApprox = lightRadApprox[i];
                 Light light = lights.l[index];
                 float lightPdf = 0.0;
                 if(light.geoType == 0){
-                    lightPdf = lighIndex == index ? getSpherePdf(light.center, light.radius, pointOnLight - newOrigin) : getSpherePdf(light.center, light.radius, newOrigin, newDir);
+                    lightPdf = lightIndex == index ? getSpherePdf(light.center, light.radius, pointOnLight - newOrigin) : getSpherePdf(light.center, light.radius, newOrigin, newDir);
                 } else {
-                    lightPdf = lighIndex == index ? getAABBPdf(light.min, light.max, pointOnLight - newOrigin) : getAABBPdf(light.min, light.max, newOrigin, newDir);
+                    lightPdf = lightIndex == index ? getAABBPdf(light.min, light.max, pointOnLight - newOrigin) : getAABBPdf(light.min, light.max, newOrigin, newDir);
                 }
-                sampling_pdf += singleLightImportance * lightPdf;
+                sampling_light_pdf += (radApprox/maxRad) * lightPdf;
             }
         }
+        float sampling_pdf = brdfImportance * sampling_material_pdf + directLightImportance * sampling_light_pdf;
         if(dot(newDir, normal) < 0){
             newOrigin += 0.0001 * -normal;
         }else{
