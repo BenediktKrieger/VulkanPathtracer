@@ -80,7 +80,7 @@ layout(location = 0) rayPayloadInEXT RayPayload Payload;
 
 hitAttributeEXT vec2 attribs;
 
-uvec4 seed = uvec4(gl_LaunchIDEXT.y * gl_LaunchIDEXT.x + gl_LaunchIDEXT.x, floatBitsToUint(gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT));
+uvec4 seed = uvec4(gl_LaunchIDEXT.y * gl_LaunchSizeEXT.x + gl_LaunchIDEXT.x, floatBitsToUint(gl_WorldRayOriginEXT + gl_WorldRayDirectionEXT * gl_HitTEXT));
 
 void pcg4d(inout uvec4 v)
 {
@@ -473,8 +473,8 @@ void main()
             metallic = metallicroughness.z;
         }
 
-        // debug normal
-        // Payload.color = vec3(SmithG1(normal, -gl_WorldRayDirectionEXT, vec2(roughness * roughness)));
+        // // debug normal
+        // Payload.color = (normal + 1.0) / 2.0;
         // Payload.continueTrace = false;
         // return;
         vec3 newOrigin = position;
@@ -482,6 +482,7 @@ void main()
         // material is perfect mirror importance sampling can be sipped. Path weight stays the same.
         if(metallic > 0.01 && roughness < 0.005){
             Payload.diffuseRecursion += 1;
+            Payload.color *= color;
             Payload.origin = newOrigin + normal * 0.0001;
             Payload.dir = reflect(gl_WorldRayDirectionEXT, normal);
             return;
@@ -529,99 +530,112 @@ void main()
         float rprop = 0.0;
         float tprop = 0.0;
         schlick(gl_WorldRayDirectionEXT, normal, material.ior, rprop, tprop);
-        if(russianRoulette < directLightImportance){
-            //sample lights
-            russianRoulette = russianRoulette / directLightImportance;
-            uint index = 0;
-            float lightWeight = 0.0;
-            while(lightWeight < russianRoulette && index < lightCount && lightWeight < 1.00001){
-                lightWeight += lightRadApprox[index] / maxRad;
-                index++;
+        float specularPart = 0.0;
+        float diffusePart = 0.0;
+        float transmissivePart = 0.0;
+        float mat_pdf = 0.0;
+        if(metallic > 0.0001){
+            specularPart = 1.0;
+            transmissivePart = 0.0;
+            diffusePart = 0.0;
+        }else{
+            if(roughness > 0.6999){
+                specularPart = 0;
+                transmissivePart = 0;
+                diffusePart = 1.0;
+            }else{
+                specularPart = rprop;
+                transmissivePart = tprop * transmission;
+                diffusePart = tprop * (1-transmission);
             }
-            lightIndex = int(lightCandidates[index-1]);
-            Light light = lights.l[lightIndex];
-            if(light.geoType == 0){
-                pointOnLight = random_on_sphere(light.center, light.radius, newOrigin);
-            } else {
-                pointOnLight = random_on_aabb(light.min, light.max, newOrigin);
+        }
+        if(russianRoulette < specularPart){
+            russianRoulette = russianRoulette / specularPart;
+            if(dot(newDir, normal) < 0){
+                normal = -normal;
             }
-            newDir = normalize(pointOnLight - newOrigin);
-            sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
-
-            if(metallic <= 0.0001){
-                russianRoulette = rand();
-                if(russianRoulette < rprop){
-                    color = vec3(1.0);
+            if(metallic < 0.0001){
+                color = vec3(1.0);
+            }
+            if(russianRoulette < directLightImportance){
+                russianRoulette = russianRoulette / directLightImportance;
+                uint index = 0;
+                float lightWeight = 0.0;
+                while(lightWeight < russianRoulette && index < lightCount && lightWeight < 1.00001){
+                    lightWeight += lightRadApprox[index] / maxRad;
+                    index++;
                 }
-            }
-            Payload.diffuseRecursion += 1;
-        } else {
-            if(metallic > 0.0001){
+                lightIndex = int(lightCandidates[index-1]);
+                Light light = lights.l[lightIndex];
+                if(light.geoType == 0){
+                    pointOnLight = random_on_sphere(light.center, light.radius, newOrigin);
+                } else {
+                    pointOnLight = random_on_aabb(light.min, light.max, newOrigin);
+                }
+                newDir = normalize(pointOnLight - newOrigin);
+                sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
+                Payload.diffuseRecursion += 1;
+            }else{
                 sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
                 newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
                 Payload.diffuseRecursion += 1;
-                float shadow_masking = SmithG1(normal, newDir, roughness_alpha);
-                russianRoulette = (russianRoulette - directLightImportance) / brdfImportance;
-                if(russianRoulette > shadow_masking){
-                    Payload.continueTrace = false;
-                    Payload.color = vec3(0.0);
-                    return;
+            }
+            mat_pdf = pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha) * SmithG1(normal, newDir, roughness_alpha);
+        } else if(russianRoulette < specularPart + transmissivePart) {
+            russianRoulette = (russianRoulette - specularPart) / transmissivePart;
+            if(russianRoulette < directLightImportance){
+                russianRoulette = russianRoulette / directLightImportance;
+                uint index = 0;
+                float lightWeight = 0.0;
+                while(lightWeight < russianRoulette && index < lightCount && lightWeight < 1.00001){
+                    lightWeight += lightRadApprox[index] / maxRad;
+                    index++;
                 }
-            } else {
-                if(roughness > 0.699){
-                    newDir = random_on_cosine_hemisphere(normal);
-                    sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
-                    Payload.diffuseRecursion += 1;
+                lightIndex = int(lightCandidates[index-1]);
+                Light light = lights.l[lightIndex];
+                if(light.geoType == 0){
+                    pointOnLight = random_on_sphere(light.center, light.radius, newOrigin);
                 } else {
-                    russianRoulette = (russianRoulette - directLightImportance) / brdfImportance;
-                    if(russianRoulette < tprop){
-                        russianRoulette = russianRoulette / tprop;
-                        if(russianRoulette < transmission){
-                            sampleNormal = sampleGGXVNDF(normal, normal, roughness_alpha);
-                            newDir = refractRay(gl_WorldRayDirectionEXT, sampleNormal, material.ior);
-                            Payload.translucentRecursion += 1;
-                        }else{
-                            newDir = random_on_cosine_hemisphere(normal);
-                            sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
-                            Payload.diffuseRecursion += 1;
-                        }
-                    } else {
-                        color = vec3(1.0);
-                        sampleNormal = sampleGGXVNDF(normal, -gl_WorldRayDirectionEXT, roughness_alpha);
-                        newDir = reflect(gl_WorldRayDirectionEXT, sampleNormal);
-                        Payload.diffuseRecursion += 1;
-                        float shadow_masking = SmithG1(normal, newDir, roughness_alpha);
-                        russianRoulette = (russianRoulette - tprop) / rprop;
-                        if(russianRoulette > shadow_masking){
-                            Payload.continueTrace = false;
-                            Payload.color = vec3(0.0);
-                            return;
-                        }
-                    }
+                    pointOnLight = random_on_aabb(light.min, light.max, newOrigin);
                 }
+                newDir = normalize(pointOnLight - newOrigin);
+                sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
+                Payload.diffuseRecursion += 1;
+            }else{
+                sampleNormal = sampleGGXVNDF(normal, normal, roughness_alpha);
+                newDir = refractRay(gl_WorldRayDirectionEXT, sampleNormal, material.ior);
+                Payload.translucentRecursion += 1;
             }
-        }
-
-        float mat_pdf = 0.0;
-        if(metallic > 0.0001){
-            mat_pdf += pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha) * SmithG1(normal, newDir, roughness_alpha);
+            mat_pdf = pdfGGX(normal, sampleNormal, normal, roughness_alpha);
         } else {
-            if(roughness > 0.699){
-                mat_pdf += getCosinePdf(normal, newDir);
+            russianRoulette = (russianRoulette - specularPart - transmissivePart) / diffusePart;
+            if(dot(newDir, normal) < 0){
+                normal = -normal;
             }
-            else {
-                if(tprop > 0.001){
-                    if(transmission > 0.001){
-                        mat_pdf += tprop * transmission * pdfGGX(normal, sampleNormal, normal, roughness_alpha);
-                    }
-                    if(transmission < 0.999){
-                        mat_pdf +=  tprop * (1 - transmission) * getCosinePdf(normal, newDir);
-                    }
+            if(russianRoulette < directLightImportance){
+                russianRoulette = russianRoulette / directLightImportance;
+                uint index = 0;
+                float lightWeight = 0.0;
+                while(lightWeight < russianRoulette && index < lightCount && lightWeight < 1.00001){
+                    lightWeight += lightRadApprox[index] / maxRad;
+                    index++;
                 }
-                if(rprop > 0.001){
-                    mat_pdf += rprop * pdfGGX(normal, sampleNormal, -gl_WorldRayDirectionEXT, roughness_alpha) * SmithG1(normal, newDir, roughness_alpha);
+                lightIndex = int(lightCandidates[index-1]);
+                Light light = lights.l[lightIndex];
+                if(light.geoType == 0){
+                    pointOnLight = random_on_sphere(light.center, light.radius, newOrigin);
+                } else {
+                    pointOnLight = random_on_aabb(light.min, light.max, newOrigin);
                 }
+                newDir = normalize(pointOnLight - newOrigin);
+                sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
+                Payload.diffuseRecursion += 1;
+            }else{
+                newDir = random_on_cosine_hemisphere(normal);
+                sampleNormal = normalize(newDir - gl_WorldRayDirectionEXT);
+                Payload.diffuseRecursion += 1;
             }
+            mat_pdf = getCosinePdf(normal, newDir);
         }
 
         // get sample pdf

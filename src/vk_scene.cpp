@@ -355,14 +355,14 @@ void Scene::build()
                     glm::vec3 min_to_max(max - min);
                     float aabb_volume = min_to_max.x * min_to_max.y * min_to_max.z;
                     vkutils::LightProxy light;
-                    // if(sphere_volume < aabb_volume) {
-                    //     light.geoType = vkutils::LightProxy::SPHERE;
-                    //     light.center[0] = center.x;
-                    //     light.center[1] = center.y;
-                    //     light.center[2] = center.z;
-                    //     light.radius = radius;
-                    //     light.radiosity = ((4.0f * glm::pi<float>() * radius * radius) / 2) *  primitive->material.emissiveStrength;
-                    // } else {
+                    if(sphere_volume < aabb_volume) {
+                        light.geoType = vkutils::LightProxy::SPHERE;
+                        light.center[0] = center.x;
+                        light.center[1] = center.y;
+                        light.center[2] = center.z;
+                        light.radius = radius;
+                        light.radiosity = ((4.0f * glm::pi<float>() * radius * radius) / 2) *  primitive->material.emissiveStrength;
+                    } else {
                         light.geoType = vkutils::LightProxy::AABB;
                         light.min[0] = min.x;
                         light.min[1] = min.y;
@@ -372,7 +372,7 @@ void Scene::build()
                         light.max[2] = max.z;
                         glm::vec3 size = max - min;
                         light.radiosity = (size.x * size.y + size.z * size.y + size.x * size.z) *  primitive->material.emissiveStrength;
-                    // }
+                    }
                     std::cout << "Lightsource found with " << primitiveIndexBuffer.size() << " and estimated radiosity of " << light.radiosity << " vertices" << std::endl;
                     lights.push_back(light);
                 }

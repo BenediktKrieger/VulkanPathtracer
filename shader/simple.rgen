@@ -81,7 +81,7 @@ void main()
 			traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
 		}
 
-		if(Payload.pdf < 0.0001 || Payload.f < 0.0001 || Payload.pdf != Payload.pdf ||  Payload.f != Payload.f){
+		if(Payload.pdf < 0.0001 || Payload.f < 0.0001 || isnan(Payload.pdf) || isnan(Payload.f) || isinf(Payload.pdf) || isinf(Payload.f)){
 			sumofHitValues += vec3(0.0);
 		}else{
 			float sample_weight = Payload.f / Payload.pdf;
