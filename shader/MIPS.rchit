@@ -392,30 +392,25 @@ void main()
     vec3 color = vec3(0.0);
     vec3 emission = vec3(0.0);
 
-    // for(uint i = 0; i < lights.l.length(); i++){
-    //     Light light = lights.l[i];
-    //     float dist;
-    //     if(light.geoType == 0){
-    //         if(intersectSphere(light.center, light.radius, gl_WorldRayOriginEXT, gl_WorldRayDirectionEXT, dist)){
-    //             Payload.color *= vec3(1.0, 0, 0);
-    //             Payload.continueTrace = false;
-    //             return;
-    //         }
-    //     } else {
-    //         if(intersectAABB(light.min, light.max, gl_WorldRayOriginEXT, gl_WorldRayDirectionEXT, dist)){
-    //             Payload.color *= vec3(1.0, 0, 0);
-    //             Payload.continueTrace = false;
-    //             return;
+    // visualize proxy geometry
+    // if(Payload.diffuseRecursion == 0 && Payload.translucentRecursion == 0){
+    //     for(uint i = 0; i < uint(lights.l[0].radiosity); i++){
+    //         Light light = lights.l[i];
+    //         float dist;
+    //         if(light.geoType == 0){
+    //             if(intersectSphere(light.center, light.radius, gl_WorldRayOriginEXT, gl_WorldRayDirectionEXT, dist)){
+    //                 Payload.color *= vec3(1.0, 0, 0);
+    //                 Payload.continueTrace = false;
+    //                 return;
+    //             }
+    //         } else {
+    //             if(intersectAABB(light.min, light.max, gl_WorldRayOriginEXT, gl_WorldRayDirectionEXT, dist)){
+    //                 Payload.color *= vec3(1.0, 0, 0);
+    //                 Payload.continueTrace = false;
+    //                 return;
+    //             }
     //         }
     //     }
-    // }
-
-    // if(material.emissiveTexture >= 0){
-    //     vec3 emissiveFactor = texture(texSampler[material.emissiveTexture], uv).rgb;
-    //     if(emissiveFactor.x > 0.5 || emissiveFactor.y > 0.5 || emissiveFactor.z > 0.5)
-    //     Payload.color *= vec3(1.0, 0, 0);
-    //     Payload.continueTrace = false;
-    //     return;
     // }
 
     // check for emission of hit
@@ -479,7 +474,7 @@ void main()
         // return;
         vec3 newOrigin = position;
         
-        // material is perfect mirror importance sampling can be sipped. Path weight stays the same.
+        // material is perfect mirror importance sampling can be skipped. Path weight stays the same.
         if(metallic > 0.01 && roughness < 0.005){
             Payload.diffuseRecursion += 1;
             Payload.color *= color;
@@ -487,6 +482,7 @@ void main()
             Payload.dir = reflect(gl_WorldRayDirectionEXT, normal);
             return;
         }
+        // avoid roughness 0 because of floatingpoint precision
         roughness = max(0.01, roughness);
 
         vec3 newDir = vec3(0.0);
@@ -506,6 +502,7 @@ void main()
                     center = (light.min + light.max) / 2;
                 }
                 float radApprox = light.radiosity / pow(distance(center, newOrigin), 2);
+                // only collect lightsources that have an estimated radiance above 0.1
                 if(radApprox > 0.1){
                     maxRad += radApprox;
                     lightCandidates[lightCount] = i;
@@ -514,6 +511,8 @@ void main()
                 }
             }
         }
+
+        // calculate importance sampling strategy weights based on roughness
         vec3 sampleNormal = normal;
         vec2 roughness_alpha = vec2(roughness * roughness);
         float directLightImportance = roughness * 0.7 * min(1, maxRad);
@@ -534,6 +533,8 @@ void main()
         float diffusePart = 0.0;
         float transmissivePart = 0.0;
         float mat_pdf = 0.0;
+
+        // get term weights
         if(metallic > 0.0001){
             specularPart = 1.0;
             transmissivePart = 0.0;
@@ -638,9 +639,11 @@ void main()
             mat_pdf = getCosinePdf(normal, newDir);
         }
 
-        // get sample pdf
+        // get material pdf
         float sampling_material_pdf = mat_pdf;
+        // get lights pdf
         float sampling_light_pdf = 0.0;
+        // sum the pdfs of all collected lightsources
         if(directLightImportance > 0.0001){
             for(uint i = 0; i < lightCount; i++){
                 uint index = lightCandidates[i];
