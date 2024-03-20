@@ -77,7 +77,7 @@ void main()
 		Payload.f = 1.0;
 		Payload.pdf = 1.0;
 		
-		while(Payload.continueTrace) {
+		while(Payload.continueTrace && Payload.diffuseRecursion < settings.reflection_recursion && Payload.translucentRecursion < settings.refraction_recursion) {
 			traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
 		}
 
