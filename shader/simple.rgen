@@ -77,8 +77,12 @@ void main()
 		Payload.f = 1.0;
 		Payload.pdf = 1.0;
 		
-		while(Payload.continueTrace && Payload.diffuseRecursion < settings.reflection_recursion && Payload.translucentRecursion < settings.refraction_recursion) {
+		while(Payload.continueTrace) {
 			traceRayEXT(topLevelAS, gl_RayFlagsNoneEXT, 0xFF, 0, 0, 0, Payload.origin, tmin, Payload.dir, tmax, 0);
+			if(Payload.diffuseRecursion >= settings.reflection_recursion || Payload.translucentRecursion >= settings.refraction_recursion){
+				Payload.color = vec3(0.0);
+				Payload.continueTrace = false;
+			}
 		}
 
 		if(Payload.pdf < 0.0001 || Payload.f < 0.0001 || isnan(Payload.pdf) || isnan(Payload.f) || isinf(Payload.pdf) || isinf(Payload.f)){
