@@ -230,7 +230,7 @@ float getAABBPdf(vec3 minB, vec3 maxB, vec3 direction){
         vec2 minFace = vec2(minB[(face + 1) % 3], minB[(face + 2) % 3]);
         vec2 maxFace = vec2(maxB[(face + 1) % 3], maxB[(face + 2) % 3]);
         float aabbFaceArea = (maxFace.x - minFace.x) * (maxFace.y - minFace.y);
-        float aabbFaceCosine = max(0.000001, abs(dot(direction, normalFace)));
+        float aabbFaceCosine = max(0.000001, dot(direction, normalFace));
         visibleArea += (aabbFaceCosine * aabbFaceArea);
     }
     return distanceSquared / max(0.0001, visibleArea);
@@ -261,7 +261,7 @@ float getAABBPdf(vec3 minB, vec3 maxB, vec3 origin, vec3 direction){
             vec2 minFace = vec2(minB[(face + 1) % 3], minB[(face + 2) % 3]);
             vec2 maxFace = vec2(maxB[(face + 1) % 3], maxB[(face + 2) % 3]);
             float aabbFaceArea = (maxFace.x - minFace.x) * (maxFace.y - minFace.y);
-            float aabbFaceCosine = max(0.000001, abs(dot(direction, normalFace)));
+            float aabbFaceCosine = max(0.000001, dot(direction, normalFace));
             visibleArea += (aabbFaceCosine * aabbFaceArea);
         }
         return distanceSquared / max(0.0001, visibleArea);
@@ -497,7 +497,7 @@ void main()
                 center = (light.min + light.max) / 2;
             }
             float radApprox = light.radiosity / pow(distance(center, newOrigin), 2);
-            // only collect lightsources that have an estimated radiance above 0.1
+            // only collect lightsources that have an estimated radiance above 0.01
             if(radApprox > 0.1){
                 maxRad += radApprox;
                 lightCandidates[lightCount] = i;

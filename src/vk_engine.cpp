@@ -8,7 +8,7 @@ void VulkanEngine::init()
 
 	_core._window = SDL_CreateWindow("Vulkan Pathtracer", _core._windowExtent.width, _core._windowExtent.height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
-	_cam = Camera(Camera::Type::eTrackBall, _core._window, _core._windowExtent.width, _core._windowExtent.height, glm::vec3(0.5f), glm::vec3(0.f));
+	_cam = Camera(Camera::Type::eFirstPerson, _core._window, _core._windowExtent.width, _core._windowExtent.height, glm::vec3(-15.459f, 6.676f, -1.994f), glm::vec3(-15.459f, 6.676f, -1.994f) + glm::vec3(0.930f, -0.352f, -0.100f));
 
 	init_vulkan();
 
@@ -292,6 +292,22 @@ void VulkanEngine::run()
 			auto& io = ImGui::GetIO();
 			if(!(e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT || e.type == SDL_EVENT_MOUSE_WHEEL) || !io.WantCaptureMouse){
 				_cam.handleInputEvent(&e);
+			}
+			if(e.type == SDL_EVENT_KEY_DOWN && e.key.keysym.sym == SDLK_f){
+				if(_fullscreen){
+					SDL_SetWindowFullscreen(_core._window, SDL_FALSE);
+					_framebufferResized = true;
+					_fullscreen = false;
+				}else{
+					SDL_SetWindowFullscreen(_core._window, SDL_TRUE);
+					_framebufferResized = true;
+					_fullscreen = true;
+				}
+			}
+			if(e.type == SDL_EVENT_KEY_DOWN && e.key.keysym.sym == SDLK_ESCAPE && _fullscreen){
+				SDL_SetWindowFullscreen(_core._window, SDL_FALSE);
+				_framebufferResized = true;
+				_fullscreen = false;
 			}
 		}
 		_cam.update();
@@ -1404,7 +1420,8 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	scene1->add(ASSET_PATH"/models/cornell_box.glb");
+	scene1->add(ASSET_PATH"/models/bistro_new_1.glb");
+	// scene1->add(ASSET_PATH"/models/dragon.glb");
 	// scene1->add(ASSET_PATH"/models/bunny.glb", glm::scale(glm::mat4(1.0), glm::vec3(0.8)));
 	// scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(-0.5, -0.5, 0.5)), glm::vec3(0.25))); 
 	// scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(0.5, 0.25, 0.5)), glm::vec3(0.25))); 

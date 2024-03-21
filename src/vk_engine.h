@@ -17,6 +17,7 @@ public:
 	vk::GUI _gui;
 	bool _isInitialized{false};
 	bool _framebufferResized{false};
+	bool _fullscreen{false};
 	uint32_t _frameNumber{0};
 	int _selectedShader{0};
 	double _deltaTime{0.0};
