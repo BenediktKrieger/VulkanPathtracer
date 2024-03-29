@@ -776,6 +776,40 @@ void VulkanEngine::init_ubo() {
     _settingsUBO.refraction_recursion = _gui.settings.refraction_recursion;
 	_settingsUBO.auto_exposure = _gui.settings.auto_exposure;
 	_settingsUBO.exposure = _gui.settings.exposure;
+	_settingsUBO.mips = _gui.settings.mips;
+	_settingsUBO.mips_sensitivity = _gui.settings.mips_sensitivity;
+	_settingsUBO.tonemapper = _gui.settings.tm_operator;
+	switch (_gui.settings.tm_operator)
+	{
+	case 0:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_param_linear;
+		break;
+	case 2:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_param_reinhard;
+		break;
+	case 3:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_params_aces[0];
+		_settingsUBO.tonemapper_param_2 = _gui.settings.tm_params_aces[1];
+		_settingsUBO.tonemapper_param_3 = _gui.settings.tm_params_aces[2];
+		_settingsUBO.tonemapper_param_4 = _gui.settings.tm_params_aces[3];
+		_settingsUBO.tonemapper_param_5 = _gui.settings.tm_params_aces[4];
+		break;
+	case 4:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_param_uchimura[0];
+		_settingsUBO.tonemapper_param_2 = _gui.settings.tm_param_uchimura[1];
+		_settingsUBO.tonemapper_param_3 = _gui.settings.tm_param_uchimura[2];
+		_settingsUBO.tonemapper_param_4 = _gui.settings.tm_param_uchimura[3];
+		_settingsUBO.tonemapper_param_5 = _gui.settings.tm_param_uchimura[4];
+		_settingsUBO.tonemapper_param_6 = _gui.settings.tm_param_uchimura[5];
+		break;
+	case 5:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_param_lottes[0];
+		_settingsUBO.tonemapper_param_2 = _gui.settings.tm_param_lottes[1];
+		_settingsUBO.tonemapper_param_3 = _gui.settings.tm_param_lottes[2];
+		_settingsUBO.tonemapper_param_4 = _gui.settings.tm_param_lottes[3];
+		_settingsUBO.tonemapper_param_5 = _gui.settings.tm_param_lottes[4];
+		break;
+	}
 
 	_settingsBuffer = vkutils::hostBufferFromData(_core, &_settingsUBO, sizeof(vkutils::Shadersettings), vk::BufferUsageFlagBits::eUniformBuffer, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 
@@ -1035,10 +1069,17 @@ void VulkanEngine::init_pipelines()
 		accumulationImageLayoutBinding.descriptorCount = 1;
 		accumulationImageLayoutBinding.stageFlags = vk::ShaderStageFlagBits::eCompute;
 
+		vk::DescriptorSetLayoutBinding settingsBufferBinding;
+		settingsBufferBinding.binding = 3;
+		settingsBufferBinding.descriptorType = vk::DescriptorType::eUniformBuffer;
+		settingsBufferBinding.descriptorCount = 1;
+		settingsBufferBinding.stageFlags = vk::ShaderStageFlagBits::eCompute;
+
 		std::vector<vk::DescriptorSetLayoutBinding> bindings({
 			histogramBufferBinding,
 			resultImageLayoutBinding,
-			accumulationImageLayoutBinding
+			accumulationImageLayoutBinding,
+			settingsBufferBinding
 		});
 
 		vk::DescriptorSetLayoutCreateInfo setinfo;
@@ -1331,10 +1372,22 @@ void VulkanEngine::init_descriptors()
 			accumulationImageWrite.pImageInfo = &accumulationImageDescriptor;
 			accumulationImageWrite.descriptorCount = 1;
 
+			vk::DescriptorBufferInfo settingsUboDescriptor;
+			settingsUboDescriptor.buffer = _settingsBuffer._buffer;
+			settingsUboDescriptor.offset = 0;
+			settingsUboDescriptor.range = sizeof(vkutils::Shadersettings);
+			vk::WriteDescriptorSet settingsUniformBufferWrite;
+			settingsUniformBufferWrite.dstSet = _frames[i]._computeDescriptor;
+			settingsUniformBufferWrite.descriptorType = vk::DescriptorType::eUniformBuffer;
+			settingsUniformBufferWrite.dstBinding = 3;
+			settingsUniformBufferWrite.pBufferInfo = &settingsUboDescriptor;
+			settingsUniformBufferWrite.descriptorCount = 1;
+
 			std::vector<vk::WriteDescriptorSet> setWrites = {
 				histogramWrite,
 				resultImageWrite,
-				accumulationImageWrite
+				accumulationImageWrite,
+				settingsUniformBufferWrite
 			};
 			_core._device.updateDescriptorSets(setWrites, {});
 		}
@@ -1480,13 +1533,15 @@ void VulkanEngine::updateBuffers() {
 		_cam.changed = false;
 	}
 	if((_settingsUBO.accumulate > 0) != _gui.settings.accumulate 
-	|| _settingsUBO.min_samples != _gui.settings.min_samples 
-	|| _settingsUBO.reflection_recursion != _gui.settings.reflection_recursion 
-	|| _settingsUBO.refraction_recursion != _gui.settings.refraction_recursion 
-	|| _gui.settings.fov != _fov 
-	|| _settingsUBO.ambient_multiplier != _gui.settings.ambient_multiplier 
-	|| _settingsUBO.limit_samples != _gui.settings.limit_samples
-	|| _settingsUBO.max_samples != _gui.settings.max_samples){
+		|| _settingsUBO.min_samples != _gui.settings.min_samples 
+		|| _settingsUBO.reflection_recursion != _gui.settings.reflection_recursion 
+		|| _settingsUBO.refraction_recursion != _gui.settings.refraction_recursion 
+		|| _gui.settings.fov != _fov 
+		|| _settingsUBO.ambient_multiplier != _gui.settings.ambient_multiplier 
+		|| _settingsUBO.limit_samples != _gui.settings.limit_samples
+		|| _settingsUBO.max_samples != _gui.settings.max_samples 
+		|| _settingsUBO.mips != _gui.settings.mips 
+		|| _settingsUBO.mips_sensitivity != _gui.settings.mips_sensitivity){
 		_cam.changed = true;
 	}
 	// shwo cam pos
@@ -1505,6 +1560,40 @@ void VulkanEngine::updateBuffers() {
 	_settingsUBO.ambient_multiplier = _gui.settings.ambient_multiplier;
 	_settingsUBO.auto_exposure = _gui.settings.auto_exposure;
 	_settingsUBO.exposure = _gui.settings.exposure;
+	_settingsUBO.mips = _gui.settings.mips;
+	_settingsUBO.mips_sensitivity = _gui.settings.mips_sensitivity;
+	_settingsUBO.tonemapper = _gui.settings.tm_operator;
+	switch (_gui.settings.tm_operator)
+	{
+	case 0:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_param_linear;
+		break;
+	case 2:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_param_reinhard;
+		break;
+	case 3:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_params_aces[0];
+		_settingsUBO.tonemapper_param_2 = _gui.settings.tm_params_aces[1];
+		_settingsUBO.tonemapper_param_3 = _gui.settings.tm_params_aces[2];
+		_settingsUBO.tonemapper_param_4 = _gui.settings.tm_params_aces[3];
+		_settingsUBO.tonemapper_param_5 = _gui.settings.tm_params_aces[4];
+		break;
+	case 4:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_param_uchimura[0];
+		_settingsUBO.tonemapper_param_2 = _gui.settings.tm_param_uchimura[1];
+		_settingsUBO.tonemapper_param_3 = _gui.settings.tm_param_uchimura[2];
+		_settingsUBO.tonemapper_param_4 = _gui.settings.tm_param_uchimura[3];
+		_settingsUBO.tonemapper_param_5 = _gui.settings.tm_param_uchimura[4];
+		_settingsUBO.tonemapper_param_6 = _gui.settings.tm_param_uchimura[5];
+		break;
+	case 5:
+		_settingsUBO.tonemapper_param_1 = _gui.settings.tm_param_lottes[0];
+		_settingsUBO.tonemapper_param_2 = _gui.settings.tm_param_lottes[1];
+		_settingsUBO.tonemapper_param_3 = _gui.settings.tm_param_lottes[2];
+		_settingsUBO.tonemapper_param_4 = _gui.settings.tm_param_lottes[3];
+		_settingsUBO.tonemapper_param_5 = _gui.settings.tm_param_lottes[4];
+		break;
+	}
 	void* mapped = _core._allocator.mapMemory(_settingsBuffer._allocation);
 	    memcpy(mapped, &_settingsUBO, sizeof(vkutils::Shadersettings));
 	_core._allocator.unmapMemory(_settingsBuffer._allocation);

@@ -12,7 +12,7 @@ vk::GUI::GUI():_core(){
     settings.cam_mode = 0;
     settings.speed = 1.0;
     settings.auto_exposure = true;
-    settings.exposure = 1.0;
+    settings.exposure = 0.5;
     settings.accumulate = true;
     settings.min_samples = 1;
     settings.limit_samples = false;
@@ -22,6 +22,28 @@ vk::GUI::GUI():_core(){
     settings.ambient_multiplier = 1.f;
     settings.mips = true;
     settings.mips_sensitivity = 0.01f;
+    settings.tm_operator = 0;
+    settings.tm_param_linear = 2.f;
+    settings.tm_param_reinhard = 4.f;
+
+    settings.tm_params_aces[0] = 2.51f;
+    settings.tm_params_aces[1] = 0.03f;
+    settings.tm_params_aces[2] = 2.43f;
+    settings.tm_params_aces[3] = 0.59f;
+    settings.tm_params_aces[4] = 0.14f;
+
+    settings.tm_param_uchimura[0] = 1.f;
+    settings.tm_param_uchimura[1] = 1.f;
+    settings.tm_param_uchimura[2] = 0.22f;
+    settings.tm_param_uchimura[3] = 0.4f;
+    settings.tm_param_uchimura[4] = 1.33f;
+    settings.tm_param_uchimura[5] = 0.f;
+
+    settings.tm_param_lottes[0] = 1.6f;
+    settings.tm_param_lottes[1] = 0.977f;
+    settings.tm_param_lottes[2] = 8.f;
+    settings.tm_param_lottes[3] = 0.18f;
+    settings.tm_param_lottes[4] = 0.267f;
 }
 
 vk::GUI::GUI(vk::Core *core)
@@ -38,7 +60,7 @@ vk::GUI::GUI(vk::Core *core)
     settings.cam_mode = 0;
     settings.speed = 1.0;
     settings.auto_exposure = true;
-    settings.exposure = 1.0;
+    settings.exposure = 0.5;
     settings.accumulate = true;
     settings.min_samples = 1;
     settings.limit_samples = false;
@@ -48,6 +70,28 @@ vk::GUI::GUI(vk::Core *core)
     settings.ambient_multiplier = 1.f;
     settings.mips = true;
     settings.mips_sensitivity = 0.01f;
+    settings.tm_operator = 0;
+    settings.tm_param_linear = 2.f;
+    settings.tm_param_reinhard = 4.f;
+
+    settings.tm_params_aces[0] = 2.51f;
+    settings.tm_params_aces[1] = 0.03f;
+    settings.tm_params_aces[2] = 2.43f;
+    settings.tm_params_aces[3] = 0.59f;
+    settings.tm_params_aces[4] = 0.14f;
+
+    settings.tm_param_uchimura[0] = 1.f;
+    settings.tm_param_uchimura[1] = 1.f;
+    settings.tm_param_uchimura[2] = 0.22f;
+    settings.tm_param_uchimura[3] = 0.4f;
+    settings.tm_param_uchimura[4] = 1.33f;
+    settings.tm_param_uchimura[5] = 0.f;
+
+    settings.tm_param_lottes[0] = 1.6f;
+    settings.tm_param_lottes[1] = 0.977f;
+    settings.tm_param_lottes[2] = 8.f;
+    settings.tm_param_lottes[3] = 0.18f;
+    settings.tm_param_lottes[4] = 0.267f;
     std::vector<vk::DescriptorPoolSize> poolSizes =
     {
         { vk::DescriptorType::eSampler, 1000 },
@@ -255,9 +299,133 @@ void vk::GUI::update()
             }
             ImGui::SeparatorText("Environment Map");
             ImGui::SliderFloat("Skylight Multiplier", &settings.ambient_multiplier, 0.f, 20.f, "%.1f");
+            ImGui::SeparatorText("Tonemapping");
+            ImGui::Combo("Tonemapping Operator", reinterpret_cast<int *>(&settings.tm_operator), "Linear\0Reinhard\0Reinhard2\0ACES\0Uchimura\0Lottes\0");
+            const uint32_t sampleCount = 100;
+            static float input[sampleCount] = {};
+            static float output[sampleCount] = {};
+            switch (settings.tm_operator)
+            {
+                case 0:
+                    ImGui::Text("  Function Parameters:");
+                    ImGui::SliderFloat("Whitepoint", &settings.tm_param_linear, 0.1f, 5.f, "%.1f");
+                    for (size_t i = 0; i < sampleCount; i++)
+                    {
+                        float x_value = ((float) i/sampleCount) * 5.f;
+                        input[i] = x_value;
+                        output[i] = x_value / settings.tm_param_linear;
+                    }
+                    ImGui::Text("  Function:");
+                    ImGui::PlotLines("Linear", output, sampleCount, 0, NULL, 0.f, 1.f, ImVec2(0, 150.0f));
+                    break;
+                case 1:
+                    for (size_t i = 0; i < sampleCount; i++)
+                    {
+                        float x_value = ((float) i/sampleCount) * 5.f;
+                        input[i] = x_value;
+                        output[i] = x_value / (1.f + x_value);
+                    }
+                    ImGui::Text("  Function:");
+                    ImGui::PlotLines("Reinhard", output, sampleCount, 0, NULL, 0.f, 1.f, ImVec2(0, 150.0f));
+                    break;
+                case 2:
+                    ImGui::Text("  Function Parameters:");
+                    ImGui::SliderFloat("Whitepoint", &settings.tm_param_reinhard, 0.1f, 5.f, "%.1f");
+                    for (size_t i = 0; i < sampleCount; i++)
+                    {
+                        float x_value = ((float) i/sampleCount) * 5.f;
+                        input[i] = x_value;
+                        output[i] = (x_value * (1.f + x_value / (settings.tm_param_reinhard * settings.tm_param_reinhard))) / (1.f + x_value);
+                    }
+                    ImGui::Text("  Function:");
+                    ImGui::PlotLines("Reinhard2", output, sampleCount, 0, NULL, 0.f, 1.f, ImVec2(0, 150.0f));
+                    break;
+                case 3:
+                    ImGui::Text("  Function Parameters:");
+                    ImGui::SliderFloat("a", &settings.tm_params_aces[0], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("b", &settings.tm_params_aces[1], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("c", &settings.tm_params_aces[2], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("d", &settings.tm_params_aces[3], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("e", &settings.tm_params_aces[4], 0.1f, 5.f, "%.2f");
+                    for (size_t i = 0; i < sampleCount; i++)
+                    {
+                        float x_value = ((float) i/sampleCount) * 5.f;
+                        const float a = settings.tm_params_aces[0];
+                        const float b = settings.tm_params_aces[1];
+                        const float c = settings.tm_params_aces[2];
+                        const float d = settings.tm_params_aces[3];
+                        const float e = settings.tm_params_aces[4];
+                        input[i] = x_value;
+                        output[i] = (x_value * (a * x_value + b)) / (x_value * (c * x_value + d) + e);
+                    }
+                    ImGui::Text("  Function:");
+                    ImGui::PlotLines("ACES", output, sampleCount, 0, NULL, 0.f, 1.f, ImVec2(0, 150.0f));
+                    break;
+                case 4:
+                    ImGui::Text("  Function Parameters:");
+                    ImGui::SliderFloat("P", &settings.tm_param_uchimura[0], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("a", &settings.tm_param_uchimura[1], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("m", &settings.tm_param_uchimura[2], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("l", &settings.tm_param_uchimura[3], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("c", &settings.tm_param_uchimura[4], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("b", &settings.tm_param_uchimura[5], 0.1f, 5.f, "%.2f");
+                    
+                    for (size_t i = 0; i < sampleCount; i++)
+                    {
+                        float x_value = ((float) i/sampleCount) * 5.f;
+                        const float P = settings.tm_param_uchimura[0];
+                        const float a = settings.tm_param_uchimura[1];
+                        const float m = settings.tm_param_uchimura[2];
+                        const float l = settings.tm_param_uchimura[3];
+                        const float c = settings.tm_param_uchimura[4];
+                        const float b = settings.tm_param_uchimura[5];
+                        input[i] = x_value;
+                        float l0 = ((P - m) * l) / a;
+                        float L0 = m - m / a;
+                        float L1 = m + (1.f - m) / a;
+                        float S0 = m + l0;
+                        float S1 = m + a * l0;
+                        float C2 = (a * P) / (P - S1);
+                        float CP = -C2 / P;
+                        float w0 = 1.f - glm::smoothstep(0.f, m, x_value);
+                        float w2 = glm::step(m + l0, x_value);
+                        float w1 = 1.f - w0 - w2;
+
+                        float T = m * glm::pow(x_value / m, c) + b;
+                        float S = P - (P - S1) * glm::exp(CP * (x_value - S0));
+                        float L = m + a * (x_value - m);
+                        output[i] = T * w0 + L * w1 + S * w2;
+                    }
+                    ImGui::Text("  Function:");
+                    ImGui::PlotLines("Uchimura", output, sampleCount, 0, NULL, 0.f, 1.f, ImVec2(0, 150.0f));
+                    break;
+                case 5:
+                    ImGui::Text("  Function Parameters:");
+                    ImGui::SliderFloat("a",         &settings.tm_param_lottes[0], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("d",         &settings.tm_param_lottes[1], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("hdrMax",    &settings.tm_param_lottes[2], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("midIn",     &settings.tm_param_lottes[3], 0.1f, 5.f, "%.2f");
+                    ImGui::SliderFloat("midOut",    &settings.tm_param_lottes[4], 0.1f, 5.f, "%.2f");
+                    for (size_t i = 0; i < sampleCount; i++)
+                    {
+                        float x_value = ((float) i/sampleCount) * 5.f;
+                        const float a =         settings.tm_param_lottes[0];
+                        const float d =         settings.tm_param_lottes[1];
+                        const float hdrMax =    settings.tm_param_lottes[2];
+                        const float midIn =     settings.tm_param_lottes[3];
+                        const float midOut =    settings.tm_param_lottes[4];
+                        input[i] = x_value;
+                        const float b = (-glm::pow(midIn, a) + glm::pow(hdrMax, a) * midOut) / ((glm::pow(hdrMax, a * d) - glm::pow(midIn, a * d)) * midOut);
+                        const float c = (glm::pow(hdrMax, a * d) * glm::pow(midIn, a) - glm::pow(hdrMax, a) * glm::pow(midIn, a * d) * midOut) / ((glm::pow(hdrMax, a * d) - glm::pow(midIn, a * d)) * midOut);
+                        output[i] = glm::pow(x_value, a) / (pow(x_value, a * d) * b + c);
+                    }
+                    ImGui::Text("  Function:");
+                    ImGui::PlotLines("Lottes", output, sampleCount, 0, NULL, 0.f, 1.f, ImVec2(0, 150.0f));
+                    break;
+            }
         ImGui::End();
 
-        //ImGui::ShowDemoWindow();
+        // ImGui::ShowDemoWindow();
     ImGui::End();
     
     ImGui::Render(); 

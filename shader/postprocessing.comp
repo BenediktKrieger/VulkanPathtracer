@@ -8,6 +8,26 @@ layout( push_constant ) uniform PushConstants {
 layout(binding = 0, set = 0) buffer ImageInfo {uint histogram[256]; float average;} imageInfo;
 layout(binding = 1, set = 0, rgba8) restrict writeonly uniform image2D image;
 layout(binding = 2, set = 0, rgba32f) restrict readonly uniform image2D accImage;
+layout(binding = 3, set = 0) readonly uniform Settings {
+    bool accumulate;
+	uint min_samples;
+    bool limit_samples;
+    uint max_samples;
+	uint reflection_recursion;
+	uint refraction_recursion;
+    float ambient_multiplier;
+    bool auto_exposure;
+    float exposure;
+    bool mips;
+    float mips_sensitivity;
+    uint tonemapper;
+    float tm_param_1;
+    float tm_param_2;
+    float tm_param_3;
+    float tm_param_4;
+    float tm_param_5;
+    float tm_param_6;
+} settings;
 
 layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
@@ -51,24 +71,13 @@ float reinhard2(float x, float whitePoint) {
     return (x * (1.0 + x / (whitePoint * whitePoint))) / (1.0 + x);
 }
 
-float filmic_ACES(float x) {
+float filmic_ACES(float x, float a, float b, float c, float d, float e) {
     // Narkowicz 2015, "ACES Filmic Tone Mapping Curve"
-    const float a = 2.51;
-    const float b = 0.03;
-    const float c = 2.43;
-    const float d = 0.59;
-    const float e = 0.14;
     return (x * (a * x + b)) / (x * (c * x + d) + e);
 }
 
-float filmic_uchimura(float x) {
+float filmic_uchimura(float x, float P, float a, float m, float l, float c, float b) {
     // Uchimura 2017, "HDR theory and practice"
-    const float P = 1.0;
-    const float a = 1.0;
-    const float m = 0.22;
-    const float l = 0.4;
-    const float c = 1.33;
-    const float b = 0.0;
     float l0 = ((P - m) * l) / a;
     float L0 = m - m / a;
     float L1 = m + (1.0 - m) / a;
@@ -88,13 +97,8 @@ float filmic_uchimura(float x) {
     return T * w0 + L * w1 + S * w2;
 }
 
-float filmic_lottes(float x) {
+float filmic_lottes(float x, float a, float d, float hdrMax, float midIn, float midOut) {
     // Lottes 2016, "Advanced Techniques and Optimization of HDR Color Pipelines"
-    const float a = 1.6;
-    const float d = 0.977;
-    const float hdrMax = 8.0;
-    const float midIn = 0.18;
-    const float midOut = 0.267;
     const float b = (-pow(midIn, a) + pow(hdrMax, a) * midOut) / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
     const float c = (pow(hdrMax, a * d) * pow(midIn, a) - pow(hdrMax, a) * pow(midIn, a * d) * midOut) / ((pow(hdrMax, a * d) - pow(midIn, a * d)) * midOut);
     return pow(x, a) / (pow(x, a * d) * b + c);
@@ -103,18 +107,39 @@ float filmic_lottes(float x) {
 void main() 
 {
     vec3 rgb = imageLoad(accImage, ivec2(gl_GlobalInvocationID.xy)).xyz;
+
+    float exposure = 1.0;
+    if(settings.auto_exposure){
+        float avgLum = imageInfo.average;
+        exposure = 1.0 / (4 * avgLum + 0.0001);
+    }else{
+        exposure = settings.exposure;
+    }
     
-    float avgLum = imageInfo.average;
-
     vec3 xyY = rgb_to_xyY(rgb);
-
-    float whitePoint = 2.0;
-
-    float exposure = 1.0 / (9.7 * avgLum + 0.0001);
 
     float lp = xyY.z * exposure;
 
-    xyY.z = filmic_lottes(lp);
+    switch (settings.tonemapper) {
+    case 0:
+        xyY.z = linear(lp, settings.tm_param_1);
+        break;
+    case 1:
+        xyY.z = reinhard(lp);
+        break;
+    case 2:
+        xyY.z = reinhard2(lp, settings.tm_param_1);
+        break;
+    case 3:
+        xyY.z = filmic_ACES(lp, settings.tm_param_1, settings.tm_param_2, settings.tm_param_3, settings.tm_param_4, settings.tm_param_5);
+        break;
+    case 4:
+        xyY.z = filmic_uchimura(lp, settings.tm_param_1, settings.tm_param_2, settings.tm_param_3, settings.tm_param_4, settings.tm_param_5, settings.tm_param_6);
+        break;
+    case 5:
+        xyY.z = filmic_lottes(lp, settings.tm_param_1, settings.tm_param_2, settings.tm_param_3, settings.tm_param_4, settings.tm_param_5);
+        break;
+    }
 
     rgb = xyY_to_rgb(xyY);
 

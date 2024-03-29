@@ -504,7 +504,7 @@ void main()
             }
             float radApprox = light.radiosity / pow(distance(center, newOrigin), 2);
             // only collect lightsources that have an estimated radiance above 0.01
-            if(radApprox > 0.01){
+            if(radApprox > settings.mips_sensitivity){
                 maxRad += radApprox;
                 lightCandidates[lightCount] = i;
                 lightRadApprox[lightCount] = radApprox;
@@ -518,7 +518,7 @@ void main()
     vec2 roughness_alpha = vec2(roughness * roughness);
     float directLightImportance = roughness * 0.7 * min(1, maxRad);
     float brdfImportance = (1 - directLightImportance);
-    if(lightCount < 1){
+    if(lightCount < 1 || !settings.mips){
         brdfImportance = 1.0;
         directLightImportance = 0;
     }

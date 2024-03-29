@@ -30,6 +30,13 @@ namespace vkutils
         // Sampling
         bool mips;
         float mips_sensitivity;
+        //Tonemapping
+        uint32_t tm_operator;
+        float tm_param_linear;
+        float tm_param_reinhard;
+        float tm_params_aces[5];
+        float tm_param_uchimura[6];
+        float tm_param_lottes[5];
     };
     class ImageStats {
     public:
@@ -49,6 +56,13 @@ namespace vkutils
         float exposure;
         uint32_t mips;
         float mips_sensitivity;
+        uint32_t tonemapper;
+        float tonemapper_param_1;
+        float tonemapper_param_2;
+        float tonemapper_param_3;
+        float tonemapper_param_4;
+        float tonemapper_param_5;
+        float tonemapper_param_6;
     };
     class AllocatedBuffer {
     public:
