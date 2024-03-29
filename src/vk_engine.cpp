@@ -8,7 +8,7 @@ void VulkanEngine::init()
 
 	_core._window = SDL_CreateWindow("Vulkan Pathtracer", _core._windowExtent.width, _core._windowExtent.height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
-	_cam = Camera(Camera::Type::eFirstPerson, _core._window, _core._windowExtent.width, _core._windowExtent.height, glm::vec3(-15.459f, 6.676f, -1.994f), glm::vec3(-15.459f, 6.676f, -1.994f) + glm::vec3(0.930f, -0.352f, -0.100f));
+	_cam = Camera(Camera::Type::eTrackBall, _core._window, _core._windowExtent.width, _core._windowExtent.height, glm::vec3(1.0f), glm::vec3(0.0f));
 
 	init_vulkan();
 
@@ -769,9 +769,13 @@ void VulkanEngine::init_hdr_map()
 
 void VulkanEngine::init_ubo() {
 	_settingsUBO.accumulate = _gui.settings.accumulate;
-    _settingsUBO.samples = _gui.settings.samples;
+    _settingsUBO.min_samples = _gui.settings.min_samples;
+	_settingsUBO.limit_samples = _gui.settings.limit_samples;
+	_settingsUBO.max_samples = _gui.settings.max_samples;
     _settingsUBO.reflection_recursion = _gui.settings.reflection_recursion;
     _settingsUBO.refraction_recursion = _gui.settings.refraction_recursion;
+	_settingsUBO.auto_exposure = _gui.settings.auto_exposure;
+	_settingsUBO.exposure = _gui.settings.exposure;
 
 	_settingsBuffer = vkutils::hostBufferFromData(_core, &_settingsUBO, sizeof(vkutils::Shadersettings), vk::BufferUsageFlagBits::eUniformBuffer, vma::MemoryUsage::eAutoPreferDevice, vma::AllocationCreateFlagBits::eHostAccessSequentialWrite);
 
@@ -1420,7 +1424,7 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	scene1->add(ASSET_PATH"/models/bistro_new_1.glb");
+	scene1->add(ASSET_PATH"/models/bathroom.glb");
 	// scene1->add(ASSET_PATH"/models/dragon.glb");
 	// scene1->add(ASSET_PATH"/models/bunny.glb", glm::scale(glm::mat4(1.0), glm::vec3(0.8)));
 	// scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(-0.5, -0.5, 0.5)), glm::vec3(0.25))); 
@@ -1475,7 +1479,14 @@ void VulkanEngine::updateBuffers() {
 		PushConstants.accumulatedFrames = 0;
 		_cam.changed = false;
 	}
-	if((_settingsUBO.accumulate > 0) != _gui.settings.accumulate || _settingsUBO.samples != _gui.settings.samples || _settingsUBO.reflection_recursion != _gui.settings.reflection_recursion || _settingsUBO.refraction_recursion != _gui.settings.refraction_recursion || _gui.settings.fov != _fov || _settingsUBO.ambient_multiplier != _gui.settings.ambient_multiplier){
+	if((_settingsUBO.accumulate > 0) != _gui.settings.accumulate 
+	|| _settingsUBO.min_samples != _gui.settings.min_samples 
+	|| _settingsUBO.reflection_recursion != _gui.settings.reflection_recursion 
+	|| _settingsUBO.refraction_recursion != _gui.settings.refraction_recursion 
+	|| _gui.settings.fov != _fov 
+	|| _settingsUBO.ambient_multiplier != _gui.settings.ambient_multiplier 
+	|| _settingsUBO.limit_samples != _gui.settings.limit_samples
+	|| _settingsUBO.max_samples != _gui.settings.max_samples){
 		_cam.changed = true;
 	}
 	// shwo cam pos
@@ -1485,11 +1496,15 @@ void VulkanEngine::updateBuffers() {
 	_gui.settings.cam_dir = cam_dir;
 	//write settings to gpu buffer
 	_fov = _gui.settings.fov;
-    _settingsUBO.accumulate = _gui.settings.accumulate ? 1 : 0;
-    _settingsUBO.samples = _gui.settings.samples;
+    _settingsUBO.accumulate = _gui.settings.accumulate;
+    _settingsUBO.min_samples = _gui.settings.min_samples;
+	_settingsUBO.limit_samples = _gui.settings.limit_samples;
+	_settingsUBO.max_samples = _gui.settings.max_samples;
     _settingsUBO.reflection_recursion = _gui.settings.reflection_recursion;
     _settingsUBO.refraction_recursion = _gui.settings.refraction_recursion;
 	_settingsUBO.ambient_multiplier = _gui.settings.ambient_multiplier;
+	_settingsUBO.auto_exposure = _gui.settings.auto_exposure;
+	_settingsUBO.exposure = _gui.settings.exposure;
 	void* mapped = _core._allocator.mapMemory(_settingsBuffer._allocation);
 	    memcpy(mapped, &_settingsUBO, sizeof(vkutils::Shadersettings));
 	_core._allocator.unmapMemory(_settingsBuffer._allocation);

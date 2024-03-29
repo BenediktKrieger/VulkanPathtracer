@@ -8,10 +8,15 @@ vk::GUI::GUI():_core(){
     settings.cam_dir[0] = 0.f;
     settings.cam_dir[1] = 0.f;
     settings.cam_dir[2] = 0.f;
-    settings.fov = 0;
+    settings.fov = 75.f;
     settings.cam_mode = 0;
+    settings.speed = 1.0;
+    settings.auto_exposure = true;
+    settings.exposure = 1.0;
     settings.accumulate = true;
-    settings.samples = 1;
+    settings.min_samples = 1;
+    settings.limit_samples = false;
+    settings.max_samples = 1000;
     settings.reflection_recursion = 6;
     settings.refraction_recursion = 8;
     settings.ambient_multiplier = 1.f;
@@ -29,8 +34,13 @@ vk::GUI::GUI(vk::Core *core)
     settings.cam_dir[2] = 0.f;
     settings.fov = 75.f;
     settings.cam_mode = 0;
+    settings.speed = 1.0;
+    settings.auto_exposure = true;
+    settings.exposure = 1.0;
     settings.accumulate = true;
-    settings.samples = 1;
+    settings.min_samples = 1;
+    settings.limit_samples = false;
+    settings.max_samples = 1000;
     settings.reflection_recursion = 6;
     settings.refraction_recursion = 8;
     settings.ambient_multiplier = 1.f;
@@ -216,16 +226,30 @@ void vk::GUI::update()
             ImGui::SeparatorText("Camera Setup");
             ImGui::InputFloat3("Position", glm::value_ptr(settings.cam_pos));
             ImGui::InputFloat3("Direction", glm::value_ptr(settings.cam_dir));
-            ImGui::SliderFloat("Field Of View", &settings.fov, 10.f, 150.f, "%.1f");
+            ImGui::SliderFloat("Field Of View", &settings.fov, 10.f, 150.f, "%.1f degrees");
+            ImGui::SliderFloat("Movement Speed", &settings.speed, 0.01f, 10.f, "%.2f");
+            ImGui::Checkbox("Auto Exposure", &settings.auto_exposure);
+            if (!settings.auto_exposure)
+            {
+                ImGui::SliderFloat("Exposure", &settings.exposure, 0.01f, 10.f, "%.2f");
+            }
             ImGui::SeparatorText("Pathtracer Setup");
             ImGui::Checkbox("Accumulate Image", &settings.accumulate);
-            ImGui::SliderInt("Samples Per Pixel", reinterpret_cast<int *>(&settings.samples), 1, 100);
+            ImGui::SliderInt("Minimum Samples Per Pixel", reinterpret_cast<int *>(&settings.min_samples), 1, 100);
+            ImGui::Checkbox("Limit Samples", &settings.limit_samples);
+            if(settings.limit_samples)
+            {
+                const ImU32 u32_one = 1, u32_tenthousand = 10000;
+                ImGui::DragScalar("Maximum Samples Per Pixel", ImGuiDataType_U32, &settings.max_samples, 10.f, &u32_one, &u32_tenthousand, "%u");
+            }
             ImGui::SliderInt("Bounce Limit (Reflection)", reinterpret_cast<int *>(&settings.reflection_recursion), 1, 32);
             ImGui::SliderInt("Bounce Limit (Refraction)", reinterpret_cast<int *>(&settings.refraction_recursion), 1, 32);
+            
+            ImGui::SeparatorText("Environment Map");
             ImGui::SliderFloat("Skylight Multiplier", &settings.ambient_multiplier, 0.f, 20.f, "%.1f");
         ImGui::End();
 
-        // ImGui::ShowDemoWindow();
+        //ImGui::ShowDemoWindow();
     ImGui::End();
     
     ImGui::Render(); 

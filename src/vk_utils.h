@@ -16,9 +16,14 @@ namespace vkutils
         float fov;
         glm::vec3 cam_dir;
         uint32_t cam_mode;
+        float speed;
+        bool auto_exposure;
+        float exposure;
         // Pathtracer Settings
         bool accumulate;
-        uint32_t samples;
+        uint32_t min_samples;
+        bool limit_samples;
+        uint32_t max_samples;
         uint32_t reflection_recursion;
         uint32_t refraction_recursion;
         float ambient_multiplier;
@@ -33,10 +38,14 @@ namespace vkutils
     class Shadersettings {
     public:
         uint32_t accumulate;
-        uint32_t samples;
+        uint32_t min_samples;
+        uint32_t limit_samples;
+        uint32_t max_samples;
         uint32_t reflection_recursion;
         uint32_t refraction_recursion;
         float ambient_multiplier;
+        uint32_t auto_exposure;
+        float exposure;
     };
     class AllocatedBuffer {
     public:

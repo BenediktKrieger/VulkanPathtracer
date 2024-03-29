@@ -104,7 +104,7 @@ void main()
 {
     vec3 rgb = imageLoad(accImage, ivec2(gl_GlobalInvocationID.xy)).xyz;
     
-    float avgLum = 0.2;//imageInfo.average;
+    float avgLum = imageInfo.average;
 
     vec3 xyY = rgb_to_xyY(rgb);
 

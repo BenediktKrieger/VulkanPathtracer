@@ -69,10 +69,14 @@ layout(binding = 4, set = 0) readonly buffer Materials { Material m[]; } materia
 layout(binding = 5, set = 0) readonly buffer Lights { Light l[]; } lights;
 layout(binding = 7, set = 0) readonly uniform Settings {
     bool accumulate;
-	uint samples;
+	uint min_samples;
+    bool limit_samples;
+    uint max_samples;
 	uint reflection_recursion;
 	uint refraction_recursion;
     float ambient_multiplier;
+    bool auto_exposure;
+    float exposure;
 } settings;
 layout(binding = 8, set = 0) uniform sampler2D texSampler[];
 
@@ -498,7 +502,7 @@ void main()
             }
             float radApprox = light.radiosity / pow(distance(center, newOrigin), 2);
             // only collect lightsources that have an estimated radiance above 0.01
-            if(radApprox > 0.1){
+            if(radApprox > 0.01){
                 maxRad += radApprox;
                 lightCandidates[lightCount] = i;
                 lightRadApprox[lightCount] = radApprox;
