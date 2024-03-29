@@ -35,6 +35,8 @@ layout(binding = 7, set = 0) readonly uniform Settings {
     float ambient_multiplier;
     bool auto_exposure;
     float exposure;
+	bool mips;
+    float mips_sensitivity;
 } settings;
 
 layout(location = 0) rayPayloadEXT RayPayload Payload;

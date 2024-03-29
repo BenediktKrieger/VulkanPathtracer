@@ -20,6 +20,8 @@ vk::GUI::GUI():_core(){
     settings.reflection_recursion = 6;
     settings.refraction_recursion = 8;
     settings.ambient_multiplier = 1.f;
+    settings.mips = true;
+    settings.mips_sensitivity = 0.01f;
 }
 
 vk::GUI::GUI(vk::Core *core)
@@ -44,6 +46,8 @@ vk::GUI::GUI(vk::Core *core)
     settings.reflection_recursion = 6;
     settings.refraction_recursion = 8;
     settings.ambient_multiplier = 1.f;
+    settings.mips = true;
+    settings.mips_sensitivity = 0.01f;
     std::vector<vk::DescriptorPoolSize> poolSizes =
     {
         { vk::DescriptorType::eSampler, 1000 },
@@ -244,7 +248,11 @@ void vk::GUI::update()
             }
             ImGui::SliderInt("Bounce Limit (Reflection)", reinterpret_cast<int *>(&settings.reflection_recursion), 1, 32);
             ImGui::SliderInt("Bounce Limit (Refraction)", reinterpret_cast<int *>(&settings.refraction_recursion), 1, 32);
-            
+            ImGui::Checkbox("Multiple Importance Sampling", &settings.mips);
+            if(settings.mips)
+            {
+                ImGui::SliderFloat("Radiance Sensititvity", &settings.mips_sensitivity, 0.01f, 1.f, "%.2f");
+            }
             ImGui::SeparatorText("Environment Map");
             ImGui::SliderFloat("Skylight Multiplier", &settings.ambient_multiplier, 0.f, 20.f, "%.1f");
         ImGui::End();

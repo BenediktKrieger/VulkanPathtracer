@@ -27,8 +27,9 @@ namespace vkutils
         uint32_t reflection_recursion;
         uint32_t refraction_recursion;
         float ambient_multiplier;
-        // Scene
-        
+        // Sampling
+        bool mips;
+        float mips_sensitivity;
     };
     class ImageStats {
     public:
@@ -46,6 +47,8 @@ namespace vkutils
         float ambient_multiplier;
         uint32_t auto_exposure;
         float exposure;
+        uint32_t mips;
+        float mips_sensitivity;
     };
     class AllocatedBuffer {
     public:

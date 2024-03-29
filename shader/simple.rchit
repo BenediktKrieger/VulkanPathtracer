@@ -68,6 +68,8 @@ layout(binding = 7, set = 0) uniform Settings {
   float ambient_multiplier;
   bool auto_exposure;
   float exposure;
+  bool mips;
+  float mips_sensitivity;
 } settings;
 layout(binding = 8, set = 0) uniform sampler2D texSampler[];
 

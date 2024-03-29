@@ -20,10 +20,16 @@ layout(location = 0) rayPayloadInEXT RayPayload Payload;
 layout(binding = 6, set = 0) uniform sampler2D hdrMapSampler;
 layout(binding = 7, set = 0) readonly uniform Settings {
     bool accumulate;
-    uint samples;
+    uint min_samples;
+    bool limit_samples;
+    uint max_samples;
     uint reflection_recursion;
     uint refraction_recursion;
     float ambient_multiplier;
+    bool auto_exposure;
+    float exposure;
+    bool mips;
+    float mips_sensitivity;
 } settings;
 
 const vec2 invAtan = vec2(0.1591, 0.3183);
