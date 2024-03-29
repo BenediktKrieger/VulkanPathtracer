@@ -10,9 +10,9 @@ vk::GUI::GUI():_core(){
     settings.cam_dir[2] = 0.f;
     settings.fov = 75.f;
     settings.cam_mode = 0;
-    settings.speed = 1.0;
+    settings.speed = 1.5f;
     settings.auto_exposure = true;
-    settings.exposure = 0.5;
+    settings.exposure = 0.5f;
     settings.accumulate = true;
     settings.min_samples = 1;
     settings.limit_samples = false;
@@ -22,7 +22,7 @@ vk::GUI::GUI():_core(){
     settings.ambient_multiplier = 1.f;
     settings.mips = true;
     settings.mips_sensitivity = 0.01f;
-    settings.tm_operator = 0;
+    settings.tm_operator = 3;
     settings.tm_param_linear = 2.f;
     settings.tm_param_reinhard = 4.f;
 
@@ -58,9 +58,9 @@ vk::GUI::GUI(vk::Core *core)
     settings.cam_dir[2] = 0.f;
     settings.fov = 75.f;
     settings.cam_mode = 0;
-    settings.speed = 1.0;
+    settings.speed = 1.5f;
     settings.auto_exposure = true;
-    settings.exposure = 0.5;
+    settings.exposure = 0.5f;
     settings.accumulate = true;
     settings.min_samples = 1;
     settings.limit_samples = false;
@@ -70,7 +70,7 @@ vk::GUI::GUI(vk::Core *core)
     settings.ambient_multiplier = 1.f;
     settings.mips = true;
     settings.mips_sensitivity = 0.01f;
-    settings.tm_operator = 0;
+    settings.tm_operator = 3;
     settings.tm_param_linear = 2.f;
     settings.tm_param_reinhard = 4.f;
 

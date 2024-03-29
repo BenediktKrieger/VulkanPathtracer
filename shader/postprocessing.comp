@@ -111,7 +111,7 @@ void main()
     float exposure = 1.0;
     if(settings.auto_exposure){
         float avgLum = imageInfo.average;
-        exposure = 1.0 / (4 * avgLum + 0.0001);
+        exposure = 1.0 / (6 * avgLum + 0.0001);
     }else{
         exposure = settings.exposure;
     }

@@ -4,10 +4,11 @@ Camera::Camera(){
 
 }
 
-Camera::Camera(Type type, SDL_Window* window, uint32_t width, uint32_t height, glm::vec3 eye, glm::vec3 center)
+Camera::Camera(Type type, SDL_Window* window, uint32_t width, uint32_t height, glm::vec3 eye, glm::vec3 center, float speed)
 {
     _xpos = 0.0f;
     _ypos = 0.0f;
+    _speed = speed;
     _radius = glm::length(eye - center);
     _type = type;
     _center = center;
@@ -147,27 +148,27 @@ void Camera::update(){
         glm::vec3 left = glm::cross(up, forward);
         glm::vec3 right = -1.f * left;
         if (_buttonState_W){
-            _eye += forward * (float) delta_time * 1.5f;
+            _eye += forward * (float) delta_time * _speed;
             changed = true;
         }
         if (_buttonState_A){
-            _eye += left * (float) delta_time * 1.5f;
+            _eye += left * (float) delta_time * _speed;
             changed = true;
         }
         if (_buttonState_S){
-            _eye += backwards * (float) delta_time * 1.5f;
+            _eye += backwards * (float) delta_time * _speed;
             changed = true;
         }
 	    if (_buttonState_D){
-            _eye += right * (float) delta_time * 1.5f;
+            _eye += right * (float) delta_time * _speed;
             changed = true;
         }
         if (_buttonState_LCTRL){
-            _eye += down * (float) delta_time * 1.5f;
+            _eye += down * (float) delta_time * _speed;
             changed = true;
         }
         if (_buttonState_SPACE){
-            _eye += up * (float) delta_time * 1.5f;
+            _eye += up * (float) delta_time * _speed;
             changed = true;
         }
         _radius = glm::length(_eye);
@@ -192,6 +193,10 @@ glm::vec3 Camera::getDirection()
     }else{
         return _forward;
     }
+}
+
+void Camera::updateSpeed(float speed){
+    _speed = speed;
 }
 
 void Camera::updateSize(uint32_t width, uint32_t height)

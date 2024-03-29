@@ -8,7 +8,7 @@ void VulkanEngine::init()
 
 	_core._window = SDL_CreateWindow("Vulkan Pathtracer", _core._windowExtent.width, _core._windowExtent.height, SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
 
-	_cam = Camera(Camera::Type::eTrackBall, _core._window, _core._windowExtent.width, _core._windowExtent.height, glm::vec3(1.0f), glm::vec3(0.0f));
+	_cam = Camera(Camera::Type::eTrackBall, _core._window, _core._windowExtent.width, _core._windowExtent.height, glm::vec3(1.0f), glm::vec3(0.0f), 1.5f);
 
 	init_vulkan();
 
@@ -193,19 +193,21 @@ void VulkanEngine::draw()
 
 			cmd.pipelineBarrier(vk::PipelineStageFlagBits::eRayTracingShaderKHR, vk::PipelineStageFlagBits::eComputeShader, {}, test, nullptr, nullptr);
 
-			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[0]);
-			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
-			cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
-			cmd.dispatch(groupCountX, groupCountY, groupCountZ);
+			if(_gui.settings.auto_exposure){
+				cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[0]);
+				cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
+				cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
+				cmd.dispatch(groupCountX, groupCountY, groupCountZ);
 
-			cmd.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, {}, test, nullptr, nullptr);
+				cmd.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, {}, test, nullptr, nullptr);
 
-			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[1]);
-			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
-			cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
-			cmd.dispatch(1, 1, 1);
+				cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[1]);
+				cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
+				cmd.pushConstants(_computePipelineLayout, vk::ShaderStageFlagBits::eCompute, 0, sizeof(vkutils::ComputeConstants), &ComputeConstants);
+				cmd.dispatch(1, 1, 1);
 
-			cmd.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, {}, test, nullptr, nullptr);
+				cmd.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader, vk::PipelineStageFlagBits::eComputeShader, {}, test, nullptr, nullptr);
+			}
 
 			cmd.bindPipeline(vk::PipelineBindPoint::eCompute, _computePipelines[2]);
 			cmd.bindDescriptorSets(vk::PipelineBindPoint::eCompute, _computePipelineLayout, 0, 1, &get_current_frame()._computeDescriptor, 0, 0);
@@ -1545,6 +1547,7 @@ void VulkanEngine::updateBuffers() {
 		_cam.changed = true;
 	}
 	// shwo cam pos
+	_cam.updateSpeed(_gui.settings.speed);
 	glm::vec3 cam_pos = _cam.getPosition();
 	glm::vec3 cam_dir = _cam.getDirection();
 	_gui.settings.cam_pos = cam_pos;

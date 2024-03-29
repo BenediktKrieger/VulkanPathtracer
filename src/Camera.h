@@ -10,10 +10,11 @@ public:
         eFirstPerson
     };
     Camera();
-	Camera(Type type, SDL_Window* window, uint32_t width, uint32_t height, glm::vec3 eye, glm::vec3 center);
+	Camera(Type type, SDL_Window* window, uint32_t width, uint32_t height, glm::vec3 eye, glm::vec3 center, float speed);
     void update();
     glm::vec3 getPosition();
     glm::vec3 getDirection();
+    void updateSpeed(float speed);
     void updateSize(uint32_t width, uint32_t height);
     glm::mat4 getView();
     void handleInputEvent(const SDL_Event *event);
@@ -32,6 +33,7 @@ private:
     float _radius;
     float _xpos;
     float _ypos;
+    float _speed;
     Type _type;
     bool _buttonState_W;
     bool _buttonState_A;
