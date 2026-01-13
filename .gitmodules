@@ -12,7 +12,7 @@
 	url = https://github.com/syoyo/tinygltf.git
 [submodule "third_party/imgui"]
 	path = third_party/imgui
-	url = https://github.com/BenediktKrieger/imgui.git
+	url = https://github.com/BenediktKriegerDev/imgui.git
 	branch = docking
 [submodule "third_party/shaderc"]
 	path = third_party/shaderc
