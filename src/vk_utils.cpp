@@ -288,7 +288,9 @@ vkutils::AllocatedBuffer vkutils::createBuffer(vk::Core &core, vk::DeviceSize si
 	bufferAllocInfo.flags = memoryFlags;
 
     vkutils::AllocatedBuffer allocatedBuffer;
-	std::tie(allocatedBuffer._buffer, allocatedBuffer._allocation) = core._allocator.createBuffer(bufferInfo, bufferAllocInfo);
+	std::pair<vma::Allocation, vk::Buffer> result = core._allocator.createBuffer(bufferInfo, bufferAllocInfo);
+    allocatedBuffer._allocation = result.first;
+    allocatedBuffer._buffer = result.second;
     return allocatedBuffer;
 }
 
@@ -325,7 +327,9 @@ vkutils::AllocatedImage vkutils::createImage(vk::Core &core, vk::ImageCreateInfo
 	imageAllocInfo.flags = memoryFlags;
 
     vkutils::AllocatedImage allocatedImage;
-	std::tie(allocatedImage._image, allocatedImage._allocation) = core._allocator.createImage(imageInfo, imageAllocInfo);
+	std::pair<vma::Allocation, vk::Image> result = core._allocator.createImage(imageInfo, imageAllocInfo);
+    allocatedImage._allocation = result.first;
+    allocatedImage._image = result.second;
     allocatedImage._view = vkutils::createImageView(core, allocatedImage._image, imageInfo.format, aspectFlags);
 
     return allocatedImage;

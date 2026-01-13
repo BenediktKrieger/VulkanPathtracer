@@ -33,7 +33,7 @@ namespace vk {
 
         vk::Extent2D _windowExtent{1920, 1080};
         SDL_Window* _window{nullptr};
-        vk::DynamicLoader _dl;
+        vk::detail::DynamicLoader _dl;
         vma::Allocator _allocator;
         vk::DebugUtilsMessengerEXT _debug_messenger;
 

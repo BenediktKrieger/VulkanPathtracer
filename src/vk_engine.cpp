@@ -325,8 +325,7 @@ vkutils::FrameData& VulkanEngine::get_current_frame()
 
 void VulkanEngine::init_vulkan()
 {
-	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr = _core._dl.getProcAddress<PFN_vkGetInstanceProcAddr>("vkGetInstanceProcAddr");
-	VULKAN_HPP_DEFAULT_DISPATCHER.init(vkGetInstanceProcAddr);
+	VULKAN_HPP_DEFAULT_DISPATCHER.init(_core._dl);
 	if (_core.useValidationLayers && !vkutils::checkValidationLayerSupport(_core._instanceLayers))
 	{
 		throw std::runtime_error("validation layers requested, but not available!");
@@ -970,9 +969,9 @@ void VulkanEngine::init_pipelines()
 			vk::RayTracingShaderGroupCreateInfoKHR shaderGroup;
 			shaderGroup.type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
 			shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-			shaderGroup.closestHitShader = vk::ShaderUnusedKhr;
-			shaderGroup.anyHitShader = vk::ShaderUnusedKhr;
-			shaderGroup.intersectionShader = vk::ShaderUnusedKhr;
+			shaderGroup.closestHitShader = vk::ShaderUnusedKHR;
+			shaderGroup.anyHitShader = vk::ShaderUnusedKHR;
+			shaderGroup.intersectionShader = vk::ShaderUnusedKHR;
 			_shaderGroups.push_back(shaderGroup);
 		}
 
@@ -983,9 +982,9 @@ void VulkanEngine::init_pipelines()
 			vk::RayTracingShaderGroupCreateInfoKHR shaderGroup;
 			shaderGroup.type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
 			shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-			shaderGroup.closestHitShader = vk::ShaderUnusedKhr;
-			shaderGroup.anyHitShader = vk::ShaderUnusedKhr;
-			shaderGroup.intersectionShader = vk::ShaderUnusedKhr;
+			shaderGroup.closestHitShader = vk::ShaderUnusedKHR;
+			shaderGroup.anyHitShader = vk::ShaderUnusedKHR;
+			shaderGroup.intersectionShader = vk::ShaderUnusedKHR;
 			_shaderGroups.push_back(shaderGroup);
 		}
 
@@ -996,9 +995,9 @@ void VulkanEngine::init_pipelines()
 			vk::RayTracingShaderGroupCreateInfoKHR shaderGroup;
 			shaderGroup.type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
 			shaderGroup.generalShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-			shaderGroup.closestHitShader = vk::ShaderUnusedKhr;
-			shaderGroup.anyHitShader = vk::ShaderUnusedKhr;
-			shaderGroup.intersectionShader = vk::ShaderUnusedKhr;
+			shaderGroup.closestHitShader = vk::ShaderUnusedKHR;
+			shaderGroup.anyHitShader = vk::ShaderUnusedKHR;
+			shaderGroup.intersectionShader = vk::ShaderUnusedKHR;
 			_shaderGroups.push_back(shaderGroup);
 		}
 
@@ -1010,10 +1009,10 @@ void VulkanEngine::init_pipelines()
 			shaderStages.push_back(vkinit::pipeline_shader_stage_create_info(vk::ShaderStageFlagBits::eAnyHitKHR, aHitShader));
 			vk::RayTracingShaderGroupCreateInfoKHR shaderGroup;
 			shaderGroup.type = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
-			shaderGroup.generalShader = vk::ShaderUnusedKhr;
+			shaderGroup.generalShader = vk::ShaderUnusedKHR;
 			shaderGroup.closestHitShader = static_cast<uint32_t>(shaderStages.size()) - 2;
 			shaderGroup.anyHitShader = static_cast<uint32_t>(shaderStages.size()) - 1;
-			shaderGroup.intersectionShader = vk::ShaderUnusedKhr;
+			shaderGroup.intersectionShader = vk::ShaderUnusedKHR;
 			_shaderGroups.push_back(shaderGroup);
 		}
 
