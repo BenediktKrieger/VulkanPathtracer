@@ -2,11 +2,12 @@
 #define VULKAN_HPP_DISPATCH_LOADER_DYNAMIC 1
 #define VK_ENABLE_BETA_EXTENSIONS
 #define GLM_FORCE_RADIANS
+#define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define TINYGLTF_USE_CPP14
 #include <vulkan/vulkan.hpp>
-#include <SDL.h>
-#include <SDL_vulkan.h>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_vulkan.h>
 #include <vk_mem_alloc.hpp>
 #include <tiny_gltf.h>
 #include <glm/glm.hpp>

@@ -62,36 +62,36 @@ void Camera::handleInputEvent(const SDL_Event *event)
             }
             break;
         case SDL_EVENT_KEY_DOWN:
-            if (event->key.keysym.sym == SDLK_w) {
+            if (event->key.key == SDLK_W) {
                 _buttonState_W = true;
-            } else if (event->key.keysym.sym == SDLK_a) {
+            } else if (event->key.key == SDLK_A) {
                 _buttonState_A = true;
-            } else if (event->key.keysym.sym == SDLK_s) {
+            } else if (event->key.key == SDLK_S) {
                 _buttonState_S = true;
-            } else if (event->key.keysym.sym == SDLK_d) {
+            } else if (event->key.key == SDLK_D) {
                 _buttonState_D = true;
-            } else if (event->key.keysym.sym == SDLK_c) {
+            } else if (event->key.key == SDLK_C) {
                 _buttonState_C = true;
-            } else if (event->key.keysym.sym == SDLK_LCTRL) {
+            } else if (event->key.key == SDLK_LCTRL) {
                 _buttonState_LCTRL = true;
-            } else if (event->key.keysym.sym == SDLK_SPACE) {
+            } else if (event->key.key == SDLK_SPACE) {
                 _buttonState_SPACE = true;
             }
             break;
         case SDL_EVENT_KEY_UP:
-            if (event->key.keysym.sym == SDLK_w) {
+            if (event->key.key == SDLK_W) {
                 _buttonState_W = false;
-            } else if (event->key.keysym.sym == SDLK_a) {
+            } else if (event->key.key == SDLK_A) {
                 _buttonState_A = false;
-            } else if (event->key.keysym.sym == SDLK_s) {
+            } else if (event->key.key == SDLK_S) {
                 _buttonState_S = false;
-            } else if (event->key.keysym.sym == SDLK_d) {
+            } else if (event->key.key == SDLK_D) {
                 _buttonState_D = false;
-            } else if (event->key.keysym.sym == SDLK_c) {
+            } else if (event->key.key == SDLK_C) {
                 _buttonState_C = false;
-            } else if (event->key.keysym.sym == SDLK_LCTRL) {
+            } else if (event->key.key == SDLK_LCTRL) {
                 _buttonState_LCTRL = false;
-            } else if (event->key.keysym.sym == SDLK_SPACE) {
+            } else if (event->key.key == SDLK_SPACE) {
                 _buttonState_SPACE = false;
             }
             break;

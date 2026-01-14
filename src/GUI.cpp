@@ -132,7 +132,18 @@ vk::GUI::GUI(vk::Core *core)
 
 	ImGui_ImplSDL3_InitForVulkan(_core->_window);
 
+    VkFormat colorAttachmentFormats[1];
+    colorAttachmentFormats[0] = (VkFormat) _core->_swapchainImageFormat;
+
+
+    ImGui_ImplVulkan_PipelineInfo pipeline_info = {};
+    pipeline_info.RenderPass = _renderPass;
+    pipeline_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    pipeline_info.PipelineRenderingCreateInfo.colorAttachmentCount = 1;
+    pipeline_info.PipelineRenderingCreateInfo.pColorAttachmentFormats = &colorAttachmentFormats[0];
+
 	ImGui_ImplVulkan_InitInfo init_info = {};
+    init_info.ApiVersion = VK_API_VERSION_1_3;
 	init_info.Instance = _core->_instance;
 	init_info.PhysicalDevice = _core->_chosenGPU;
 	init_info.Device = _core->_device;
@@ -140,14 +151,12 @@ vk::GUI::GUI(vk::Core *core)
 	init_info.DescriptorPool = (VkDescriptorPool) _pool;
 	init_info.MinImageCount = 3;
 	init_info.ImageCount = 3;
-    init_info.ColorAttachmentFormat = (VkFormat) _core->_swapchainImageFormat;
-	init_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
+    init_info.PipelineInfoMain = pipeline_info;
 
     initRenderPass();
     initFrambuffers();
 
-	ImGui_ImplVulkan_Init(&init_info, _renderPass);
-	ImGui_ImplVulkan_CreateFontsTexture();
+	ImGui_ImplVulkan_Init(&init_info);
 }
 
 void vk::GUI::initRenderPass()

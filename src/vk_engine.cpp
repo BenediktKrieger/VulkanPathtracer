@@ -272,7 +272,7 @@ void VulkanEngine::run()
 			}
 			else if (e.type == SDL_EVENT_KEY_DOWN)
 			{
-				if (e.key.keysym.sym == SDLK_r)
+				if (e.key.key == SDLK_R)
 				{
 					_gui.settings.renderer += 1;
 					if (_gui.settings.renderer > 1)
@@ -295,19 +295,19 @@ void VulkanEngine::run()
 			if(!(e.type == SDL_EVENT_MOUSE_BUTTON_DOWN && e.button.button == SDL_BUTTON_LEFT || e.type == SDL_EVENT_MOUSE_WHEEL) || !io.WantCaptureMouse){
 				_cam.handleInputEvent(&e);
 			}
-			if(e.type == SDL_EVENT_KEY_DOWN && e.key.keysym.sym == SDLK_f){
+			if(e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_F){
 				if(_fullscreen){
-					SDL_SetWindowFullscreen(_core._window, SDL_FALSE);
+					SDL_SetWindowFullscreen(_core._window, false);
 					_framebufferResized = true;
 					_fullscreen = false;
 				}else{
-					SDL_SetWindowFullscreen(_core._window, SDL_TRUE);
+					SDL_SetWindowFullscreen(_core._window, true);
 					_framebufferResized = true;
 					_fullscreen = true;
 				}
 			}
-			if(e.type == SDL_EVENT_KEY_DOWN && e.key.keysym.sym == SDLK_ESCAPE && _fullscreen){
-				SDL_SetWindowFullscreen(_core._window, SDL_FALSE);
+			if(e.type == SDL_EVENT_KEY_DOWN && e.key.key == SDLK_ESCAPE && _fullscreen){
+				SDL_SetWindowFullscreen(_core._window, false);
 				_framebufferResized = true;
 				_fullscreen = false;
 			}
@@ -330,12 +330,18 @@ void VulkanEngine::init_vulkan()
 	{
 		throw std::runtime_error("validation layers requested, but not available!");
 	}
-	unsigned int sdl_extensions_count = 0;
-	SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count, NULL);
-	_core._instanceExtensions.resize(sdl_extensions_count);
-	SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count, _core._instanceExtensions.data());
+	uint32_t sdl_extensions_count = 0;
+	auto data = SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count);
+	std::vector<const char *> _SDLInstanceExtensions = std::vector<const char *>(data, data + sdl_extensions_count);
+	_core._instanceExtensions.reserve(_SDLInstanceExtensions.size());
+	for (auto &SDLExtension : _SDLInstanceExtensions)
+	{
+		_core._instanceExtensions.emplace_back(SDLExtension);
+	}
+	std::sort(_core._instanceExtensions.begin(), _core._instanceExtensions.end());
+	_core._instanceExtensions.erase(std::unique(_core._instanceExtensions.begin(), _core._instanceExtensions.end()), _core._instanceExtensions.end());
 
-	vk::ApplicationInfo applicationInfo("Vulkan Pathtracer", VK_MAKE_VERSION(0, 0, 1), "VulkanEngine", 1, VK_API_VERSION_1_2);
+	vk::ApplicationInfo applicationInfo("Vulkan Pathtracer", VK_MAKE_VERSION(0, 0, 1), "VulkanEngine", 1, VK_API_VERSION_1_3);
 
 	try
 	{
@@ -373,7 +379,7 @@ void VulkanEngine::init_vulkan()
 		}
 	}
 
-	SDL_Vulkan_CreateSurface(_core._window, _core._instance, reinterpret_cast<VkSurfaceKHR *>(&_core._surface));
+	SDL_Vulkan_CreateSurface(_core._window, _core._instance, NULL, reinterpret_cast<VkSurfaceKHR *>(&_core._surface));
 
 	std::vector<vk::PhysicalDevice> devices = _core._instance.enumeratePhysicalDevices();
 	bool deviceFound = false;
@@ -734,7 +740,7 @@ void VulkanEngine::init_hdr_map()
 
 	int texWidth, texHeight, texChannels;
 	stbi_set_flip_vertically_on_load(true);
-    float* pixels = stbi_loadf(ASSET_PATH"/environment_maps/sea.hdr", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
+	float* pixels = stbi_loadf(ASSET_PATH"/environment_maps/sea.hdr", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	stbi_set_flip_vertically_on_load(false);
     vk::DeviceSize imageSize = texWidth * texHeight * 4;
 
@@ -1181,10 +1187,9 @@ void VulkanEngine::init_descriptors()
 		std::vector<vk::DescriptorPoolSize> poolSizes = {
 			{ vk::DescriptorType::eAccelerationStructureKHR, 1 },
 			{ vk::DescriptorType::eStorageImage, 1 },
-			{ vk::DescriptorType::eStorageBuffer, 1 },
-			{ vk::DescriptorType::eStorageBuffer, 1 },
-			{ vk::DescriptorType::eStorageBuffer, 1 },
-			{ vk::DescriptorType::eCombinedImageSampler, static_cast<uint32_t>(_currentScene->textures.size())}
+			{ vk::DescriptorType::eStorageBuffer, 4 },
+			{ vk::DescriptorType::eCombinedImageSampler, static_cast<uint32_t>(_currentScene->textures.size()) + 1 },
+			{ vk::DescriptorType::eUniformBuffer, 1 }
 		};
 		vk::DescriptorPoolCreateInfo pool_info;
 		pool_info.setMaxSets(3);
@@ -1316,8 +1321,9 @@ void VulkanEngine::init_descriptors()
 	{
 		std::vector<vk::DescriptorPoolSize> poolSizes =
 		{
-			{vk::DescriptorType::eStorageImage, 1 },
-			{vk::DescriptorType::eStorageImage, 1 }
+			{ vk::DescriptorType::eStorageBuffer, 1 },
+			{ vk::DescriptorType::eStorageImage, 2 },
+			{ vk::DescriptorType::eUniformBuffer, 1 }
 		};
 
 		vk::DescriptorPoolCreateInfo pool_info;
@@ -1478,7 +1484,7 @@ void VulkanEngine::load_models()
 
 	// load bistro optimized
 	Scene* scene1 = new Scene(_core);
-	scene1->add(ASSET_PATH"/models/bathroom.glb");
+	scene1->add(ASSET_PATH"/models/RedBox.glb");
 	// scene1->add(ASSET_PATH"/models/dragon.glb");
 	// scene1->add(ASSET_PATH"/models/bunny.glb", glm::scale(glm::mat4(1.0), glm::vec3(0.8)));
 	// scene1->add(ASSET_PATH"/models/sphere_plastic.glb", glm::scale(glm::translate(glm::mat4(1.0), glm::vec3(-0.5, -0.5, 0.5)), glm::vec3(0.25))); 
