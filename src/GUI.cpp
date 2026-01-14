@@ -135,7 +135,9 @@ vk::GUI::GUI(vk::Core *core)
     VkFormat colorAttachmentFormats[1];
     colorAttachmentFormats[0] = (VkFormat) _core->_swapchainImageFormat;
 
-
+    initRenderPass();
+    initFrambuffers();
+    
     ImGui_ImplVulkan_PipelineInfo pipeline_info = {};
     pipeline_info.RenderPass = _renderPass;
     pipeline_info.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
@@ -152,9 +154,6 @@ vk::GUI::GUI(vk::Core *core)
 	init_info.MinImageCount = 3;
 	init_info.ImageCount = 3;
     init_info.PipelineInfoMain = pipeline_info;
-
-    initRenderPass();
-    initFrambuffers();
 
 	ImGui_ImplVulkan_Init(&init_info);
 }
@@ -467,6 +466,7 @@ void vk::GUI::destroyFramebuffer()
 void vk::GUI::destroy()
 {
     ImGui_ImplVulkan_Shutdown();
+    ImGui_ImplSDL3_Shutdown();
     _core->_device.destroyDescriptorPool(_pool);
     destroyFramebuffer();
     _core->_device.destroyRenderPass(_renderPass);
