@@ -37,6 +37,9 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
 #add vma
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma)
 
+#add vma hpp
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma-hpp/include)
+
 #add tinygltf
 set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)
 set(TINYGLTF_INSTALL OFF CACHE INTERNAL "" FORCE)
