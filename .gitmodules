@@ -17,3 +17,6 @@
 [submodule "third_party/shaderc"]
 	path = third_party/shaderc
 	url = https://github.com/BenediktKrieger/shaderc
+[submodule "third_party/vma-hpp"]
+	path = third_party/vma-hpp
+	url = https://github.com/YaaZ/VulkanMemoryAllocator-Hpp.git
