@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7)
+cmake_minimum_required(VERSION 3.10)
 project(VkPathtracer VERSION 1.0.0)
 
 add_compile_definitions(SHADER_PATH="${PROJECT_SOURCE_DIR}/shader" ASSET_PATH="${PROJECT_SOURCE_DIR}/assets" _CRT_SECURE_NO_WARNINGS)
@@ -37,6 +37,7 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
 #add vma hpp
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma-hpp/VulkanMemoryAllocator)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma-hpp/include)
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${PROJECT_SOURCE_DIR}/third_party/vma-hpp/include)
 
 #add tinygltf
 set(TINYGLTF_HEADER_ONLY ON CACHE INTERNAL "" FORCE)

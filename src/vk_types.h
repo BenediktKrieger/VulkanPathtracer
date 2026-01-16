@@ -8,7 +8,7 @@
 #include <vulkan/vulkan.hpp>
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
-#include <include/vk_mem_alloc.hpp>
+#include <vk_mem_alloc.hpp>
 #include <tiny_gltf.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
