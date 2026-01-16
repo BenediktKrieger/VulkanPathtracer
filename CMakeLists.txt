@@ -34,10 +34,8 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/sdl)
 #add glm
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/glm)
 
-#add vma
-add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma)
-
 #add vma hpp
+add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma-hpp/VulkanMemoryAllocator)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/vma-hpp/include)
 
 #add tinygltf
@@ -56,7 +54,7 @@ set(SHADERC_SKIP_TESTS ON)
 set(SHADERC_SKIP_EXAMPLES ON)
 add_subdirectory(${PROJECT_SOURCE_DIR}/third_party/shaderc)
 
-target_link_libraries(${CMAKE_PROJECT_NAME} shaderc glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator imgui)
+target_link_libraries(${CMAKE_PROJECT_NAME} shaderc glm SDL3::SDL3 GPUOpen::VulkanMemoryAllocator imgui ${CMAKE_DL_LIBS})
 
 
 #add vma
